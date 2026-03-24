@@ -131,14 +131,14 @@ Headers: `Authorization: Bearer {JOBPLATFORM_INGEST_KEY}` + `X-Hadoku-Signature:
 
 ### Scraper implementation order (from scraper team)
 
-1. Greenhouse + Lever company enumeration → KV + webhook (no auth needed, immediate)
+1. Greenhouse + Lever company enumeration → KV + webhook (immediate)
 2. `jobplatform.json` config + `POST /api/v1/jobboards/search` route
-3. LinkedIn search URL builder (blocked on `li_at` cookie auth confirmation)
+3. LinkedIn search URL builder (unblocked — see auth note below)
 4. hadoku-site scheduler hookup
 
-### Open: LinkedIn auth
+### LinkedIn auth
 
-Scraper requires a valid `li_at` cookie for LinkedIn authenticated sessions. Without it: public listings only, no salary/applicant data, higher rate-limiting risk. **Need to confirm whether to provide this before LinkedIn work starts.**
+No blocker. Scraper uses `browser-cookie3` to extract `li_at` directly from Firefox/Chrome on the local machine. Only requirement: be logged into LinkedIn in the browser. All three sources can proceed in parallel.
 
 ---
 
@@ -341,7 +341,7 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 ## Open Questions
 
-- [ ] **LinkedIn `li_at` cookie** — provide credentials to scraper team to unlock LinkedIn auth? Without it: public listings only, no salary data, higher rate-limit risk
+- [x] **LinkedIn `li_at` cookie** — no blocker. Scraper uses browser-cookie3 to extract the cookie automatically from Firefox/Chrome. Only requirement: be logged into LinkedIn in the local browser.
 - [ ] **Auth on read endpoints** — confirm whether hadoku_site passes an auth header downstream to the worker
 - [ ] **resume-bot blocks design** — needs a separate design session before V2 starts
 - [ ] **Greenhouse/Lever company lists** — finalize the lists of companies to enumerate for each source
