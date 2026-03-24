@@ -6,8 +6,8 @@
  *
  * @example
  * ```typescript
- * // In hadoku_site/workers/job-platform-api/src/index.ts
- * import { createFetchHandler, createScheduledHandler } from '@wolffm/job-platform-worker';
+ * // In hadoku_site/workers/jobplatform-api/src/index.ts
+ * import { createFetchHandler, createScheduledHandler } from '@wolffm/jobplatform-worker';
  *
  * export default {
  *   async fetch(request, env) {
@@ -80,15 +80,15 @@ function createApp() {
 	// Health check (public)
 	app.route('/', healthRoutes);
 
-	// Example CRUD routes (mounted at /api/job-platform)
-	app.route('/api/job-platform', exampleRoutes);
+	// Example CRUD routes (mounted at /api/jobplatform)
+	app.route('/api/jobplatform', exampleRoutes);
 
 	// --------------------------------------------------------------------------
 	// OpenAPI Spec Endpoint
 	// --------------------------------------------------------------------------
 
 	app.doc(
-		'/api/job-platform/openapi.json',
+		'/api/jobplatform/openapi.json',
 		createOpenAPIDocConfig({
 			title: 'Job Platform API',
 			version: '1.0.0',
@@ -103,7 +103,7 @@ API for Job Platform.
 ## Usage
 See the endpoint documentation below for details on each operation.
 			`,
-			production: 'https://job-platform-api.hadoku.workers.dev',
+			production: 'https://jobplatform-api.hadoku.workers.dev',
 			tags: [
 				{ name: 'Health', description: 'Health check endpoints' },
 				{ name: 'Items', description: 'Example CRUD operations' },
@@ -145,7 +145,7 @@ export function createFetchHandler(env: AppEnv) {
  */
 export function createScheduledHandler(env: AppEnv) {
 	return async (cron: string) => {
-		console.log(`[job-platform-worker] Scheduled task: ${cron}`);
+		console.log(`[jobplatform-worker] Scheduled task: ${cron}`);
 
 		// Add your scheduled task logic here
 		// Example:

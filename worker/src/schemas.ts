@@ -21,7 +21,7 @@ export const ErrorResponseSchema = DetailedErrorResponseSchema;
 export const HealthResponseSchema = z
 	.object({
 		status: z.enum(['healthy', 'degraded', 'unhealthy']),
-		service: z.literal('job-platform-worker'),
+		service: z.literal('jobplatform-worker'),
 		timestamp: z.string(),
 		version: z.string().optional(),
 	})

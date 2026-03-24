@@ -4,13 +4,13 @@ This is a Cloudflare Worker package that exports factory functions for hadoku_si
 
 ## Architecture
 
-This package is consumed by a thin host worker in `hadoku_site/workers/job-platform-api/`.
+This package is consumed by a thin host worker in `hadoku_site/workers/jobplatform-api/`.
 
 ```
-@wolffm/job-platform-worker (this package)
+@wolffm/jobplatform-worker (this package)
   └── Exports: createFetchHandler(), createScheduledHandler(), types
 
-hadoku_site/workers/job-platform-api (host worker)
+hadoku_site/workers/jobplatform-api (host worker)
   └── Imports this package and delegates requests
 ```
 

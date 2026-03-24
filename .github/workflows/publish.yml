@@ -14,8 +14,8 @@ on:
 # PM2_SERVICE_NAME:    PM2 service to redeploy on hadoku-server
 #                      (leave empty if no tunnel service)
 env:
-  PACKAGE_NAME: "@wolffm/job-platform"
-  WORKER_PACKAGE_NAME: "@wolffm/job-platform-worker"
+  PACKAGE_NAME: "@wolffm/jobplatform"
+  WORKER_PACKAGE_NAME: "@wolffm/jobplatform-worker"
   PM2_SERVICE_NAME: ""
 
 permissions:
@@ -50,7 +50,7 @@ jobs:
         run: pnpm run build
 
       - name: Build worker package
-        run: pnpm --filter @wolffm/job-platform-worker run build
+        run: pnpm --filter @wolffm/jobplatform-worker run build
 
       - name: Check if UI package changed
         id: ui_changed
@@ -132,7 +132,7 @@ jobs:
 
       - name: Publish worker package
         if: steps.worker_changed.outputs.changed == 'true'
-        run: pnpm --filter @wolffm/job-platform-worker publish --no-git-checks
+        run: pnpm --filter @wolffm/jobplatform-worker publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
 
