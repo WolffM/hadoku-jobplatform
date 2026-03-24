@@ -5,8 +5,7 @@
  * Replace with your actual business logic.
  */
 
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from '@hono/zod-openapi';
+import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import { okWrapped, createdWrapped, type HadokuAuthContext } from '@wolffm/worker-utils';
 import {
 	ExampleItemsResponseSchema,
@@ -40,7 +39,7 @@ interface ExampleItem {
 }
 
 // Note: In production, use D1 or KV. This is just for demo.
-const items: Map<string, ExampleItem> = new Map([
+const items = new Map<string, ExampleItem>([
 	[
 		'demo-1',
 		{

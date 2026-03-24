@@ -36,7 +36,7 @@ const healthRoute = createRoute({
 	},
 });
 
-app.openapi(healthRoute, async (c) => {
+app.openapi(healthRoute, (c) => {
 	// Add any health checks here (DB connectivity, external services, etc.)
 	// Example with D1:
 	// try {
