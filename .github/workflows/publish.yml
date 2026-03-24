@@ -1,0 +1,188 @@
+name: Publish & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# ============================================================
+# Deploy Configuration
+# ============================================================
+# PACKAGE_NAME:        npm package published by this repo (always set)
+# WORKER_PACKAGE_NAME: worker package name, if this repo also publishes a worker
+#                      (leave empty if no worker)
+# PM2_SERVICE_NAME:    PM2 service to redeploy on hadoku-server
+#                      (leave empty if no tunnel service)
+env:
+  PACKAGE_NAME: "@wolffm/job-platform"
+  WORKER_PACKAGE_NAME: "@wolffm/job-platform-worker"
+  PM2_SERVICE_NAME: ""
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://npm.pkg.github.com
+          scope: "@wolffm"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Build UI package
+        run: pnpm run build
+
+      - name: Build worker package
+        run: pnpm --filter @wolffm/job-platform-worker run build
+
+      - name: Check if UI package changed
+        id: ui_changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -qv '^worker/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if worker package changed
+        id: worker_changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^worker/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check and bump UI version if needed
+        if: steps.ui_changed.outputs.changed == 'true'
+        run: |
+          package_name=$(node -p "require('./package.json').name")
+          current_version=$(node -p "require('./package.json').version")
+          echo "Current version: $current_version"
+          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
+            echo "Version $current_version already published, bumping..."
+            major=$(echo $current_version | cut -d. -f1)
+            minor=$(echo $current_version | cut -d. -f2)
+            patch=$(echo $current_version | cut -d. -f3)
+            if [ $patch -eq 20 ]; then
+              new_minor=$((minor + 1))
+              new_version="$major.$new_minor.0"
+            else
+              new_patch=$((patch + 1))
+              new_version="$major.$minor.$new_patch"
+            fi
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
+            echo "Version bumped: $current_version -> $new_version"
+            pnpm install --lockfile-only
+          else
+            echo "Version $current_version not published yet"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Check and bump worker version if needed
+        if: steps.worker_changed.outputs.changed == 'true'
+        run: |
+          package_name=$(node -p "require('./worker/package.json').name")
+          current_version=$(node -p "require('./worker/package.json').version")
+          echo "Current worker version: $current_version"
+          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
+            echo "Version $current_version already published, bumping..."
+            major=$(echo $current_version | cut -d. -f1)
+            minor=$(echo $current_version | cut -d. -f2)
+            patch=$(echo $current_version | cut -d. -f3)
+            if [ $patch -eq 20 ]; then
+              new_minor=$((minor + 1))
+              new_version="$major.$new_minor.0"
+            else
+              new_patch=$((patch + 1))
+              new_version="$major.$minor.$new_patch"
+            fi
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('worker/package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('worker/package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
+            echo "Worker version bumped: $current_version -> $new_version"
+            pnpm install --lockfile-only
+          else
+            echo "Version $current_version not published yet"
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Publish UI package
+        if: steps.ui_changed.outputs.changed == 'true'
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Publish worker package
+        if: steps.worker_changed.outputs.changed == 'true'
+        run: pnpm --filter @wolffm/job-platform-worker publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Notify parent about deployment
+        if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
+        env:
+          HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+        run: |
+          if [ -z "$HADOKU_SITE_TOKEN" ]; then
+            echo "Warning: HADOKU_SITE_TOKEN not available, skipping notifications"
+            exit 0
+          fi
+
+          API_URL="https://api.github.com/repos/WolffM/hadoku_site/dispatches"
+          AUTH_HEADER="Authorization: Bearer $HADOKU_SITE_TOKEN"
+
+          # Build packages array — always includes both packages when worker exists
+          PACKAGES="\"$PACKAGE_NAME\""
+          if [ -n "$WORKER_PACKAGE_NAME" ]; then
+            PACKAGES="$PACKAGES, \"$WORKER_PACKAGE_NAME\""
+          fi
+
+          # Dispatch packages_updated (triggers update-packages → deploy)
+          echo "Dispatching packages_updated: [$PACKAGES]"
+          status=$(curl -sS -o /dev/null -w "%{http_code}" \
+            -X POST "$API_URL" \
+            -H "Accept: application/vnd.github+json" \
+            -H "$AUTH_HEADER" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "{\"event_type\": \"packages_updated\", \"client_payload\": {\"packages\": [$PACKAGES], \"sha\": \"${{ github.sha }}\", \"ref\": \"${{ github.ref }}\"}}")
+
+          if [ "$status" = "204" ]; then
+            echo "  packages_updated dispatched"
+          else
+            echo "  Failed to dispatch packages_updated (HTTP $status)"
+          fi
+
+          # Dispatch PM2 redeploy if configured
+          if [ -n "$PM2_SERVICE_NAME" ]; then
+            echo "Dispatching redeploy_service: $PM2_SERVICE_NAME"
+            status=$(curl -sS -o /dev/null -w "%{http_code}" \
+              -X POST "$API_URL" \
+              -H "Accept: application/vnd.github+json" \
+              -H "$AUTH_HEADER" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d "{\"event_type\": \"redeploy_service\", \"client_payload\": {\"service\": \"$PM2_SERVICE_NAME\", \"sha\": \"${{ github.sha }}\"}}")
+
+            if [ "$status" = "204" ]; then
+              echo "  redeploy_service dispatched"
+            else
+              echo "  Failed to dispatch redeploy_service (HTTP $status)"
+            fi
+          fi

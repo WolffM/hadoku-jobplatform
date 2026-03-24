@@ -1,0 +1,83 @@
+/**
+ * Theme System CSS
+ * Uses @wolffm/themes for consistent theming across all apps
+ *
+ * ACCESSIBILITY: All text colors must meet WCAG AA contrast (4.5:1).
+ * Use theme variables (--color-text, --color-text-secondary) which are
+ * pre-validated. Never hardcode colors — use theme tokens only.
+ */
+
+/* Light themes - explicit color scheme */
+.job-platform-container[data-theme='light'],
+.job-platform-container[data-theme='coffee-light'],
+.job-platform-container[data-theme='nature-light'],
+.job-platform-container[data-theme='lavender-light'],
+.job-platform-container[data-theme='strawberry-light'],
+.job-platform-container[data-theme='ocean-light'],
+.job-platform-container[data-theme='cyberpunk-light'],
+.job-platform-container[data-theme='pink-light'] {
+  color-scheme: light;
+}
+
+/* Dark themes - explicit color scheme, tells Dark Reader not to invert */
+.job-platform-container[data-theme='dark'],
+.job-platform-container[data-theme='coffee-dark'],
+.job-platform-container[data-theme='nature-dark'],
+.job-platform-container[data-theme='lavender-dark'],
+.job-platform-container[data-theme='strawberry-dark'],
+.job-platform-container[data-theme='ocean-dark'],
+.job-platform-container[data-theme='cyberpunk-dark'],
+.job-platform-container[data-theme='pink-dark'] {
+  color-scheme: dark only; /* "only" tells Dark Reader to leave it alone */
+}
+
+/* Dark Reader detection helper */
+.job-platform-container[data-dark-theme='true'] {
+  --is-dark-theme: 1;
+}
+
+/* Main container */
+.job-platform-container {
+  min-height: 100vh;
+  background-color: var(--color-bg, #ffffff);
+  color: var(--color-text, #000000);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.job-platform {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.job-platform__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.job-platform__header h1 {
+  margin: 0;
+  color: var(--color-primary, #0066cc);
+  font-size: var(--hdk-text-lg, 1.5rem);
+  font-weight: var(--font-weight-bold, 700);
+}
+
+.job-platform__content {
+  padding: 1rem;
+  background-color: var(--color-bg-card, #f9fafb);
+  border-radius: var(--hdk-radius, 8px);
+  box-shadow: var(--hdk-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.job-platform__content p {
+  margin: 0.5rem 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-base, 1rem);
+  line-height: var(--line-height-relaxed, 1.625);
+}
