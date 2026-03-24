@@ -143,8 +143,8 @@ export function createFetchHandler(env: AppEnv) {
  * @param env - Worker environment bindings
  * @returns Cron handler function
  */
-export function createScheduledHandler(env: AppEnv) {
-	return async (cron: string) => {
+export function createScheduledHandler(_env: AppEnv) {
+	return (cron: string) => {
 		console.log(`[jobplatform-worker] Scheduled task: ${cron}`);
 
 		// Add your scheduled task logic here

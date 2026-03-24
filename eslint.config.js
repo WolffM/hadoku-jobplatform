@@ -26,7 +26,7 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: './tsconfig.json'
+        project: ['./tsconfig.json', './worker/tsconfig.json']
       },
       globals: {
         // Sanitize keys to fix globals.browser bug (trailing whitespace in "AudioWorkletGlobalScope ")
