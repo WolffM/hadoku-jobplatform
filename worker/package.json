@@ -1,5 +1,5 @@
 {
-	"name": "@wolffm/job-platform-worker",
+	"name": "@wolffm/jobplatform-worker",
 	"version": "1.0.0",
 	"description": "Job listings aggregation and tracking dashboard - Worker package",
 	"type": "module",

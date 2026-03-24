@@ -51,7 +51,7 @@ app.openapi(healthRoute, async (c) => {
 	return c.json(
 		{
 			status,
-			service: 'job-platform-worker' as const,
+			service: 'jobplatform-worker' as const,
 			timestamp: new Date().toISOString(),
 		},
 		200
