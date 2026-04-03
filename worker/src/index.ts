@@ -1,20 +1,16 @@
 /**
- * Job Platform Worker Package
+ * Job Platform Worker
  *
- * Exports factory functions for Cloudflare Workers.
- * The host worker in hadoku_site imports these and delegates to them.
+ * Exports a Hono handler factory consumed by hadoku_site's host worker.
  *
  * @example
  * ```typescript
- * // In hadoku_site/workers/jobplatform-api/src/index.ts
- * import { createFetchHandler, createScheduledHandler } from '@wolffm/jobplatform-worker';
+ * // hadoku_site/workers/jobplatform-api/src/index.ts
+ * import { createJobPlatformHandler } from '@wolffm/jobplatform-worker';
  *
  * export default {
- *   async fetch(request, env) {
- *     return createFetchHandler(env)(request);
- *   },
- *   scheduled(event, env, ctx) {
- *     ctx.waitUntil(createScheduledHandler(env)(event.cron));
+ *   fetch(request: Request, env: Env) {
+ *     return createJobPlatformHandler('/jobplatform/api').fetch(request, env);
  *   },
  * };
  * ```
@@ -32,88 +28,49 @@ import {
 } from '@wolffm/worker-utils';
 import type { AppEnv } from './types.js';
 import { healthRoutes } from './routes/health.js';
-import { exampleRoutes } from './routes/example.js';
-
-// ============================================================================
-// App Context
-// ============================================================================
+import { ingestRoutes } from './routes/ingest.js';
+import { profileRoutes } from './routes/profiles.js';
+import { jobRoutes } from './routes/jobs.js';
 
 interface AppContext {
 	Bindings: AppEnv;
-	Variables: {
-		authContext: HadokuAuthContext;
-	};
+	Variables: { authContext: HadokuAuthContext };
 }
 
-// ============================================================================
-// Create Hono App
-// ============================================================================
-
-function createApp() {
+export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 	const app = new OpenAPIHono<AppContext>({
 		defaultHook: wrappedValidationHook,
-	});
+	}).basePath(basePath);
 
-	// --------------------------------------------------------------------------
-	// Middleware Stack
-	// --------------------------------------------------------------------------
+	app.use('*', cors({
+		origin: DEFAULT_HADOKU_ORIGINS,
+		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+		allowHeaders: ['Content-Type', 'X-User-Key', 'X-API-Key'],
+		credentials: true,
+		maxAge: 86400,
+	}));
 
-	// 1. CORS Middleware - Allow hadoku.me origins
-	app.use(
-		'*',
-		cors({
-			origin: DEFAULT_HADOKU_ORIGINS,
-			allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-			allowHeaders: ['Content-Type', 'X-User-Key', 'X-API-Key', 'X-Session-Id'],
-			credentials: true,
-			maxAge: 86400,
-		})
-	);
-
-	// 2. Authentication Middleware
+	// Standard auth middleware — attaches authContext to all routes.
+	// The /ingest route does its own key check on top of this.
 	app.use('*', createHadokuAuth());
 
-	// --------------------------------------------------------------------------
-	// Route Registration
-	// --------------------------------------------------------------------------
-
-	// Health check (public)
 	app.route('/', healthRoutes);
+	app.route('/', ingestRoutes);
+	app.route('/', profileRoutes);
+	app.route('/', jobRoutes);
 
-	// Example CRUD routes (mounted at /api/jobplatform)
-	app.route('/api/jobplatform', exampleRoutes);
-
-	// --------------------------------------------------------------------------
-	// OpenAPI Spec Endpoint
-	// --------------------------------------------------------------------------
-
-	app.doc(
-		'/api/jobplatform/openapi.json',
-		createOpenAPIDocConfig({
-			title: 'Job Platform API',
-			version: '1.0.0',
-			description: `
-API for Job Platform.
-
-## Authentication
-- **Public endpoints**: Health check and read operations
-- **Protected endpoints**: Write operations require X-User-Key header
-- **Admin endpoints**: Delete operations require admin authentication
-
-## Usage
-See the endpoint documentation below for details on each operation.
-			`,
-			production: 'https://jobplatform-api.hadoku.workers.dev',
-			tags: [
-				{ name: 'Health', description: 'Health check endpoints' },
-				{ name: 'Items', description: 'Example CRUD operations' },
-			],
-		})
-	);
-
-	// --------------------------------------------------------------------------
-	// Error Handlers
-	// --------------------------------------------------------------------------
+	app.doc('/openapi.json', createOpenAPIDocConfig({
+		title: 'Job Platform API',
+		version: '1.0.0',
+		description: 'Job aggregation and profile-based scoring API.',
+		production: 'https://hadoku.me/jobplatform/api',
+		tags: [
+			{ name: 'Health', description: 'Health check' },
+			{ name: 'Ingest', description: 'Scraper webhook receiver' },
+			{ name: 'Profiles', description: 'Role profile management' },
+			{ name: 'Jobs', description: 'Job listing queries' },
+		],
+	}));
 
 	const { notFoundHandler, errorHandler } = createErrorHandlers('wrapped');
 	app.notFound(notFoundHandler);
@@ -122,42 +79,18 @@ See the endpoint documentation below for details on each operation.
 	return app;
 }
 
-// ============================================================================
-// Exported Factory Functions
-// ============================================================================
-
-/**
- * Create the fetch handler for HTTP requests.
- *
- * @param env - Worker environment bindings
- * @returns Request handler function
- */
+// Keep legacy export shape so existing hadoku_site host worker compiles
+// until it's updated to call createJobPlatformHandler directly.
 export function createFetchHandler(env: AppEnv) {
-	const app = createApp();
+	const app = createJobPlatformHandler();
 	return (request: Request) => app.fetch(request, env);
 }
 
-/**
- * Create the scheduled handler for cron jobs.
- *
- * @param env - Worker environment bindings
- * @returns Cron handler function
- */
 export function createScheduledHandler(_env: AppEnv) {
 	return (cron: string) => {
 		console.log(`[jobplatform-worker] Scheduled task: ${cron}`);
-
-		// Add your scheduled task logic here
-		// Example:
-		// if (cron === '0 */8 * * *') {
-		//   await syncData(env);
-		// }
 	};
 }
-
-// ============================================================================
-// Re-exports
-// ============================================================================
 
 export type { AppEnv } from './types.js';
 export * from './schemas.js';

@@ -1,90 +1,165 @@
-/**
- * Zod schemas for OpenAPI spec generation
- *
- * These define the request/response shapes for all API endpoints.
- * Uses @wolffm/worker-utils for shared schema patterns.
- */
-
 import { z } from '@hono/zod-openapi';
-import {
-	DetailedErrorResponseSchema,
-	createSuccessResponseSchema,
-} from '@wolffm/worker-utils';
-
-// ============================================================================
-// Re-export shared schemas
-// ============================================================================
+import { DetailedErrorResponseSchema, createSuccessResponseSchema } from '@wolffm/worker-utils';
 
 export const ErrorResponseSchema = DetailedErrorResponseSchema;
+const S = createSuccessResponseSchema;
 
-// Custom health response for this worker
+// ============================================================================
+// Health
+// ============================================================================
+
 export const HealthResponseSchema = z
 	.object({
 		status: z.enum(['healthy', 'degraded', 'unhealthy']),
 		service: z.literal('jobplatform-worker'),
 		timestamp: z.string(),
-		version: z.string().optional(),
 	})
 	.openapi('HealthResponse');
 
-// Success wrapper helper
-export const SuccessResponseSchema = createSuccessResponseSchema;
-
 // ============================================================================
-// Example Entity Schemas (customize for your app)
+// Profiles
 // ============================================================================
 
-export const ExampleItemSchema = z
+export const ProfileSchema = z
 	.object({
-		id: z.string().openapi({ example: 'item-123' }),
-		name: z.string().openapi({ example: 'Example Item' }),
-		description: z.string().nullable().openapi({ example: 'A sample item' }),
-		createdAt: z.string().openapi({ example: '2025-01-21T00:00:00.000Z' }),
-		updatedAt: z.string().openapi({ example: '2025-01-21T00:00:00.000Z' }),
-	})
-	.openapi('ExampleItem');
-
-// ============================================================================
-// Response Schemas
-// ============================================================================
-
-export const ExampleItemsResponseSchema = SuccessResponseSchema(
-	z.object({
-		items: z.array(ExampleItemSchema),
-	})
-).openapi('ExampleItemsResponse');
-
-export const ExampleItemResponseSchema = SuccessResponseSchema(
-	z.object({
-		item: ExampleItemSchema,
-	})
-).openapi('ExampleItemResponse');
-
-// ============================================================================
-// Request Schemas
-// ============================================================================
-
-export const CreateExampleItemInputSchema = z
-	.object({
-		name: z.string().min(1).openapi({ example: 'New Item' }),
-		description: z.string().optional().openapi({ example: 'Item description' }),
-	})
-	.openapi('CreateExampleItemInput');
-
-export const UpdateExampleItemInputSchema = z
-	.object({
-		name: z.string().optional().openapi({ example: 'Updated Item' }),
-		description: z.string().nullable().optional().openapi({ example: 'Updated description' }),
-	})
-	.openapi('UpdateExampleItemInput');
-
-// ============================================================================
-// Delete Response
-// ============================================================================
-
-export const DeleteResponseSchema = SuccessResponseSchema(
-	z.object({
-		deleted: z.literal(true),
 		id: z.string(),
+		name: z.string(),
+		keywords: z.array(z.string()),
+		target_companies: z.array(z.string()),
+		role_types: z.array(z.string()),
+		min_salary: z.number().nullable(),
+		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
+		experience_levels: z.array(z.string()),
+		created_at: z.string(),
 	})
-).openapi('DeleteResponse');
+	.openapi('Profile');
+
+export const CreateProfileSchema = z
+	.object({
+		name: z.string().min(1),
+		keywords: z.array(z.string()).default([]),
+		target_companies: z.array(z.string()).default([]),
+		role_types: z.array(z.string()).default([]),
+		min_salary: z.number().nullable().default(null),
+		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']).default('any'),
+		experience_levels: z.array(z.string()).default([]),
+	})
+	.openapi('CreateProfile');
+
+export const UpdateProfileSchema = CreateProfileSchema.partial().openapi('UpdateProfile');
+
+export const ProfilesResponseSchema = S(z.object({ profiles: z.array(ProfileSchema) })).openapi(
+	'ProfilesResponse'
+);
+export const ProfileResponseSchema = S(z.object({ profile: ProfileSchema })).openapi(
+	'ProfileResponse'
+);
+export const DeleteResponseSchema = S(z.object({ deleted: z.literal(true), id: z.string() })).openapi(
+	'DeleteResponse'
+);
+
+// ============================================================================
+// Jobs
+// ============================================================================
+
+export const ScoreBreakdownSchema = z
+	.object({
+		title_match: z.number(),
+		keyword_match: z.number(),
+		company_boost: z.number(),
+		seniority_match: z.number(),
+		remote_match: z.number(),
+		salary_match: z.number(),
+	})
+	.openapi('ScoreBreakdown');
+
+export const JobSummarySchema = z
+	.object({
+		id: z.string(),
+		title: z.string(),
+		company: z.string(),
+		location: z.string(),
+		workplace_type: z.string(),
+		salary_min: z.number().nullable(),
+		salary_max: z.number().nullable(),
+		source_site: z.string(),
+		url: z.string(),
+		posted_date: z.string().nullable(),
+		scraped_at: z.string(),
+		score: z.number(),
+		score_breakdown: ScoreBreakdownSchema,
+	})
+	.openapi('JobSummary');
+
+export const JobDetailSchema = JobSummarySchema.extend({
+	job_type: z.string(),
+	description: z.string(),
+	application_url: z.string().nullable(),
+	department: z.string().nullable(),
+	scraper_used: z.string().nullable(),
+	run_id: z.string().nullable(),
+}).openapi('JobDetail');
+
+export const JobsResponseSchema = S(
+	z.object({
+		jobs: z.array(JobSummarySchema),
+		total: z.number(),
+		page: z.number(),
+		limit: z.number(),
+		has_more: z.boolean(),
+	})
+).openapi('JobsResponse');
+
+export const JobResponseSchema = S(z.object({ job: JobDetailSchema })).openapi('JobResponse');
+
+// ============================================================================
+// Ingest
+// ============================================================================
+
+const IngestSalarySchema = z
+	.object({
+		min: z.number().nullable(),
+		max: z.number().nullable(),
+		currency: z.string().nullable(),
+		period: z.string().nullable(),
+		text: z.string().nullable(),
+	})
+	.nullable()
+	.optional();
+
+export const IngestJobSchema = z.object({
+	id: z.string(),
+	url: z.string(),
+	source_site: z.string(),
+	title: z.string(),
+	company: z.string(),
+	location: z.string(),
+	job_type: z.string().default('unknown'),
+	workplace_type: z.string().default('unknown'),
+	salary: IngestSalarySchema,
+	description: z.string().default(''),
+	posted_date: z.string().nullable().optional(),
+	application_url: z.string().nullable().optional(),
+	department: z.string().nullable().optional(),
+	scraper_used: z.string().nullable().optional(),
+	raw: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const IngestPayloadSchema = z
+	.object({
+		jobs: z.array(IngestJobSchema),
+		source: z.enum(['greenhouse', 'lever', 'linkedin']),
+		batch_number: z.number().int().positive(),
+		is_final: z.boolean(),
+		search_term: z.string().optional(),
+	})
+	.openapi('IngestPayload');
+
+export const IngestResponseSchema = S(
+	z.object({
+		accepted: z.number(),
+		skipped: z.number(),
+		batch_number: z.number(),
+		is_final: z.boolean(),
+	})
+).openapi('IngestResponse');
