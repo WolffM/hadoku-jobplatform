@@ -29,6 +29,7 @@ export default [
 				Headers: 'readonly',
 				AbortController: 'readonly',
 				AbortSignal: 'readonly',
+				crypto: 'readonly',
 			},
 		},
 		plugins: {
@@ -49,6 +50,6 @@ export default [
 		},
 	},
 	{
-		ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts'],
+		ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts', 'validate-template.mjs'],
 	},
 ];

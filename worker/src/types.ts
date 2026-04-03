@@ -1,41 +1,27 @@
-/**
- * Environment bindings for Job Platform Worker
- *
- * This interface defines all the bindings and secrets available to your worker.
- * Update this based on what your app needs (D1, KV, Durable Objects, etc.)
- */
+import type { D1Database } from '@cloudflare/workers-types';
+
 export interface AppEnv {
 	// ============================================================================
 	// Authentication (parsed by @wolffm/worker-utils)
 	// ============================================================================
 
-	/** JSON array of admin API keys - full access */
+	/** JSON array of admin API keys */
 	ADMIN_KEYS?: string;
 
-	/** JSON array of friend API keys - limited access */
+	/** JSON array of friend API keys */
 	FRIEND_KEYS?: string;
 
 	// ============================================================================
-	// Service-specific secrets
+	// Ingest auth (scraper → worker)
 	// ============================================================================
 
-	/** API key for service-to-service calls (e.g., from trader-api) */
-	JOB_PLATFORM_API_KEY?: string;
+	/** Shared secret for hadoku-scrape webhook callbacks. Checked via X-User-Key header. */
+	JOBPLATFORM_INGEST_KEY?: string;
 
 	// ============================================================================
-	// Optional: Database Bindings (uncomment if needed)
+	// Database
 	// ============================================================================
 
-	// /** D1 Database binding - requires [[d1_databases]] in wrangler.toml */
-	// JOB_PLATFORM_DB?: D1Database;
-
-	// /** KV Namespace binding - requires [[kv_namespaces]] in wrangler.toml */
-	// JOB_PLATFORM_KV?: KVNamespace;
-
-	// ============================================================================
-	// Optional: External Service URLs
-	// ============================================================================
-
-	// /** URL to external service tunnel (e.g., local Python service) */
-	// TUNNEL_URL?: string;
+	/** D1 database — declared in hadoku_site wrangler.toml as [[d1_databases]] */
+	JOB_PLATFORM_DB: D1Database;
 }
