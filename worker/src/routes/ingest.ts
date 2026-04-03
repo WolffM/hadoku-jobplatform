@@ -1,13 +1,19 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
-import { IngestPayloadSchema, IngestResponseSchema, ErrorResponseSchema } from '../schemas.js';
+import type { HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireUserType } from '@wolffm/worker-utils';
+import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { scoreJob } from '../scoring.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
+	Variables: { authContext: HadokuAuthContext };
 }
 
 const app = new OpenAPIHono<RouteContext>();
+
+app.use('/ingest', requireUserType(['admin', 'friend']));
+app.use('/ingest/rescore', requireUserType(['admin', 'friend']));
 
 // Normalize workplace_type values from scraper to our canonical set
 function normalizeWorkplaceType(wt: string): string {
@@ -31,21 +37,10 @@ const ingestRoute = createRoute({
 			description: 'Batch accepted',
 			content: { 'application/json': { schema: IngestResponseSchema } },
 		},
-		401: {
-			description: 'Unauthorized',
-			content: { 'application/json': { schema: ErrorResponseSchema } },
-		},
 	},
 });
 
 app.openapi(ingestRoute, async c => {
-	// Auth: X-User-Key must match JOBPLATFORM_INGEST_KEY
-	const key = c.req.header('X-User-Key');
-	const expected = c.env.JOBPLATFORM_INGEST_KEY;
-	if (!expected || key !== expected) {
-		return c.json({ success: false as const, error: 'Unauthorized', message: 'Invalid ingest key' }, 401);
-	}
-
 	const { jobs, batch_number, is_final } = c.req.valid('json');
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();

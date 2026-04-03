@@ -12,13 +12,6 @@ export interface AppEnv {
 	FRIEND_KEYS?: string;
 
 	// ============================================================================
-	// Ingest auth (scraper → worker)
-	// ============================================================================
-
-	/** Shared secret for hadoku-scrape webhook callbacks. Checked via X-User-Key header. */
-	JOBPLATFORM_INGEST_KEY?: string;
-
-	// ============================================================================
 	// Database
 	// ============================================================================
 
