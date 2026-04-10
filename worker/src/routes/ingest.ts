@@ -1,7 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
-import type { HadokuAuthContext } from '@wolffm/worker-utils';
-import { requireUserType } from '@wolffm/worker-utils';
+import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { scoreJob } from '../scoring.js';
 
@@ -26,7 +25,8 @@ const ingestRoute = createRoute({
 	path: '/ingest',
 	tags: ['Ingest'],
 	summary: 'Receive job batch from hadoku-scrape',
-	description: 'Called by hadoku-scrape after each batch. Requires admin or friend auth via X-User-Key.',
+	description:
+		'Called by hadoku-scrape after each batch. Requires admin or friend auth via X-User-Key.',
 	request: {
 		body: {
 			content: { 'application/json': { schema: IngestPayloadSchema } },
@@ -40,14 +40,14 @@ const ingestRoute = createRoute({
 	},
 });
 
-app.openapi(ingestRoute, async c => {
+app.openapi(ingestRoute, async (c) => {
 	const { jobs, batch_number, is_final } = c.req.valid('json');
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
 
 	// Fetch all profiles once for scoring
 	const profileRows = await db.prepare('SELECT * FROM profiles').all<Record<string, unknown>>();
-	const profiles = profileRows.results.map(r => ({
+	const profiles = profileRows.results.map((r) => ({
 		id: r.id as string,
 		keywords: JSON.parse(r.keywords as string) as string[],
 		target_companies: JSON.parse(r.target_companies as string) as string[],
@@ -108,7 +108,13 @@ app.openapi(ingestRoute, async c => {
 		// Score against every profile
 		for (const profile of profiles) {
 			const { score, breakdown } = scoreJob(
-				{ title: job.title, description: job.description, company: job.company, workplace_type: workplaceType, salary_min: salaryMin },
+				{
+					title: job.title,
+					description: job.description,
+					company: job.company,
+					workplace_type: workplaceType,
+					salary_min: salaryMin,
+				},
 				profile
 			);
 
@@ -124,10 +130,13 @@ app.openapi(ingestRoute, async c => {
 		accepted++;
 	}
 
-	return c.json({
-		success: true as const,
-		data: { accepted, skipped, batch_number, is_final },
-	}, 200);
+	return c.json(
+		{
+			success: true as const,
+			data: { accepted, skipped, batch_number, is_final },
+		},
+		200
+	);
 });
 
 // Rescore all jobs against all profiles (e.g. after adding a new profile)
@@ -150,21 +159,30 @@ const rescoreRoute = createRoute({
 			description: 'Rescore complete',
 			content: {
 				'application/json': {
-					schema: z.object({ success: z.literal(true), data: z.object({ scored: z.number() }) }).openapi('RescoreResponse'),
+					schema: z
+						.object({ success: z.literal(true), data: z.object({ scored: z.number() }) })
+						.openapi('RescoreResponse'),
 				},
 			},
 		},
 	},
 });
 
-app.openapi(rescoreRoute, async c => {
+app.openapi(rescoreRoute, async (c) => {
 	const db = c.env.JOB_PLATFORM_DB;
 	const { profile_id } = c.req.valid('json');
 	const now = new Date().toISOString();
 
 	const jobRows = await db
 		.prepare('SELECT id, title, description, company, workplace_type, salary_min FROM jobs')
-		.all<{ id: string; title: string; description: string; company: string; workplace_type: string; salary_min: number | null }>();
+		.all<{
+			id: string;
+			title: string;
+			description: string;
+			company: string;
+			workplace_type: string;
+			salary_min: number | null;
+		}>();
 
 	const profileQuery = profile_id
 		? 'SELECT * FROM profiles WHERE id = ?'

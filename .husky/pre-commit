@@ -1,26 +1,26 @@
 #!/bin/sh
 # Windows users: run via Git Bash or WSL
-echo "🔍 Running pre-commit checks..."
+echo "Running pre-commit checks..."
 
 # Capture originally staged files BEFORE any modifications
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
 
 # Auto-fix linting and formatting issues
-echo "📋 Running ESLint auto-fix..."
+echo "Running ESLint auto-fix..."
 pnpm run lint:fix
 if [ $? -ne 0 ]; then
-  echo "❌ ESLint found errors that could not be auto-fixed."
-  echo "💡 Please fix the errors manually before committing."
+  echo "ESLint found errors that could not be auto-fixed."
+  echo "Please fix the errors manually before committing."
   exit 1
 fi
 
-echo "✨ Auto-formatting code..."
+echo "Auto-formatting code..."
 pnpm run format
 
-echo "✅ Linting and formatting complete!"
+echo "Linting and formatting complete!"
 
 # Bump version on every commit to ensure unique versions for publishing
-echo "📦 Bumping version..."
+echo "Bumping version..."
 
 # Read current version from package.json
 current_version=$(node -p "require('./package.json').version")
@@ -32,11 +32,11 @@ patch=$(echo ${current_version} | cut -d. -f3)
 if [ ${patch} -eq 20 ]; then
   new_minor=$((minor + 1))
   new_version="${major}.${new_minor}.0"
-  echo "🚀 Rolling over to minor version"
+  echo "Rolling over to minor version"
 else
   new_patch=$((patch + 1))
   new_version="${major}.${minor}.${new_patch}"
-  echo "📈 Incrementing patch version"
+  echo "Incrementing patch version"
 fi
 
 # Update package.json with new version
@@ -47,7 +47,7 @@ pkg.version = '${new_version}';
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
-echo "✅ Version bumped: ${current_version} → ${new_version}"
+echo "Version bumped: ${current_version} -> ${new_version}"
 
 # Update lock file
 pnpm install --lockfile-only
@@ -61,4 +61,4 @@ if [ -n "${STAGED_FILES}" ]; then
   echo "${STAGED_FILES}" | xargs -r git add
 fi
 
-echo "✅ All pre-commit checks passed!"
+echo "All pre-commit checks passed!"
