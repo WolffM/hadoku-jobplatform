@@ -1,4 +1,4 @@
-# @wolffm/job-platform
+# @wolffm/jobplatform
 
 Job listings aggregation and tracking dashboard goes here.
 

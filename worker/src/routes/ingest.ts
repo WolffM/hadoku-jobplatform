@@ -26,7 +26,7 @@ const ingestRoute = createRoute({
 	path: '/ingest',
 	tags: ['Ingest'],
 	summary: 'Receive job batch from hadoku-scrape',
-	description: 'Called by hadoku-scrape after each batch. Requires X-User-Key matching JOBPLATFORM_INGEST_KEY.',
+	description: 'Called by hadoku-scrape after each batch. Requires admin or friend auth via X-User-Key.',
 	request: {
 		body: {
 			content: { 'application/json': { schema: IngestPayloadSchema } },

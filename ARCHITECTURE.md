@@ -90,8 +90,7 @@ hadoku_site
   "schedule": "0 8 * * *",
   "delivery": {
     "kv_prefix": "jobplatform:raw",
-    "callback_url": "https://hadoku.me/jobplatform/api/ingest",
-    "callback_secret_env": "JOBPLATFORM_INGEST_KEY"
+    "callback_url": "https://hadoku.me/jobplatform/api/ingest"
   }
 }
 ```
@@ -123,7 +122,7 @@ Shared namespace (`SCRAPER_KV_NAMESPACE_ID`) with `jobplatform:raw:` prefix — 
 }
 ```
 
-Headers: `Authorization: Bearer {JOBPLATFORM_INGEST_KEY}` + `X-Hadoku-Signature: sha256={hmac_hex}`
+Headers: `X-User-Key: {admin_or_friend_key}` (standard hadoku auth via `requireUserType`)
 
 ### Scheduling
 
@@ -334,7 +333,7 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 | Endpoint | Auth |
 |----------|------|
-| `POST /ingest` | Bearer token (`JOBPLATFORM_INGEST_KEY`) + HMAC signature verification |
+| `POST /ingest` | `requireUserType(['admin', 'friend'])` via `X-User-Key` header (standard hadoku auth) |
 | All other worker endpoints | Open — gated by hadoku_site's auth layer upstream |
 
 ---
