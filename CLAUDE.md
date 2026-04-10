@@ -1,132 +1,58 @@
-# Claude Code Instructions
+# Job Platform — Agent Context
 
-## CI/CD Deployment Flow
+## What This Repo Is
 
-This child app integrates with the hadoku_site parent through an automated deployment pipeline.
+Monorepo with two pnpm workspace packages:
+- **@wolffm/jobplatform** — React micro-frontend (root `src/`)
+- **@wolffm/jobplatform-worker** — Cloudflare Worker API (`worker/src/`)
 
-### How Publishing Works
+## Contracts
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ CHILD APP (this repo)                                               │
-├─────────────────────────────────────────────────────────────────────┤
-│ 1. Push to main                                                     │
-│         ↓                                                           │
-│ 2. .github/workflows/publish.yml runs:                              │
-│    - Builds package                                                 │
-│    - Bumps version if needed                                        │
-│    - Publishes to GitHub Packages (@wolffm/*)                       │
-│    - Dispatches `packages_updated` to hadoku_site                   │
-└─────────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│ PARENT SITE (hadoku_site)                                           │
-├─────────────────────────────────────────────────────────────────────┤
-│ 3. update-packages.yml receives dispatch:                           │
-│    - Updates package.json/lockfile to latest version                │
-│    - Rebuilds micro-frontend bundle (public/mf/<app>/)              │
-│    - Regenerates registry.json for cache busting                    │
-│    - Commits changes to repo                                        │
-│    - Triggers worker deployment if needed                           │
-│         ↓                                                           │
-│ 4. deploy-workers.yml (if workers changed):                         │
-│    - Auto-updates @wolffm/* packages to absolute latest             │
-│    - Deploys Cloudflare Workers                                     │
-│         ↓                                                           │
-│ 5. GitHub Pages deploys static site with new bundles                │
-└─────────────────────────────────────────────────────────────────────┘
-```
+- **UI**: exports `mount(el)`, `unmount(el)` from `src/entry.tsx` — consumed by hadoku_site at `/jobs/`
+- **Worker**: exports `createFetchHandler()`, `createScheduledHandler()` from `worker/src/index.ts` — consumed by `hadoku_site/workers/jobplatform-api/`
+- Both publish to GitHub Packages on push to main via `.github/workflows/publish.yml`
+- Dispatch: `packages_updated` event notifies hadoku_site to pull new versions and redeploy
 
-### Key Points
+## Worker API (V1)
 
-1. **You only push to main** - Everything else is automated
-2. **Version bumping is automatic** - Pre-commit hook and CI both handle it
-3. **Parent is notified automatically** - Via `packages_updated` dispatch event
-4. **Workers always get latest** - `deploy-workers.yml` runs `pnpm update "@wolffm/*" --latest`
+| Method | Path | Auth | Purpose |
+|--------|------|------|---------|
+| POST | /ingest | admin/friend | Scraper webhook — fetches jobs from KV, scores, stores in D1 |
+| GET | /profiles | open | List scoring profiles |
+| POST | /profiles | admin/friend | Create profile |
+| PUT | /profiles/:id | admin/friend | Update profile |
+| GET | /jobs | open | List scored jobs (filter by profile, min_score, sort) |
+| GET | /jobs/:id | open | Job detail + score breakdown |
+| POST | /jobs/rescore | admin/friend | Rescore all jobs against updated profiles |
+| GET | /health | open | Health check |
 
-### Required Secret
+## Key Decisions
 
-The `HADOKU_SITE_TOKEN` secret must be configured in this repo's GitHub settings:
+- Ingest auth uses standard hadoku auth (`requireUserType` via `X-User-Key`), not a custom secret
+- Salary weight is 0.05 — data too sparse to rely on (~5% fill rate)
+- Scraper writes raw jobs to KV (`jobplatform:raw:{source}:{job_id}`), sends lightweight webhook with `job_ids[]`
+- Worker fetches full records from KV, scores against all profiles, stores matches in D1
+- Full data model and scoring algorithm documented in `ARCHITECTURE.md`
 
-- Used to authenticate with GitHub Packages
-- Used to dispatch events to hadoku_site
-- Deployed via hadoku_site admin script: `python scripts/administration.py github-secrets`
+## Does NOT
 
-## Package Structure
+- Bundle react, react-dom, @wolffm/themes (externalized — see `vite.config.ts`)
+- Run its own Cloudflare Worker directly (host is in `hadoku_site/workers/jobplatform-api/`)
+- Handle scraping (that's hadoku-scrape)
+- Handle resume generation (that's resume-bot, planned for V2)
 
-### Required Exports
+## External Dependencies
 
-The parent site expects these exports from `src/entry.tsx`:
+| Dependency | What | Path / Location |
+|------------|------|-----------------|
+| hadoku_site | Parent site — hosts worker + mounts UI | `../hadoku_site/` |
+| hadoku-scrape | Python scraper — writes job data to shared KV | `../hadoku-scrape/` |
+| @wolffm/worker-utils | Auth middleware, response helpers | npm package |
+| @wolffm/themes | CSS variables for theming | npm package |
+| @wolffm/task-ui-components | UI components and logger | npm package |
 
-```typescript
-// Mount the app into a DOM element
-export function mount(el: HTMLElement, props?: MountProps): void
+## CI/CD
 
-// Unmount and cleanup
-export function unmount(el: HTMLElement): void
-```
-
-### Build Output
-
-After `pnpm build`, the `dist/` folder must contain:
-
-- `index.js` - Main entry point (ES module)
-- `style.css` - Component styles
-
-### External Dependencies
-
-These are provided by the parent and must NOT be bundled:
-
-- `react`, `react-dom`, `react-dom/client`, `react/jsx-runtime`
-- `@wolffm/themes`
-
-See `vite.config.ts` for the rollup externals configuration.
-
-## Worker Packages
-
-If this package is used by a Cloudflare Worker (like `@wolffm/trader-worker`):
-
-1. The worker's `package.json` declares the dependency
-2. `deploy-workers.yml` auto-updates to latest before each deploy
-3. No manual lockfile updates needed in hadoku_site
-
-### Worker Deployment Safety Net
-
-Even if `update-packages.yml` doesn't run (e.g., local development), workers always deploy with the latest package version because `deploy-workers.yml` runs:
-
-```yaml
-- name: Update @wolffm packages to latest
-  run: pnpm update "@wolffm/*" --latest --filter <worker-name>
-```
-
-This ensures workers never deploy with stale package versions.
-
-## Debugging Deployment Issues
-
-### Package not updating in parent?
-
-1. Check if `publish.yml` succeeded in this repo
-2. Check if `update-packages.yml` was triggered in hadoku_site
-3. Look for the `packages_updated` dispatch event
-
-### Worker not using new version?
-
-1. Check `deploy-workers.yml` logs for the "Update @wolffm packages" step
-2. Verify the package was published to GitHub Packages
-3. Check if there are TypeScript/build errors preventing deployment
-
-### Bundle not updating on site?
-
-1. Check `update-packages.yml` for bundle rebuild step
-2. Verify `registry.json` was regenerated (cache busting)
-3. Check GitHub Pages deployment status
-
-## Naming Convention
-
-| Item         | Convention            | Example             |
-| ------------ | --------------------- | ------------------- |
-| Package name | `@wolffm/<app-id>`    | `@wolffm/trader`    |
-| Repo name    | `hadoku-<app-id>`     | `hadoku-trader`     |
-| Bundle path  | `public/mf/<app-id>/` | `public/mf/trader/` |
-
-**Important**: The `hadoku-` prefix is only for GitHub repo names, not package names.
+- Push to main -> `publish.yml` builds both packages -> publishes -> dispatches to hadoku_site
+- Version bumping: pre-commit hook (`.husky/pre-commit`) + CI fallback
+- Required secret: `HADOKU_SITE_TOKEN` (GitHub Packages auth + dispatch)

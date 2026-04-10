@@ -8,7 +8,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WolffM/job-platform.git"
+    "url": "git+https://github.com/WolffM/hadoku-jobplatform.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

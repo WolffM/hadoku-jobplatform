@@ -5,7 +5,7 @@
 	"type": "module",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/WolffM/hadoku-job-platform.git"
+		"url": "git+https://github.com/WolffM/hadoku-jobplatform.git"
 	},
 	"files": [
 		"dist"

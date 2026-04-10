@@ -1,96 +1,45 @@
 # Job Platform Worker
 
-This is a Cloudflare Worker package that exports factory functions for hadoku_site.
+Cloudflare Worker package exporting factory functions for hadoku_site.
 
 ## Architecture
 
-This package is consumed by a thin host worker in `hadoku_site/workers/jobplatform-api/`.
-
-```
-@wolffm/jobplatform-worker (this package)
-  └── Exports: createFetchHandler(), createScheduledHandler(), types
-
-hadoku_site/workers/jobplatform-api (host worker)
-  └── Imports this package and delegates requests
-```
+- Package: `@wolffm/jobplatform-worker`
+- Host worker: `hadoku_site/workers/jobplatform-api/`
+- Exports: `createFetchHandler()`, `createScheduledHandler()`, types
+- Framework: Hono + `@hono/zod-openapi`
 
 ## Key Files
 
-- `src/index.ts` - Main exports (factory functions)
-- `src/types.ts` - Environment interface (AppEnv)
-- `src/schemas.ts` - Zod schemas for OpenAPI
-- `src/routes/health.ts` - Health check endpoint
-- `src/routes/example.ts` - Example CRUD routes (replace with real logic)
+- `src/index.ts` — main exports (factory functions, route mounting)
+- `src/types.ts` — AppEnv interface
+- `src/schemas.ts` — Zod schemas for OpenAPI validation
+- `src/scoring.ts` — job-profile scoring algorithm
+- `src/routes/health.ts` — health check
+- `src/routes/ingest.ts` — scraper webhook receiver (fetches from KV, scores, stores in D1)
+- `src/routes/jobs.ts` — job listing queries
+- `src/routes/profiles.ts` — profile CRUD
+- `migrations/` — D1 database migrations
 
-## Development
+## Auth
 
-```bash
-# Install dependencies
-pnpm install
+All mutation endpoints use `requireUserType(['admin', 'friend'])` via `X-User-Key` header.
+Auth middleware from `@wolffm/worker-utils`.
 
-# Build package
-pnpm build
+## Environment Variables (set in host wrangler.toml)
 
-# Run linting
-pnpm lint
-
-# Type check
-pnpm typecheck
-```
-
-## Publishing
-
-Package publishes automatically on push to main via GitHub Actions.
-
-The workflow:
-
-1. Builds the package
-2. Bumps version if needed
-3. Publishes to GitHub Packages
-4. Notifies hadoku_site to update dependencies
-
-## Adding New Routes
-
-1. Create a new file in `src/routes/`
-2. Use `OpenAPIHono` and `createRoute` for OpenAPI spec
-3. Add schemas to `src/schemas.ts`
-4. Mount the routes in `src/index.ts`
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_KEYS` | JSON array of admin API keys |
+| `FRIEND_KEYS` | JSON array of friend API keys |
 
 ## Response Format
 
-This package uses the **wrapped response format**:
+Wrapped: `{ success: true, data: {...} }` or `{ success: false, error, message }`
+Use `okWrapped()` / `createdWrapped()` from `@wolffm/worker-utils`.
 
-```typescript
-// Success
-{ success: true, data: { ... } }
+## Does NOT
 
-// Error
-{ success: false, error: 'Error Type', message: 'Details' }
-```
-
-Use `okWrapped()` and `createdWrapped()` helpers from `@wolffm/worker-utils`.
-
-## Authentication
-
-Authentication is handled by `createHadokuAuth()` middleware:
-
-- `X-User-Key` header contains the API key
-- `authContext.userType` is `'admin'`, `'friend'`, or `'public'`
-- Check auth in route handlers before mutations
-
-## Environment Variables
-
-Set in the host worker's `wrangler.toml`:
-
-| Variable                   | Description                         |
-| -------------------------- | ----------------------------------- |
-| `ADMIN_KEYS`               | JSON array of admin API keys        |
-| `FRIEND_KEYS`              | JSON array of friend API keys       |
-| `JOB_PLATFORM_API_KEY` | Service-specific API key (optional) |
-
-## Deployment
-
-After publishing, the host worker in hadoku_site will automatically:
-
-1. Update to the latest version via `update-packages.yml`
-2. Deploy to Cloudflare via `deploy-workers.yml`
+- Deploy directly (host is `hadoku_site/workers/jobplatform-api/`)
+- Handle scraping (see hadoku-scrape)
+- Store raw job data long-term (raw data lives in KV; scored data in D1)
