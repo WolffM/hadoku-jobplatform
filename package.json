@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "sideEffects": [
