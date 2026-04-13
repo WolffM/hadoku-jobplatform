@@ -19,44 +19,65 @@ pnpm run format
 
 echo "Linting and formatting complete!"
 
-# Bump version on every commit to ensure unique versions for publishing
-echo "Bumping version..."
+# ----------------------------------------------------------------------------
+# Version bumping
+# ----------------------------------------------------------------------------
+# Bump package.json on every commit so publishes always have a unique version.
+# Also bump worker/package.json when the commit touches worker/ files —
+# without this, worker code changes ship against a stale version and GH
+# Packages silently no-ops the publish ("no new packages" in CI output).
+#
+# Each package is bumped independently (patch+1, rollover at .20 to next
+# minor). Versions are NOT kept in sync between root and worker — they each
+# track their own release cadence.
 
-# Read current version from package.json
-current_version=$(node -p "require('./package.json').version")
-major=$(echo ${current_version} | cut -d. -f1)
-minor=$(echo ${current_version} | cut -d. -f2)
-patch=$(echo ${current_version} | cut -d. -f3)
+bump_version() {
+  pkg_path="$1"
+  label="$2"
 
-# Rollover at .20 to keep patch numbers manageable
-if [ ${patch} -eq 20 ]; then
-  new_minor=$((minor + 1))
-  new_version="${major}.${new_minor}.0"
-  echo "Rolling over to minor version"
-else
-  new_patch=$((patch + 1))
-  new_version="${major}.${minor}.${new_patch}"
-  echo "Incrementing patch version"
-fi
+  current=$(node -p "require('./${pkg_path}').version")
+  major=$(echo "${current}" | cut -d. -f1)
+  minor=$(echo "${current}" | cut -d. -f2)
+  patch=$(echo "${current}" | cut -d. -f3)
 
-# Update package.json with new version
-node -e "
+  if [ "${patch}" -eq 20 ]; then
+    new_minor=$((minor + 1))
+    new_version="${major}.${new_minor}.0"
+    echo "${label}: rolling over to minor version"
+  else
+    new_patch=$((patch + 1))
+    new_version="${major}.${minor}.${new_patch}"
+  fi
+
+  node -e "
 const fs = require('fs');
-const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const pkg = JSON.parse(fs.readFileSync('${pkg_path}', 'utf8'));
 pkg.version = '${new_version}';
-fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+fs.writeFileSync('${pkg_path}', JSON.stringify(pkg, null, 2) + '\n');
 "
 
-echo "Version bumped: ${current_version} -> ${new_version}"
+  echo "${label} version bumped: ${current} -> ${new_version}"
+}
 
-# Update lock file
+echo "Bumping versions..."
+
+# Always bump the root (UI) package — matches existing behavior
+bump_version "package.json" "UI"
+git add package.json
+
+# Conditionally bump the worker package when worker/ files are in this commit
+if echo "${STAGED_FILES}" | grep -q '^worker/'; then
+  bump_version "worker/package.json" "Worker"
+  git add worker/package.json
+else
+  echo "Worker: no worker/ files staged, skipping version bump"
+fi
+
+# Update lock file once, after all bumps
 pnpm install --lockfile-only
+git add pnpm-lock.yaml
 
-# Stage the version changes
-git add package.json pnpm-lock.yaml
-
-# Re-stage only the files that were originally staged (after lint/format may have modified them)
-# This avoids accidentally staging unrelated working directory changes
+# Re-stage files that may have been touched by lint/format
 if [ -n "${STAGED_FILES}" ]; then
   echo "${STAGED_FILES}" | xargs -r git add
 fi
