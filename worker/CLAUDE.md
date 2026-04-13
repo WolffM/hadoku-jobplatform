@@ -16,7 +16,7 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/schemas.ts` — Zod schemas for OpenAPI validation
 - `src/scoring.ts` — job-profile scoring algorithm
 - `src/routes/health.ts` — health check
-- `src/routes/ingest.ts` — scraper webhook receiver (fetches from KV, scores, stores in D1)
+- `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, scores, stores in D1)
 - `src/routes/jobs.ts` — job listing queries
 - `src/routes/profiles.ts` — profile CRUD
 - `migrations/` — D1 database migrations
@@ -28,9 +28,9 @@ Auth middleware from `@wolffm/worker-utils`.
 
 ## Environment Variables (set in host wrangler.toml)
 
-| Variable | Description |
-|----------|-------------|
-| `ADMIN_KEYS` | JSON array of admin API keys |
+| Variable      | Description                   |
+| ------------- | ----------------------------- |
+| `ADMIN_KEYS`  | JSON array of admin API keys  |
 | `FRIEND_KEYS` | JSON array of friend API keys |
 
 ## Response Format
