@@ -76,11 +76,16 @@ jobs:
           package_name=$(node -p "require('./package.json').name")
           current_version=$(node -p "require('./package.json').version")
           echo "Current version: $current_version"
-          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
-            echo "Version $current_version already published, bumping..."
-            major=$(echo $current_version | cut -d. -f1)
-            minor=$(echo $current_version | cut -d. -f2)
-            patch=$(echo $current_version | cut -d. -f3)
+          # Loop until we find an unpublished version. Single-step bump is
+          # insufficient: if the pre-commit hook was skipped and a prior CI
+          # run already burned current+1, we'd write a duplicate version and
+          # pnpm publish silently no-ops ("There are no new packages").
+          new_version="$current_version"
+          while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
+            echo "Version $new_version already published, bumping..."
+            major=$(echo $new_version | cut -d. -f1)
+            minor=$(echo $new_version | cut -d. -f2)
+            patch=$(echo $new_version | cut -d. -f3)
             if [ $patch -eq 20 ]; then
               new_minor=$((minor + 1))
               new_version="$major.$new_minor.0"
@@ -88,6 +93,8 @@ jobs:
               new_patch=$((patch + 1))
               new_version="$major.$minor.$new_patch"
             fi
+          done
+          if [ "$new_version" != "$current_version" ]; then
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "Version bumped: $current_version -> $new_version"
             pnpm install --lockfile-only
@@ -103,11 +110,13 @@ jobs:
           package_name=$(node -p "require('./worker/package.json').name")
           current_version=$(node -p "require('./worker/package.json').version")
           echo "Current worker version: $current_version"
-          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
-            echo "Version $current_version already published, bumping..."
-            major=$(echo $current_version | cut -d. -f1)
-            minor=$(echo $current_version | cut -d. -f2)
-            patch=$(echo $current_version | cut -d. -f3)
+          # See UI bump step for the rationale on looping.
+          new_version="$current_version"
+          while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
+            echo "Version $new_version already published, bumping..."
+            major=$(echo $new_version | cut -d. -f1)
+            minor=$(echo $new_version | cut -d. -f2)
+            patch=$(echo $new_version | cut -d. -f3)
             if [ $patch -eq 20 ]; then
               new_minor=$((minor + 1))
               new_version="$major.$new_minor.0"
@@ -115,6 +124,8 @@ jobs:
               new_patch=$((patch + 1))
               new_version="$major.$minor.$new_patch"
             fi
+          done
+          if [ "$new_version" != "$current_version" ]; then
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('worker/package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('worker/package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "Worker version bumped: $current_version -> $new_version"
             pnpm install --lockfile-only
