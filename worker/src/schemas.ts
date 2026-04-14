@@ -54,9 +54,9 @@ export const ProfilesResponseSchema = S(z.object({ profiles: z.array(ProfileSche
 export const ProfileResponseSchema = S(z.object({ profile: ProfileSchema })).openapi(
 	'ProfileResponse'
 );
-export const DeleteResponseSchema = S(z.object({ deleted: z.literal(true), id: z.string() })).openapi(
-	'DeleteResponse'
-);
+export const DeleteResponseSchema = S(
+	z.object({ deleted: z.literal(true), id: z.string() })
+).openapi('DeleteResponse');
 
 // ============================================================================
 // Jobs
@@ -163,3 +163,43 @@ export const IngestResponseSchema = S(
 		is_final: z.boolean(),
 	})
 ).openapi('IngestResponse');
+
+// ============================================================================
+// Companies (user company subscriptions)
+// ============================================================================
+
+export const UserCompanySchema = z
+	.object({
+		id: z.string(),
+		target_id: z.number().int(),
+		ats: z.string(),
+		slug: z.string(),
+		display_name: z.string(),
+		added_at: z.string(),
+	})
+	.openapi('UserCompany');
+
+export const CreateCompanySchema = z
+	.object({
+		display_name: z.string().min(1),
+		use_llm: z.boolean().default(true),
+	})
+	.openapi('CreateCompany');
+
+export const CompaniesResponseSchema = S(
+	z.object({ companies: z.array(UserCompanySchema) })
+).openapi('CompaniesResponse');
+
+export const CreateCompanyResponseSchema = S(
+	z.object({
+		companies: z.array(UserCompanySchema),
+		skipped: z.array(
+			z.object({ ats: z.string(), slug: z.string(), reason: z.string().optional() })
+		),
+		search_triggered: z.boolean(),
+	})
+).openapi('CreateCompanyResponse');
+
+export const DeleteCompanyResponseSchema = S(
+	z.object({ deleted: z.literal(true), id: z.string() })
+).openapi('DeleteCompanyResponse');

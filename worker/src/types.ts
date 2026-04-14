@@ -17,4 +17,14 @@ export interface AppEnv {
 
 	/** D1 database — declared in hadoku_site wrangler.toml as [[d1_databases]] */
 	JOB_PLATFORM_DB: D1Database;
+
+	// ============================================================================
+	// Scraper client (outbound to hadoku-scrape)
+	// ============================================================================
+
+	/** Bearer token for scraper API. Set via `python scripts/administration.py cloudflare-secrets`. */
+	SCRAPER_API_KEY?: string;
+
+	/** Override scraper base URL (default https://scraper.hadoku.me). Optional. */
+	SCRAPER_BASE_URL?: string;
 }

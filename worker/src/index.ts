@@ -31,6 +31,7 @@ import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
 import { jobRoutes } from './routes/jobs.js';
+import { companyRoutes } from './routes/companies.js';
 
 interface AppContext {
 	Bindings: AppEnv;
@@ -42,13 +43,16 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 		defaultHook: wrappedValidationHook,
 	}).basePath(basePath);
 
-	app.use('*', cors({
-		origin: DEFAULT_HADOKU_ORIGINS,
-		allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-		allowHeaders: ['Content-Type', 'X-User-Key', 'X-API-Key'],
-		credentials: true,
-		maxAge: 86400,
-	}));
+	app.use(
+		'*',
+		cors({
+			origin: DEFAULT_HADOKU_ORIGINS,
+			allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+			allowHeaders: ['Content-Type', 'X-User-Key', 'X-API-Key'],
+			credentials: true,
+			maxAge: 86400,
+		})
+	);
 
 	// Standard auth middleware — attaches authContext to all routes.
 	// The /ingest route does its own key check on top of this.
@@ -58,19 +62,24 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 	app.route('/', ingestRoutes);
 	app.route('/', profileRoutes);
 	app.route('/', jobRoutes);
+	app.route('/', companyRoutes);
 
-	app.doc('/openapi.json', createOpenAPIDocConfig({
-		title: 'Job Platform API',
-		version: '1.0.0',
-		description: 'Job aggregation and profile-based scoring API.',
-		production: 'https://hadoku.me/jobplatform/api',
-		tags: [
-			{ name: 'Health', description: 'Health check' },
-			{ name: 'Ingest', description: 'Scraper webhook receiver' },
-			{ name: 'Profiles', description: 'Role profile management' },
-			{ name: 'Jobs', description: 'Job listing queries' },
-		],
-	}));
+	app.doc(
+		'/openapi.json',
+		createOpenAPIDocConfig({
+			title: 'Job Platform API',
+			version: '1.0.0',
+			description: 'Job aggregation and profile-based scoring API.',
+			production: 'https://hadoku.me/jobplatform/api',
+			tags: [
+				{ name: 'Health', description: 'Health check' },
+				{ name: 'Ingest', description: 'Scraper webhook receiver' },
+				{ name: 'Profiles', description: 'Role profile management' },
+				{ name: 'Jobs', description: 'Job listing queries' },
+				{ name: 'Companies', description: 'Per-user company subscriptions' },
+			],
+		})
+	);
 
 	const { notFoundHandler, errorHandler } = createErrorHandlers('wrapped');
 	app.notFound(notFoundHandler);
