@@ -271,15 +271,21 @@ GET   /health
 GET   /openapi.json
 ```
 
+### V1 — implemented (companies)
+
+```
+GET     /companies               ← list this user's subscribed companies
+POST    /companies               ← subscribe by display name; calls scraper /targets + fire-and-forget /search
+DELETE  /companies/:id           ← unsubscribe; proxies scraper DELETE /targets/{target_id}, idempotent on 404
+```
+
+All three gated by `requireUserType(['admin','friend'])`. User identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1. Multi-target resolution: a single display name can resolve to multiple `(ats, slug)` targets (e.g. greenhouse + lever); each becomes its own `user_companies` row under the same user.
+
+Outbound calls go through `worker/src/clients/scraper.ts`, which requires the `SCRAPER_API_KEY` binding (Bearer token; same value the scraper checks as its own `HADOKU_API_KEY`).
+
 ### V1 — to build
 
-```
-POST    /companies               ← user adds a company; proxies to scraper /targets
-GET     /companies               ← list this user's subscribed companies
-DELETE  /companies/:id           ← unsubscribe; proxies to scraper DELETE /targets/{target_id}
-```
-
-Plus the fix to make `/jobs` `profile_id` optional (return all jobs visible to the user when omitted), and a scheduler hookup (probably in `createScheduledHandler`) that calls scraper `/search`.
+Plus a scheduler hookup (probably in `createScheduledHandler`) that calls scraper `/search` on a cron, so jobs keep flowing even when nobody adds a new company.
 
 ### V2 — deferred
 
