@@ -3,6 +3,7 @@ import type { AppEnv } from '../types.js';
 import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { scoreJob } from '../scoring.js';
+import { parseAtsSlug } from '../slugParse.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -13,6 +14,7 @@ const app = new OpenAPIHono<RouteContext>();
 
 app.use('/ingest', requireUserType(['admin', 'friend']));
 app.use('/ingest/rescore', requireUserType(['admin', 'friend']));
+app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend']));
 
 // Normalize workplace_type values from scraper to our canonical set
 function normalizeWorkplaceType(wt: string): string {
@@ -74,6 +76,7 @@ app.openapi(ingestRoute, async (c) => {
 		const workplaceType = normalizeWorkplaceType(job.workplace_type);
 		const salaryMin = job.salary?.min ?? null;
 		const salaryMax = job.salary?.max ?? null;
+		const { ats, slug } = parseAtsSlug(job.url);
 
 		await db
 			.prepare(
@@ -81,8 +84,8 @@ app.openapi(ingestRoute, async (c) => {
 					id, url, source_site, title, company, location,
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
-					scraper_used, raw, scraped_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					scraper_used, raw, scraped_at, ats, slug
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				job.id,
@@ -101,7 +104,9 @@ app.openapi(ingestRoute, async (c) => {
 				job.department ?? null,
 				job.scraper_used ?? null,
 				JSON.stringify(job.raw),
-				now
+				now,
+				ats,
+				slug
 			)
 			.run();
 
@@ -216,6 +221,64 @@ app.openapi(rescoreRoute, async (c) => {
 	}
 
 	return c.json({ success: true as const, data: { scored } });
+});
+
+// ============================================================================
+// POST /ingest/backfill-slugs — one-off: parse (ats, slug) from job.url for
+// existing rows where either field is NULL. Idempotent. Safe to re-run.
+// ============================================================================
+
+const backfillRoute = createRoute({
+	method: 'post',
+	path: '/ingest/backfill-slugs',
+	tags: ['Ingest'],
+	summary: 'Populate jobs.ats / jobs.slug from job.url for rows where either is NULL',
+	responses: {
+		200: {
+			description: 'Backfill complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								scanned: z.number(),
+								updated: z.number(),
+								unmatched: z.number(),
+							}),
+						})
+						.openapi('BackfillSlugsResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(backfillRoute, async (c) => {
+	const db = c.env.JOB_PLATFORM_DB;
+	const rows = await db
+		.prepare('SELECT id, url FROM jobs WHERE ats IS NULL OR slug IS NULL')
+		.all<{ id: string; url: string }>();
+
+	let updated = 0;
+	let unmatched = 0;
+	for (const row of rows.results) {
+		const { ats, slug } = parseAtsSlug(row.url);
+		if (ats === null && slug === null) {
+			unmatched++;
+			continue;
+		}
+		await db
+			.prepare('UPDATE jobs SET ats = ?, slug = ? WHERE id = ?')
+			.bind(ats, slug, row.id)
+			.run();
+		updated++;
+	}
+
+	return c.json({
+		success: true as const,
+		data: { scanned: rows.results.length, updated, unmatched },
+	});
 });
 
 export const ingestRoutes = app;

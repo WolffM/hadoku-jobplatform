@@ -1,9 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
 import { JobsResponseSchema, JobResponseSchema, ErrorResponseSchema } from '../schemas.js';
+import type { HadokuAuthContext } from '@wolffm/worker-utils';
+import { userIdFromCredential } from '../userId.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
+	Variables: { authContext: HadokuAuthContext };
 }
 
 const app = new OpenAPIHono<RouteContext>();
@@ -17,13 +20,17 @@ app.openapi(
 		method: 'get',
 		path: '/jobs',
 		tags: ['Jobs'],
-		summary: 'List jobs (optionally scored for a profile)',
+		summary: 'List jobs (optionally scored for a profile and/or filtered to mine)',
 		request: {
 			query: z.object({
 				profile_id: z
 					.string()
 					.optional()
 					.openapi({ description: 'Filter/score by profile. Omit to list all jobs unscored.' }),
+				mine: z.enum(['true', 'false']).optional().openapi({
+					description:
+						'If true, filter to jobs from companies the caller is subscribed to (via /companies). Requires admin/friend auth.',
+				}),
 				page: z.coerce.number().int().positive().default(1).openapi({ description: 'Page number' }),
 				limit: z.coerce
 					.number()
@@ -46,10 +53,15 @@ app.openapi(
 				description: 'Job list',
 				content: { 'application/json': { schema: JobsResponseSchema } },
 			},
+			401: {
+				description: 'mine=true requires an authenticated admin/friend caller',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
 		},
 	}),
 	async (c) => {
-		const { profile_id, page, limit, sort, min_score } = c.req.valid('query');
+		const { profile_id, mine: mineRaw, page, limit, sort, min_score } = c.req.valid('query');
+		const mine = mineRaw === 'true';
 		const db = c.env.JOB_PLATFORM_DB;
 		const offset = (page - 1) * limit;
 
@@ -74,62 +86,90 @@ app.openapi(
 			url: string;
 			posted_date: string | null;
 			scraped_at: string;
+			ats: string | null;
+			slug: string | null;
 			score: number | null;
 			score_breakdown: string | null;
 		}
 
-		let total: number;
-		let rows: { results: JobRow[] };
+		// mine=true requires auth, even though the rest of GET /jobs is open.
+		let userId: string | null = null;
+		if (mine) {
+			const auth = c.get('authContext');
+			if (auth.userType !== 'admin' && auth.userType !== 'friend') {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Unauthorized',
+						message: 'mine=true requires an authenticated admin/friend caller',
+					},
+					401
+				);
+			}
+			if (!auth.credential) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Unauthorized',
+						message: 'Authenticated credential missing',
+					},
+					401
+				);
+			}
+			userId = await userIdFromCredential(auth.credential);
+		}
+
+		// Build JOIN / WHERE fragments based on which filters are active.
+		// Order of binds is: profile_id?, min_score?, userId?, limit, offset
+		const joins: string[] = [];
+		const wheres: string[] = [];
+		const binds: (string | number)[] = [];
+
+		const scoredCols = profile_id
+			? 'm.score, m.score_breakdown'
+			: 'NULL as score, NULL as score_breakdown';
 
 		if (profile_id) {
-			const orderBy = sort === 'score' ? 'm.score DESC' : 'j.scraped_at DESC';
-
-			const countRow = await db
-				.prepare(
-					`SELECT COUNT(*) as total FROM job_profile_matches m
-					 WHERE m.profile_id = ? AND m.score >= ?`
-				)
-				.bind(profile_id, min_score)
-				.first<{ total: number }>();
-			total = countRow?.total ?? 0;
-
-			rows = await db
-				.prepare(
-					`SELECT
-						j.id, j.title, j.company, j.location, j.workplace_type,
-						j.salary_min, j.salary_max, j.source_site, j.url,
-						j.posted_date, j.scraped_at,
-						m.score, m.score_breakdown
-					 FROM job_profile_matches m
-					 JOIN jobs j ON j.id = m.job_id
-					 WHERE m.profile_id = ? AND m.score >= ?
-					 ORDER BY ${orderBy}
-					 LIMIT ? OFFSET ?`
-				)
-				.bind(profile_id, min_score, limit, offset)
-				.all<JobRow>();
-		} else {
-			// Unscored listing — no profile filter, score fields default to 0.
-			// `sort=score` is meaningless here; fall back to date order.
-			const countRow = await db
-				.prepare('SELECT COUNT(*) as total FROM jobs')
-				.first<{ total: number }>();
-			total = countRow?.total ?? 0;
-
-			rows = await db
-				.prepare(
-					`SELECT
-						j.id, j.title, j.company, j.location, j.workplace_type,
-						j.salary_min, j.salary_max, j.source_site, j.url,
-						j.posted_date, j.scraped_at,
-						NULL as score, NULL as score_breakdown
-					 FROM jobs j
-					 ORDER BY j.scraped_at DESC
-					 LIMIT ? OFFSET ?`
-				)
-				.bind(limit, offset)
-				.all<JobRow>();
+			joins.push('JOIN job_profile_matches m ON m.job_id = j.id');
+			wheres.push('m.profile_id = ?');
+			binds.push(profile_id);
+			wheres.push('m.score >= ?');
+			binds.push(min_score);
 		}
+
+		if (mine && userId) {
+			joins.push('INNER JOIN user_companies uc ON uc.ats = j.ats AND uc.slug = j.slug');
+			wheres.push('uc.user_id = ?');
+			binds.push(userId);
+		}
+
+		const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+		const joinClause = joins.join(' ');
+		const orderBy = profile_id && sort === 'score' ? 'm.score DESC' : 'j.scraped_at DESC';
+
+		const countSql = `SELECT COUNT(*) as total FROM jobs j ${joinClause} ${whereClause}`;
+		const countRow = await db
+			.prepare(countSql)
+			.bind(...binds)
+			.first<{ total: number }>();
+		const total = countRow?.total ?? 0;
+
+		const dataSql = `
+			SELECT
+				j.id, j.title, j.company, j.location, j.workplace_type,
+				j.salary_min, j.salary_max, j.source_site, j.url,
+				j.posted_date, j.scraped_at, j.ats, j.slug,
+				${scoredCols}
+			FROM jobs j
+			${joinClause}
+			${whereClause}
+			ORDER BY ${orderBy}
+			LIMIT ? OFFSET ?`;
+
+		const rows = await db
+			.prepare(dataSql)
+			.bind(...binds, limit, offset)
+			.all<JobRow>();
 
 		const jobs = rows.results.map((r) => ({
 			id: r.id,
@@ -143,6 +183,8 @@ app.openapi(
 			url: r.url,
 			posted_date: r.posted_date,
 			scraped_at: r.scraped_at,
+			ats: r.ats,
+			slug: r.slug,
 			score: r.score ?? 0,
 			score_breakdown: r.score_breakdown
 				? (JSON.parse(r.score_breakdown) as typeof zeroBreakdown)
@@ -243,6 +285,8 @@ app.openapi(
 			url: row.url as string,
 			posted_date: row.posted_date as string | null,
 			scraped_at: row.scraped_at as string,
+			ats: (row.ats as string | null) ?? null,
+			slug: (row.slug as string | null) ?? null,
 			description: row.description as string,
 			application_url: row.application_url as string | null,
 			department: row.department as string | null,

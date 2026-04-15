@@ -10,6 +10,12 @@ import './styles/index.css'
 // Props interface for configuration from parent app
 export interface JobPlatformProps {
   theme?: string // Theme passed from parent (e.g., 'default', 'ocean', 'forest')
+  /**
+   * Optional admin/friend API key to send as `X-User-Key` on authed requests.
+   * If omitted, the micro-frontend uses `credentials: 'include'` and relies on
+   * the hadoku_site edge-router to inject auth from the session cookie.
+   */
+  apiKey?: string
 }
 
 // Extend HTMLElement to include __root property

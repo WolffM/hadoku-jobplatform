@@ -86,6 +86,8 @@ export const JobSummarySchema = z
 		url: z.string(),
 		posted_date: z.string().nullable(),
 		scraped_at: z.string(),
+		ats: z.string().nullable(),
+		slug: z.string().nullable(),
 		score: z.number(),
 		score_breakdown: ScoreBreakdownSchema,
 	})
