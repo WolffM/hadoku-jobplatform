@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform-worker",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Job listings aggregation and tracking dashboard - Worker package",
   "type": "module",
   "repository": {
