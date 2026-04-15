@@ -233,9 +233,23 @@ const backfillRoute = createRoute({
 	path: '/ingest/backfill-slugs',
 	tags: ['Ingest'],
 	summary: 'Populate jobs.ats / jobs.slug from job.url for rows where either is NULL',
+	description:
+		'Bounded by `limit` (default 500) per call so a single invocation stays under ' +
+		'the edge-router timeout even as the jobs table grows. Loop until `has_more` is false.',
+	request: {
+		query: z.object({
+			limit: z.coerce
+				.number()
+				.int()
+				.min(1)
+				.max(2000)
+				.default(500)
+				.openapi({ description: 'Max rows to scan in this call' }),
+		}),
+	},
 	responses: {
 		200: {
-			description: 'Backfill complete',
+			description: 'Backfill batch complete',
 			content: {
 				'application/json': {
 					schema: z
@@ -245,6 +259,8 @@ const backfillRoute = createRoute({
 								scanned: z.number(),
 								updated: z.number(),
 								unmatched: z.number(),
+								remaining: z.number(),
+								has_more: z.boolean(),
 							}),
 						})
 						.openapi('BackfillSlugsResponse'),
@@ -255,9 +271,12 @@ const backfillRoute = createRoute({
 });
 
 app.openapi(backfillRoute, async (c) => {
+	const { limit } = c.req.valid('query');
 	const db = c.env.JOB_PLATFORM_DB;
+
 	const rows = await db
-		.prepare('SELECT id, url FROM jobs WHERE ats IS NULL OR slug IS NULL')
+		.prepare('SELECT id, url FROM jobs WHERE ats IS NULL OR slug IS NULL LIMIT ?')
+		.bind(limit)
 		.all<{ id: string; url: string }>();
 
 	let updated = 0;
@@ -275,9 +294,24 @@ app.openapi(backfillRoute, async (c) => {
 		updated++;
 	}
 
+	// After the batch, count how many still need work. The unmatched rows from
+	// this batch are still NULL in the DB (we didn't update them), so they're
+	// included in `remaining`. Caller should stop looping when `remaining ===
+	// unmatched` (nothing matchable left) rather than when `has_more` flips.
+	const remainingRow = await db
+		.prepare('SELECT COUNT(*) as n FROM jobs WHERE ats IS NULL OR slug IS NULL')
+		.first<{ n: number }>();
+	const remaining = remainingRow?.n ?? 0;
+
 	return c.json({
 		success: true as const,
-		data: { scanned: rows.results.length, updated, unmatched },
+		data: {
+			scanned: rows.results.length,
+			updated,
+			unmatched,
+			remaining,
+			has_more: remaining > unmatched,
+		},
 	});
 });
 
