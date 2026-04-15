@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
 import { THEME_ICON_MAP } from '@wolffm/themes'
 import { useTheme } from './hooks/useTheme'
+import { CompaniesManager } from './components/CompaniesManager'
 import type { JobPlatformProps } from './entry'
 
 export default function App(props: JobPlatformProps = {}) {
@@ -51,8 +52,7 @@ export default function App(props: JobPlatformProps = {}) {
         </header>
 
         <section className="job-platform__content">
-          <p>Current Theme: {theme}</p>
-          <p>Dark Mode: {isDarkTheme ? 'Yes' : 'No'}</p>
+          <CompaniesManager apiKey={props.apiKey} />
         </section>
       </div>
     </main>

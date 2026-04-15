@@ -283,6 +283,20 @@ All three gated by `requireUserType(['admin','friend'])`. User identity is `sha2
 
 Outbound calls go through `worker/src/clients/scraper.ts`, which requires the `SCRAPER_API_KEY` binding (Bearer token; same value the scraper checks as its own `HADOKU_API_KEY`).
 
+### V1 — implemented (jobs filtering)
+
+```
+GET /jobs?mine=true   ← filters jobs to companies the caller is subscribed to
+```
+
+Joins `jobs` to `user_companies` via stable `(ats, slug)`. Derived at ingest time from `job.url` by `worker/src/slugParse.ts` — four patterns today (lever, greenhouse boards, ashby, linkedin + the stripe.com/gh_jid shortlink). Stored on the `jobs` table via migration 0003. Unmatched URLs get NULL and are excluded from `mine=true` queries. `POST /ingest/backfill-slugs` re-parses historical rows (idempotent).
+
+`mine=true` requires admin/friend auth even though the rest of `GET /jobs` is open. Can be combined with `profile_id` to AND both filters.
+
+### V1 — implemented (UI)
+
+`src/components/CompaniesManager.tsx` — list / add / remove view mounted in the main app content area. Accepts an optional `apiKey` prop via `JobPlatformProps`; when omitted, uses `credentials: 'include'` and relies on hadoku_site's edge-router to inject auth from the session cookie.
+
 ### V1 — to build
 
 Plus a scheduler hookup (probably in `createScheduledHandler`) that calls scraper `/search` on a cron, so jobs keep flowing even when nobody adds a new company.
