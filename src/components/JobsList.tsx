@@ -78,28 +78,30 @@ export function JobsList({ apiKey, profileId, onSelect }: Props) {
           onChange={e => setSearch(e.target.value)}
           className="jp-jobs__search"
         />
-        <label className="jp-jobs__filter">
-          Sort
-          <select value={sort} onChange={e => setSort(e.target.value as 'score' | 'date')}>
-            <option value="score" disabled={!profileId}>
-              Score
-            </option>
-            <option value="date">Date</option>
-          </select>
-        </label>
-        <label className="jp-jobs__filter">
-          Min score
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.05}
-            value={minScore}
-            onChange={e => setMinScore(Number(e.target.value))}
-            disabled={!profileId}
-          />
-          <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
-        </label>
+        {profileId && (
+          <>
+            <label className="jp-jobs__filter">
+              Sort
+              <select value={sort} onChange={e => setSort(e.target.value as 'score' | 'date')}>
+                <option value="score">Score</option>
+                <option value="date">Date</option>
+              </select>
+            </label>
+            <label className="jp-jobs__filter">
+              Min score
+              <input
+                type="range"
+                className="jp-slider"
+                min={0}
+                max={1}
+                step={0.05}
+                value={minScore}
+                onChange={e => setMinScore(Number(e.target.value))}
+              />
+              <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
+            </label>
+          </>
+        )}
         <label className="jp-jobs__filter">
           <input type="checkbox" checked={mine} onChange={e => setMine(e.target.checked)} />
           Mine only
@@ -108,7 +110,8 @@ export function JobsList({ apiKey, profileId, onSelect }: Props) {
 
       {!profileId && (
         <p className="jp-muted">
-          No profile selected. Showing unscored list. Pick or create a profile to see scores.
+          No profile selected. Showing unscored list. Pick or create a profile to see scores and
+          enable score-based sorting + filtering.
         </p>
       )}
 

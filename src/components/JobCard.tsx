@@ -23,15 +23,25 @@ function formatDate(iso: string | null): string | null {
   return d.toLocaleDateString()
 }
 
+function scoreTier(score: number): 'high' | 'mid' | 'low' {
+  if (score >= 0.75) return 'high'
+  if (score >= 0.5) return 'mid'
+  return 'low'
+}
+
 export function JobCard({ job, showScore, onClick }: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
+  const tier = showScore ? scoreTier(job.score) : null
+
+  const cardClass = tier ? `jp-jobcard jp-jobcard--score-${tier}` : 'jp-jobcard'
+  const scoreClass = tier ? `jp-jobcard__score jp-jobcard__score--${tier}` : 'jp-jobcard__score'
 
   return (
-    <button type="button" className="jp-jobcard" onClick={onClick}>
+    <button type="button" className={cardClass} onClick={onClick}>
       <div className="jp-jobcard__top">
         <span className="jp-jobcard__title">{job.title}</span>
-        {showScore && <span className="jp-jobcard__score">{job.score.toFixed(2)}</span>}
+        {showScore && <span className={scoreClass}>{job.score.toFixed(2)}</span>}
       </div>
       <div className="jp-jobcard__meta">
         <span className="jp-jobcard__company">{job.company}</span>
@@ -47,7 +57,7 @@ export function JobCard({ job, showScore, onClick }: Props) {
       <div className="jp-jobcard__footer">
         {salary && <span className="jp-jobcard__salary">{salary}</span>}
         <span className="jp-jobcard__source">{job.source_site}</span>
-        {posted && <span className="jp-jobcard__posted">{posted}</span>}
+        {posted && <span>{posted}</span>}
       </div>
     </button>
   )
