@@ -120,7 +120,12 @@ export function useApiHealth(apiBase: string, interval = 30000) {
     return () => clearInterval(timer)
   }, [checkHealth, interval])
 
-  return { ...status, refresh: () => { void checkHealth() } }
+  return {
+    ...status,
+    refresh: () => {
+      void checkHealth()
+    }
+  }
 }
 
 /**

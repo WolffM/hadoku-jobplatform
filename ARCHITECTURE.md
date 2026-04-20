@@ -6,12 +6,14 @@ A job hunting pipeline that automatically aggregates postings from multiple sour
 
 ### Roadmap
 
-| Phase                          | Status      | Scope                                                                                        |
-| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
-| **V1 — Scrape & Display**      | In progress | User subscribes to companies → scraper fetches → ingest → score → browsable UI               |
-| **V2 — Tailored Applications** | Deferred    | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api) |
-| **V3 — Auto Apply**            | Deferred    | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever)                      |
-| **V4 — Full Tracking**         | Deferred    | Applied → interviewing → offer → rejected, with notes and follow-up dates                    |
+| Phase                          | Status      | Scope                                                                                                                                                 |
+| ------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **V1 — Scrape & Display**      | In progress | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                        |
+| **V2 — Triage State**          | Next        | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5. |
+| **V3 — Tailored Applications** | Deferred    | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
+| **V4 — Auto Apply**            | Deferred    | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)                                                                         |
+| **V5 — Tracking & Follow-ups** | Deferred    | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                          |
+| **V6 — Alerts & Digest**       | Deferred    | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                        |
 
 ---
 
@@ -53,14 +55,17 @@ hadoku_site
   └── mounts React micro-frontend at /jobs/
 ```
 
-**Live today**: scraper pipeline end-to-end, worker `/ingest` receiving inline webhooks, D1 storage, scoring, `/jobs` and `/profiles` APIs.
-**Not yet built**: `user_companies` table, `POST /companies`, scraper-client module, UI company manager, scheduled `/search` trigger.
+**Live today**: scraper pipeline end-to-end (greenhouse / lever / linkedin, 3,000+ jobs in D1, daily scheduled scrape via hadoku_site cron), worker `/ingest` receiving inline webhooks, D1 storage, scoring, `/jobs` / `/profiles` / `/companies` APIs, `mine=true` filter with slug-based join, `CompaniesManager` UI.
+
+**V1 remaining** (UI-only): profile CRUD UI, job list view (cards with score + filters), job detail drawer with score breakdown, seed one real profile + backfill scores, confirm `/jobplatform/` route whitelist in hadoku_site.
+
+**V2 prereqs** (cheap modularity refactors, do before feature work starts): add `profiles.user_id` column to lock in per-user scoping before any prod profile data lands; introduce UI routing/state scaffolding (react-router or equivalent) so list/detail/triage don't need a re-plumb after the fact.
 
 ---
 
 ## Scraper Integration (live)
 
-The scraper side is operational. End-to-end verified this week: 239 Lever jobs landed via 11 webhook POSTs, all 200. Full API reference: `hadoku-scrape/docs/jobboards-api.md`. OpenAPI: `https://scraper.hadoku.me/openapi.json`.
+The scraper side is operational. 3,000+ jobs across greenhouse / lever / linkedin in D1, scheduled daily scrape live (GH + LV at 06:01 UTC, LinkedIn on its own cadence — unified cron landing via hadoku_site). Full API reference: `hadoku-scrape/docs/jobboards-api.md`. OpenAPI: `https://scraper.hadoku.me/openapi.json`.
 
 ### Ownership split
 
@@ -70,12 +75,12 @@ The scraper side is operational. End-to-end verified this week: 239 Lever jobs l
 
 ### How each source works
 
-| Source         | Mechanism                                                                | Notes                                                                    |
-| -------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| **Greenhouse** | Company enumeration via resolved `(greenhouse, slug)`                    | No salary field                                                          |
-| **Lever**      | Company enumeration via resolved `(lever, slug)`                         | No salary field. **Confirmed live — 239 jobs delivered**                 |
-| **LinkedIn**   | Keyword search; auth via `browser-cookie3` (local Firefox/Chrome cookie) | Live                                                                     |
-| **Ashby**      | Resolver supported, scraper not yet implemented                          | Adding `ashby` to `IngestPayloadSchema.source` enum is a V1 prerequisite |
+| Source         | Mechanism                                                                | Notes                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Greenhouse** | Company enumeration via resolved `(greenhouse, slug)`                    | No salary field. 2,250+ jobs live. Historical empty-description rows pending KV rehydration (see `project_description_backfill.md`). |
+| **Lever**      | Company enumeration via resolved `(lever, slug)`                         | No salary field. 250+ jobs live.                                                                                                     |
+| **LinkedIn**   | Keyword search; auth via `browser-cookie3` (local Firefox/Chrome cookie) | 240+ jobs live with populated `location` + `workplace_type` after the 2026-04-19 extraction fix.                                     |
+| **Ashby**      | Resolver supported, scraper not yet implemented                          | `IngestPayloadSchema.source` would need `ashby` added before first Ashby jobs can land.                                              |
 
 ### Scraper API surface (all live)
 
@@ -149,15 +154,15 @@ Jobs are sent **inline**, not as `{job_ids[]}`. One webhook carries up to 25 ful
 
 ### Scheduling
 
-Nothing is currently scheduled. The pipeline only runs when something calls `POST /api/v1/jobboards/search`. V1 will add a scheduled trigger — either via hadoku_site's scheduler, or via jobplatform-worker's `createScheduledHandler` (currently a stub) calling scraper `/search` on a cron.
+Scheduling lives in hadoku_site. The `mgmt-api` cron-jobs dispatcher fires `POST /api/v1/jobboards/search` with explicit body `{"sources": ["greenhouse", "lever", "linkedin"]}` on the existing 2am UTC daily cadence driven by `monitoring-api` CF cron. jobplatform-worker's `createScheduledHandler` stays a stub; owning the cadence upstream is cleaner than duplicating it here.
 
 ---
 
 ## Data Model
 
-Current D1 schema (`worker/migrations/0001_init.sql`): `profiles`, `jobs`, `job_profile_matches`. **No `users` table, no `user_companies` table yet** — adding them is the first V1 task.
+Current D1 schema (migrations 0001–0003): `profiles`, `jobs`, `job_profile_matches`, `user_companies`. No standalone `users` table — identity is opaque (`sha256(credential).slice(0, 16)`) and carried inline on `user_companies.user_id`. Same pattern will apply to the V2 `job_states` table.
 
-### Users & Company Subscriptions (V1, not yet built)
+### Users & Company Subscriptions (V1, shipped)
 
 ```typescript
 interface User {
@@ -182,7 +187,7 @@ Jobs are joined to users at query time via `jobs.company` (or, preferably, via a
 
 ### Profiles
 
-A **profile** defines a class of role you're looking for. Maintain 5–10 simultaneously (e.g., "Senior SWE — AI/ML", "Staff Engineer — Platform", "Principal — Startups"). **Currently global**: profiles have no `user_id` column. Either scope per-user in V1 or keep global and rely on `user_companies` for per-user filtering — see Open Questions.
+A **profile** defines a class of role you're looking for. Maintain 5–10 simultaneously (e.g., "Senior SWE — AI/ML", "Staff Engineer — Platform", "Principal — Startups"). **Currently global**: profiles have no `user_id` column. V1 stays global; V2 readiness adds `profiles.user_id` before any real profile data lands in prod (see Open Questions — "V2 readiness").
 
 ```typescript
 interface JobProfile {
@@ -243,6 +248,27 @@ interface ProfileMatch {
 }
 ```
 
+### Job States (V2, not yet built)
+
+```typescript
+interface JobState {
+  job_id: string
+  user_id: string // same opaque id as user_companies
+  state:
+    | 'new' // default on first ingest; not written until user transitions
+    | 'interested'
+    | 'dismissed'
+    | 'saved' // shortlist for later
+    | 'applied' // set by V4 auto-apply or manual UI
+    | 'offered'
+    | 'rejected'
+  notes: string | null // free-text, replaced on each PUT
+  updated_at: string
+}
+```
+
+Migration: `job_states` with `PRIMARY KEY (job_id, user_id)`. No state row = `new` (implicit). Transitions are unconstrained in V2 — the UI enforces the flow, the backend accepts any valid state. V5 will layer a `job_events` append-only log on top for full history.
+
 ### Deduplication
 
 Scraper does not deduplicate across sources. Our ingest logic:
@@ -261,12 +287,12 @@ Base path: `/jobplatform/api`
 ```
 POST  /ingest                    ← scraper webhook, admin/friend via X-User-Key, inline jobs
 POST  /ingest/rescore            ← rescore all jobs against one or all profiles
+POST  /ingest/backfill-slugs     ← one-off: parse (ats, slug) from job.url for rows with NULL
 GET   /profiles                  ← list profiles
 POST  /profiles                  ← create profile
 PUT   /profiles/:id              ← update profile
-GET   /jobs?profile_id=&...      ← ⚠️ profile_id is currently REQUIRED (Zod validation). Fix pending.
+GET   /jobs?profile_id=&...      ← profile_id optional; sort=score|date, min_score, mine=true filters
 GET   /jobs/:id                  ← full job detail + score breakdown
-POST  /jobs/rescore              ← rescore all jobs against updated profiles
 GET   /health
 GET   /openapi.json
 ```
@@ -297,31 +323,61 @@ Joins `jobs` to `user_companies` via stable `(ats, slug)`. Derived at ingest tim
 
 `src/components/CompaniesManager.tsx` — list / add / remove view mounted in the main app content area. Accepts an optional `apiKey` prop via `JobPlatformProps`; when omitted, uses `credentials: 'include'` and relies on hadoku_site's edge-router to inject auth from the session cookie.
 
-### V1 — to build
+### V1 — to build (UI-only)
 
-Plus a scheduler hookup (probably in `createScheduledHandler`) that calls scraper `/search` on a cron, so jobs keep flowing even when nobody adds a new company.
+Profile CRUD UI, job list view, job detail drawer, and wiring against existing `/jobs`, `/profiles`, `/jobs/:id`, `/companies` routes. No new backend endpoints.
 
-### V2 — deferred
+Scheduling is not a V1 task for this repo — hadoku_site's `mgmt-api` cron dispatches `/api/v1/jobboards/search` on the existing 2am UTC daily cadence. `createScheduledHandler` in this worker remains a stub and is not expected to be used.
+
+### V2 — planned (triage state)
+
+Per-user, per-job lifecycle. Without this every dashboard visit re-triages the same jobs you already looked at yesterday.
+
+```
+PUT   /jobs/:id/state            ← set state + optional notes; upserts on (job_id, user_id)
+GET   /jobs/:id/state            ← read current state for the authed user
+GET   /jobs?state=X              ← filter list by state (combinable with profile_id, mine, min_score)
+```
+
+All gated by `requireUserType(['admin','friend'])`. Per-user via the same `userIdFromCredential()` helper as `user_companies`. Default state on first ingest is `new`; user transitions to `interested / dismissed` from the card. From `interested`: `→ saved → applied → { offered | rejected }`.
+
+Schema: new `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)`. See Data Model below.
+
+### V3 — deferred (tailored applications)
 
 ```
 POST  /jobs/:id/resume           ← tailored resume via Cloudflare service binding to resume-api (no HTTPS / no key)
 POST  /jobs/:id/cover-letter     ← cover letter via same service binding
 ```
 
-Rationale for service binding: resume-bot's `/tailored-resume` and `/cover-letter` endpoints exist but are gated by hadoku_site's edge-router (`validateFriendOrAdminKey`). A service binding from `hadoku_site/workers/jobplatform-api/` to `hadoku_site/workers/resume-api/` bypasses the edge entirely — zero-trust pre-authenticated — so jobplatform never needs to hold a key for resume-bot. See Open Questions for block-seeding verification status.
+Rationale for service binding: resume-bot's `/tailored-resume` and `/cover-letter` endpoints exist but are gated by hadoku_site's edge-router (`validateFriendOrAdminKey`). A service binding from `hadoku_site/workers/jobplatform-api/` to `hadoku_site/workers/resume-api/` bypasses the edge entirely — zero-trust pre-authenticated — so jobplatform never needs to hold a key for resume-bot. See V3 section and Open Questions for block-seeding status (verified unseeded as of 2026-04-19).
 
-### V3 — deferred
-
-```
-POST  /jobs/:id/apply            ← trigger automated apply flow
-```
-
-### V4 — deferred
+### V4 — deferred (auto apply)
 
 ```
-GET   /applications              ← list tracked applications
-PUT   /applications/:id          ← update status, notes, follow-up date
+POST  /jobs/:id/apply            ← trigger automated apply flow (drives browser via scraper)
 ```
+
+Executes in hadoku-scrape (not here) — jobplatform POSTs the job ID + V3 resume/cover-letter output, scraper drives the browser (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby forms). Result reported back via webhook and stored as state=`applied` in the V2 table.
+
+### V5 — deferred (tracking & follow-ups)
+
+```
+GET   /applications              ← list tracked applications with timeline
+GET   /jobs/:id/timeline         ← state transition history for one job
+PUT   /jobs/:id/follow-up        ← set next_follow_up_date, contact_name, notes
+```
+
+New `job_events (id, job_id, user_id, event_type, notes, occurred_at)` append-only log. UI: vertical timeline in the job detail drawer + Kanban across all in-flight applications.
+
+### V6 — deferred (alerts & digest)
+
+```
+GET   /alerts/config             ← per-profile alert preferences
+PUT   /alerts/config             ← update per-profile threshold, channel, frequency
+```
+
+Config per-profile: `alert_min_score`, `alert_channel` (`email` | `push` | `none`), `alert_frequency` (`daily` | `realtime`). Triggered from the existing daily `/search` cron completion hook. Delivery via hadoku_site's existing Resend integration and/or web-push. V2 triage state suppresses already-triaged jobs from the digest.
 
 ---
 
@@ -347,9 +403,18 @@ function scoreJobAgainstProfile(job: JobPosting, profile: JobProfile): number {
 
 ---
 
-## Resume-Bot Integration (V2)
+## Resume-Bot Integration (V3)
 
 Both endpoints already exist in `@wolffm/resume-bot/api` (`hadoku-resume-bot/worker/src/{tailored-resume.ts,cover-letter.ts}`) and are mounted live at `https://hadoku.me/resume/api/`. They were added in resume-bot commit `8fcc209`.
+
+### Verified state (2026-04-19)
+
+Live probed with a real job posting + admin key:
+
+- `POST /resume/api/cover-letter` — **HTTP 200**, 1942-char coherent letter in 2.4s (Groq, not cached). Reads plaintext `resume` key from `CONTENT_KV` which is seeded. **Production-ready today.**
+- `POST /resume/api/tailored-resume` — **HTTP 500**: `"No resume blocks found in KV storage"`. `CONTENT_KV` contains exactly one key (`resume`); no `resume:blocks:index`, zero `resume:blocks:*` records. Blocks have never been seeded. Resume-bot has no introspection or upload endpoint — block state can only be inspected via wrangler/CF API.
+
+Implication: `/cover-letter` integration could ship in V3 ahead of `/tailored-resume`. The latter is blocked on (a) authoring 20–40 resume blocks from the plaintext, (b) deciding on a seeding path (one-off wrangler script vs. adding a gated `POST /resume/api/blocks` to resume-bot).
 
 ### Endpoint contracts (implemented)
 
@@ -371,7 +436,7 @@ Input shape matches jobplatform's `jobs` table exactly — no translation layer 
 
 - Resume-bot worker code has **no in-worker auth**.
 - Gating happens **upstream in hadoku_site's edge-router**, via a function named `validateFriendOrAdminKey` (per the resume-bot commit message). This is a **different gate** from jobplatform's in-worker `requireUserType(['admin','friend'])`. The two key lists may or may not be the same — verified empirically that a known-good jobplatform `svc-…` service key is accepted on `/jobplatform/api/*` but **rejected** on `/resume/api/{tailored-resume,cover-letter,system-prompt}` with 403.
-- **For V2 jobplatform→resume-bot calls**: use a **Cloudflare service binding** between the two host workers, not HTTPS. Service bindings are zero-trust pre-authenticated and bypass the edge-router entirely, so jobplatform never needs to hold a resume-bot key. Wire in `hadoku_site/workers/jobplatform-api/wrangler.toml`:
+- **For V3 jobplatform→resume-bot calls**: use a **Cloudflare service binding** between the two host workers, not HTTPS. Service bindings are zero-trust pre-authenticated and bypass the edge-router entirely, so jobplatform never needs to hold a resume-bot key. Wire in `hadoku_site/workers/jobplatform-api/wrangler.toml`:
 
   ```toml
   [[services]]
@@ -402,12 +467,9 @@ Blocks live in `CONTENT_KV` under `resume:blocks:index` (array of IDs) + `resume
 
 **Nothing in the resume-bot repo seeds blocks.** No seed script, no committed block files, no init command — `blocks.ts` only reads. The plaintext `/resume` endpoint works (proof that `CONTENT_KV` has `resume:full` or legacy `resume`), but that's a different KV key from `resume:blocks:*`.
 
-If blocks were never seeded, the first call to `/tailored-resume` will throw `"No resume blocks found in KV storage"` (`tailored-resume.ts:39`). **Must verify before V2 starts** by either:
+Status as of 2026-04-19: **verified unseeded.** Live `wrangler kv list` against namespace `963eeaa358d44c88a7e4047303e20997` returned exactly one key (`resume`, the plaintext resume). Zero `resume:blocks:*` records. Live `POST /resume/api/tailored-resume` with a real job + admin key returned HTTP 500 with the expected error.
 
-- Running `wrangler kv:key list --namespace-id=<CONTENT_KV>` and looking for `resume:blocks:*` keys
-- Or making an authed call to `/tailored-resume` and reading the error
-
-Block seeding is a resume-bot repo task, not a jobplatform task, but it blocks V2.
+Block seeding is a resume-bot repo task, not a jobplatform task, but it blocks V3's `/tailored-resume` integration. `/cover-letter` reads from the plaintext `resume` key and works today — it can ship in V3 ahead of `/tailored-resume`.
 
 ---
 
@@ -430,7 +492,7 @@ Block seeding is a resume-bot repo task, not a jobplatform task, but it blocks V
                         └──────────────────────────────────────────────┘
 ```
 
-Job detail opens in a right-side drawer: full description, score breakdown by signal, source URL, and action buttons (disabled in V1, active in V2+).
+Job detail opens in a right-side drawer: full description, score breakdown by signal, source URL, and action buttons — disabled in V1, activated in V2 (triage: interested/dismissed/saved/applied) and extended in V3 (generate resume/cover-letter).
 
 ---
 
@@ -445,25 +507,38 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 ## Open Questions
 
-### V1 blockers
+### V1 remaining
 
-- [ ] **`/jobs` requires `profile_id`** — Zod marks it required, so with zero profiles there's literally no way to list jobs. One-line fix to make it optional. Do before company-subscription work so we can actually see the 239 Lever jobs already in D1.
-- [ ] **User scoping** — two choices: (a) add `users` + `user_companies`, scope profiles per-user too; (b) add only `user_companies`, keep profiles global. Recommend (b) for V1 simplicity. Decide before writing the schema migration.
-- [ ] **Stable job → company join** — scraper webhook jobs carry `company` (display name) but no `(ats, slug)`. To join `jobs` to `user_companies` cleanly we need the scraper to include `ats`/`slug` on each ingested job, **or** jobplatform must derive slug from `job.url` per-source. (a) is cleaner — request from scraper side.
-- [ ] **`IngestPayloadSchema.source` enum** — currently locked to `greenhouse | lever | linkedin`. Scraper's resolver supports Ashby and will eventually scrape it. Loosen to `z.string()` or extend the enum proactively.
-- [ ] **Scheduler** — `createScheduledHandler` is a stub. Decide whether to drive `/search` from jobplatform's cron or hadoku_site's scheduler.
-- [ ] **`profiles` empty in prod** — no scoring has run against the 239 ingested jobs because there are no profile rows. Decide whether to seed defaults or wait for UI-driven creation.
+- [ ] **UI mount in hadoku_site** — `/jobplatform/` route needs whitelisting in `src/pages/[app].astro`. Confirm before shipping finished UI.
+- [ ] **`IngestPayloadSchema.source` enum** — still locked to `greenhouse | lever | linkedin`. Scraper's resolver supports Ashby. Loosen to `z.string()` or extend before first Ashby target is added.
+- [ ] **Seed one real profile** — production `profiles` table is empty, so no scoring has run against the 3,000+ ingested jobs. Blocks a meaningful job-list view. Either build the profile CRUD UI (preferred), or one-off insert via SQL.
 
-### V2 blockers
+### V2 readiness (cheap refactors before feature work)
 
-- [ ] **Resume-bot block seeding** — unverified whether `resume:blocks:index` exists in `CONTENT_KV`. Must verify before starting V2; no seed script exists in the resume-bot repo.
+- [ ] **`profiles.user_id` migration** — profiles are global today (`ARCHITECTURE.md` §Data Model flagged this when the table was designed). Before any prod profile data lands, add `user_id` column and scope per-user. Retrofit gets expensive once populated.
+- [ ] **UI routing / state scaffolding** — single-page today (`App.tsx` renders only `CompaniesManager`). V2 introduces list ↔ detail ↔ triage actions — pick react-router vs. Zustand vs. context before building the second view.
+- [ ] **`job_states` schema lock-in** — data model proposed above. Sanity-check state vocabulary before writing the migration; additions later are fine, renames are painful.
+
+### V3 blockers (resume-bot)
+
+- [ ] **Block seeding** — **verified missing** in production KV (2026-04-19). `CONTENT_KV` has one key: `resume`. Need to author 20–40 blocks from the plaintext and seed them. Options: (a) one-off `wrangler kv key put` script in this repo; (b) push resume-bot to add a gated `POST /blocks` endpoint + introspection `GET /blocks`.
 - [ ] **Service binding wiring** — `hadoku_site/workers/jobplatform-api/wrangler.toml` needs a `RESUME` service binding. Coordinated change across hadoku_site + this repo.
 - [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. Agree on a shared vocabulary (e.g. `ml`, `staff`, `leadership`) or they'll drift.
 - [ ] **Tailored-resume provenance on jobs** — add `job_profile_matches.tailored_resume_cached_at` or similar so the UI can show a "Generate" vs "Regenerate" state without round-tripping resume-bot.
 
+### V4+ to scope later
+
+- [ ] **Auto-apply retry / captcha / lockout semantics** (V4) — not designed. Blocks include LinkedIn account-safety risk.
+- [ ] **Ingest pipeline refactor** — ingest is a synchronous monolith (dedup + insert + score-all-profiles per job per batch). Fine today; when V3 or V4 adds per-job enrichment (LLM call, form introspection) we'll need a queue/cron-driven pipeline with per-job status columns. Defer until we hit the 30s edge budget.
+
 ### Resolved
 
-- [x] **LinkedIn `li_at` cookie** — no blocker. Scraper uses `browser-cookie3` to extract the cookie automatically from Firefox/Chrome.
-- [x] **Auth on ingest** — `requireUserType(['admin','friend'])` via `X-User-Key`, confirmed live with 239 Lever jobs landing.
-- [x] **Scraper company-list ownership** — moved to scraper's target registry; jobplatform owns only the per-user subscription list.
-- [x] **Webhook shape** — inline jobs `{jobs, source, batch_number, is_final, search_term?}`, not ID-only. Stale doc corrected.
+- [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs.ts:26`).
+- [x] **User scoping** — `user_companies` table + `userIdFromCredential()` helper shipped. Profiles staying global for V1; per-user scoping moved to V2 readiness.
+- [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used by `mine=true`.
+- [x] **Scheduler** — `createScheduledHandler` stays a stub. hadoku_site's `mgmt-api` cron owns the daily `/api/v1/jobboards/search` dispatch.
+- [x] **LinkedIn `li_at` cookie** — no blocker. Scraper uses `browser-cookie3` to extract from Firefox/Chrome.
+- [x] **Auth on ingest** — `requireUserType(['admin','friend'])` via `X-User-Key`, confirmed live.
+- [x] **Scraper company-list ownership** — scraper owns the target registry; jobplatform owns only per-user subscriptions.
+- [x] **Webhook shape** — inline jobs `{jobs, source, batch_number, is_final, search_term?}`, not ID-only.
+- [x] **LinkedIn `location` / `workplace_type` extraction** — 2026-04-19 fix populated both fields across all 240 current LinkedIn rows (after wipe + re-scrape).

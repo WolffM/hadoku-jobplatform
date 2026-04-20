@@ -35,12 +35,14 @@
     // Get params from URL
     const params = new URLSearchParams(window.location.search)
     const theme = params.get('theme') || undefined // Let the app handle default theme
+    const apiKey = params.get('apiKey') || undefined // Optional for local dev auth
 
-    console.log('[mount] Mounting job-platform with:', { theme })
+    console.log('[mount] Mounting job-platform with:', { theme, hasApiKey: !!apiKey })
 
     // Mount the app
     mount(document.getElementById('app'), {
-      theme
+      theme,
+      apiKey
     })
   </script>
 </body>

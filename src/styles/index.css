@@ -200,3 +200,535 @@
   color: var(--color-error-text, #991b1b);
   border-color: var(--color-error-text, #991b1b);
 }
+
+/* ============================================================================
+   Top-nav
+   ============================================================================ */
+
+.job-platform__nav {
+  display: flex;
+  gap: 1rem;
+  margin-left: auto;
+  margin-right: 1rem;
+}
+
+.job-platform__nav a {
+  padding: 0.25rem 0.5rem;
+  color: var(--color-text-secondary, #64748b);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.job-platform__nav a.active {
+  color: var(--color-primary, #0066cc);
+  border-bottom-color: var(--color-primary, #0066cc);
+}
+
+/* ============================================================================
+   Shared utility classes
+   ============================================================================ */
+
+.jp-muted {
+  color: var(--color-text-secondary, #64748b);
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.jp-error {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-error-bg, #fee2e2);
+  color: var(--color-error-text, #991b1b);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+/* ============================================================================
+   Dashboard layout: sidebar + main
+   ============================================================================ */
+
+.jp-dashboard {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .jp-dashboard {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+   Sidebar (profiles)
+   ============================================================================ */
+
+.jp-sidebar {
+  background-color: var(--color-bg-card, #f9fafb);
+  border-radius: var(--hdk-radius, 8px);
+  padding: 1rem;
+  box-shadow: var(--hdk-shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+.jp-sidebar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.jp-sidebar__header h2 {
+  margin: 0;
+  font-size: var(--hdk-text-md, 1.1rem);
+  color: var(--color-text, #000);
+}
+
+.jp-sidebar__new {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: transparent;
+  color: var(--color-primary, #0066cc);
+  font-size: var(--hdk-text-sm, 0.875rem);
+  cursor: pointer;
+}
+
+.jp-sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.jp-sidebar__item {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--hdk-radius-sm, 4px);
+  overflow: hidden;
+}
+
+.jp-sidebar__item--active {
+  background-color: var(--color-primary-bg, rgba(0, 102, 204, 0.1));
+}
+
+.jp-sidebar__item-main {
+  flex: 1;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.jp-sidebar__item-name {
+  color: var(--color-text, #000);
+  font-size: var(--hdk-text-base, 1rem);
+}
+
+.jp-sidebar__item-meta {
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.75rem);
+}
+
+.jp-sidebar__item-remove {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  cursor: pointer;
+  padding: 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.jp-sidebar__item-remove:hover {
+  color: var(--color-error-text, #991b1b);
+}
+
+/* Profile create form */
+
+.jp-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg, #fff);
+}
+
+.jp-profile-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: var(--hdk-text-sm, 0.875rem);
+  color: var(--color-text-secondary, #64748b);
+}
+
+.jp-profile-form input,
+.jp-profile-form select {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #000);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-profile-form button[type='submit'] {
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  border: none;
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-primary, #0066cc);
+  color: var(--color-primary-text, #fff);
+  font-weight: var(--font-weight-medium, 500);
+  cursor: pointer;
+}
+
+.jp-profile-form button[type='submit']:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Main: jobs list
+   ============================================================================ */
+
+.jp-main {
+  min-width: 0; /* prevent overflow inside grid */
+}
+
+.jp-jobs__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background-color: var(--color-bg-card, #f9fafb);
+  border-radius: var(--hdk-radius-sm, 4px);
+}
+
+.jp-jobs__search {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #000);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-jobs__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-jobs__filter-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #000);
+}
+
+.jp-jobs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.jp-jobs__pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0.5rem 0;
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-jobs__pagination button {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: transparent;
+  color: var(--color-text, #000);
+  cursor: pointer;
+}
+
+.jp-jobs__pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Job card
+   ============================================================================ */
+
+.jp-jobcard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg, #fff);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.jp-jobcard:hover {
+  border-color: var(--color-primary, #0066cc);
+  transform: translateY(-1px);
+}
+
+.jp-jobcard__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.jp-jobcard__title {
+  color: var(--color-text, #000);
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--hdk-text-base, 1rem);
+}
+
+.jp-jobcard__score {
+  color: var(--color-primary, #0066cc);
+  font-weight: var(--font-weight-semibold, 600);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-jobcard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-jobcard__company {
+  color: var(--color-text, #000);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.jp-jobcard__sep {
+  opacity: 0.5;
+}
+
+.jp-jobcard__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.75rem);
+}
+
+.jp-jobcard__salary {
+  color: var(--color-success-text, #166534);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-jobcard__source {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
+}
+
+/* ============================================================================
+   Job detail drawer
+   ============================================================================ */
+
+.jp-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.3);
+  z-index: 40;
+}
+
+.jp-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100vw);
+  background-color: var(--color-bg, #fff);
+  border-left: 1px solid var(--color-border, #e5e7eb);
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.1);
+}
+
+.jp-drawer__header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.jp-drawer__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+}
+
+.jp-drawer__title {
+  margin: 0 0 0.25rem;
+  color: var(--color-text, #000);
+  font-size: var(--hdk-text-lg, 1.4rem);
+}
+
+.jp-drawer__company {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.jp-drawer__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.jp-drawer__facts span {
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg-card, #f3f4f6);
+  color: var(--color-text-secondary, #64748b);
+  font-size: var(--hdk-text-sm, 0.75rem);
+}
+
+.jp-drawer__section {
+  margin-top: 1.25rem;
+}
+
+.jp-drawer__section h3 {
+  margin: 0 0 0.5rem;
+  font-size: var(--hdk-text-md, 1rem);
+  color: var(--color-text, #000);
+}
+
+.jp-drawer__score-total {
+  margin-bottom: 0.5rem;
+  color: var(--color-text-secondary, #64748b);
+}
+
+.jp-drawer__breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.jp-drawer__breakdown li {
+  display: grid;
+  grid-template-columns: 90px 1fr 50px;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-drawer__breakdown-label {
+  color: var(--color-text-secondary, #64748b);
+}
+
+.jp-drawer__breakdown-bar {
+  height: 6px;
+  background-color: var(--color-bg-card, #e5e7eb);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.jp-drawer__breakdown-fill {
+  height: 100%;
+  background-color: var(--color-primary, #0066cc);
+  transition: width 0.2s ease;
+}
+
+.jp-drawer__breakdown-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text, #000);
+}
+
+.jp-drawer__description {
+  color: var(--color-text, #000);
+  line-height: 1.55;
+}
+
+.jp-drawer__description p {
+  margin: 0.5em 0;
+}
+
+.jp-drawer__description ul,
+.jp-drawer__description ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.jp-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jp-drawer__cta {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: var(--hdk-radius-sm, 4px);
+  background-color: var(--color-bg, #fff);
+  color: var(--color-text, #000);
+  font-size: var(--hdk-text-sm, 0.875rem);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.jp-drawer__cta--primary {
+  background-color: var(--color-primary, #0066cc);
+  color: var(--color-primary-text, #fff);
+  border-color: var(--color-primary, #0066cc);
+}
+
+.jp-drawer__cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
+   Companies page wrapper
+   ============================================================================ */
+
+.jp-companies-intro {
+  margin: 0 0 1rem;
+  font-size: var(--hdk-text-sm, 0.875rem);
+}
+
+.jp-companies-intro a {
+  color: var(--color-primary, #0066cc);
+  text-decoration: none;
+}

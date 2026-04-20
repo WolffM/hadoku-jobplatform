@@ -1,10 +1,10 @@
 # @wolffm/jobplatform
 
-Job listings aggregation and tracking dashboard goes here.
+Job hunting pipeline: scrape postings from multiple ATS sources, score them against configurable role profiles, triage + track applications, and eventually auto-generate tailored resumes and cover letters. Mounts as a micro-frontend in `hadoku_site` at `/jobs/`.
 
-## Overview
+Companion package `@wolffm/jobplatform-worker` under `worker/` provides the Cloudflare Worker API.
 
-Brief description of what this child app does and how it integrates with the hadoku parent site.
+**Canonical roadmap, data model, scoring algorithm, and open questions: [`ARCHITECTURE.md`](./ARCHITECTURE.md).**
 
 ## Development
 
@@ -47,13 +47,14 @@ This app is a child component of the [hadoku_site](https://github.com/WolffM/had
 ```typescript
 interface JobPlatformProps {
   theme?: string // 'light', 'dark', 'coffee-dark', etc.
+  apiKey?: string // optional — if omitted, `credentials: 'include'` is used and hadoku_site's edge-router injects auth from the session cookie
 }
 ```
 
 ### Mounting
 
 ```typescript
-import { mount, unmount } from '@wolffm/job-platform'
+import { mount, unmount } from '@wolffm/jobplatform'
 
 // Mount the app
 mount(document.getElementById('app-root'), {
