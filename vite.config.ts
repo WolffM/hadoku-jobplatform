@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // Dev smoke-testing: proxy API calls to production so the MFE renders real
+    // data when running `pnpm dev` locally. Safe for reads; authed writes need
+    // an apiKey (see index.html — pass `?apiKey=...` in the URL).
+    proxy: {
+      '/jobplatform/api': {
+        target: 'https://hadoku.me',
+        changeOrigin: true,
+        secure: true
+      }
+    }
+  },
   build: {
     lib: {
       entry: 'src/entry.tsx',

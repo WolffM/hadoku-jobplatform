@@ -26,7 +26,7 @@ const SENIORITY_KEYWORDS: Record<string, string[]> = {
 function countKeywordMatches(text: string, keywords: string[]): number {
 	if (!keywords.length) return 0;
 	const lower = text.toLowerCase();
-	return keywords.filter(kw => lower.includes(kw.toLowerCase())).length;
+	return keywords.filter((kw) => lower.includes(kw.toLowerCase())).length;
 }
 
 function titleMatch(title: string, keywords: string[]): number {
@@ -45,16 +45,18 @@ function keywordMatch(description: string, keywords: string[]): number {
 function companyBoost(company: string, targetCompanies: string[]): number {
 	if (!targetCompanies.length) return 0.5; // no preference
 	const lower = company.toLowerCase();
-	const hit = targetCompanies.some(tc => lower.includes(tc.toLowerCase()) || tc.toLowerCase().includes(lower));
+	const hit = targetCompanies.some(
+		(tc) => lower.includes(tc.toLowerCase()) || tc.toLowerCase().includes(lower)
+	);
 	return hit ? 1.0 : 0.3;
 }
 
 function seniorityMatch(title: string, roleTypes: string[]): number {
 	if (!roleTypes.length) return 0.5;
 	const lower = title.toLowerCase();
-	const hit = roleTypes.some(rt => {
+	const hit = roleTypes.some((rt) => {
 		const patterns = SENIORITY_KEYWORDS[rt.toUpperCase()] ?? [rt.toLowerCase()];
-		return patterns.some(p => lower.includes(p));
+		return patterns.some((p) => lower.includes(p));
 	});
 	return hit ? 1.0 : 0.4;
 }

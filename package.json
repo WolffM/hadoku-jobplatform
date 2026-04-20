@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "sideEffects": [
@@ -33,29 +33,31 @@
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "peerDependencies": {
-    "@wolffm/themes": ">=1.0.0",
     "@wolffm/task-ui-components": ">=1.0.0",
+    "@wolffm/themes": ">=1.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "react-router-dom": "^7.14.1"
+  },
   "devDependencies": {
-    "@wolffm/themes": "^1.0.0",
-    "@wolffm/task-ui-components": "^1.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
     "@eslint/js": "^9.39.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
+    "@wolffm/task-ui-components": "^1.0.0",
+    "@wolffm/themes": "^1.0.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "typescript": "^5.6.3",
     "vite": "^7.1.12"
   }
