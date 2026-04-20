@@ -17,6 +17,24 @@ const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
   salary_match: 'Salary'
 }
 
+// Greenhouse descriptions are HTML (<p>, <br>, <li>). Lever and LinkedIn are
+// plain text with \n linebreaks. dangerouslySetInnerHTML on plain text collapses
+// \n so everything renders as one paragraph — hence the split.
+function Description({ text }: { text: string }) {
+  if (!text) {
+    return (
+      <p className="jp-drawer__description jp-muted">
+        <em>No description</em>
+      </p>
+    )
+  }
+  const isHtml = /<(p|br|div|li|ul|ol|h[1-6])\b/i.test(text)
+  if (isHtml) {
+    return <div className="jp-drawer__description" dangerouslySetInnerHTML={{ __html: text }} />
+  }
+  return <div className="jp-drawer__description jp-drawer__description--plain">{text}</div>
+}
+
 export function JobDrawer({ apiKey, jobId, profileId, onClose }: Props) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -114,12 +132,7 @@ export function JobDrawer({ apiKey, jobId, profileId, onClose }: Props) {
 
             <section className="jp-drawer__section">
               <h3>Description</h3>
-              <div
-                className="jp-drawer__description"
-                // Greenhouse/Lever descriptions are typically HTML; render as-is
-                // since the source is our trusted ingest pipeline.
-                dangerouslySetInnerHTML={{ __html: job.description || '<em>No description</em>' }}
-              />
+              <Description text={job.description} />
             </section>
 
             <section className="jp-drawer__section">

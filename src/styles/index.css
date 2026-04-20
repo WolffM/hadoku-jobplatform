@@ -913,6 +913,13 @@
   font-size: var(--hdk-text-sm);
 }
 
+/* LinkedIn/Lever descriptions arrive as plain text with \n linebreaks — make
+   those render as actual line breaks instead of collapsing. pre-wrap keeps
+   long lines wrapping naturally within the drawer width. */
+.jp-drawer__description--plain {
+  white-space: pre-wrap;
+}
+
 .jp-drawer__description p {
   margin: var(--hdk-space-md) 0;
 }
