@@ -82,4 +82,11 @@ if [ -n "${STAGED_FILES}" ]; then
   echo "${STAGED_FILES}" | xargs -r git add
 fi
 
+# TS gate — prevents commits that break tsc (resilience plan track 1)
+echo "🔎 Running typecheck..."
+if ! pnpm run typecheck; then
+  echo "❌ TypeScript errors — fix before committing (or `--no-verify` to bypass)."
+  exit 1
+fi
+
 echo "All pre-commit checks passed!"
