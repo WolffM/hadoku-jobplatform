@@ -70,11 +70,7 @@ export class JobsApiError extends Error {
   }
 }
 
-function authHeaders(apiKey?: string): HeadersInit {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (apiKey) headers['X-User-Key'] = apiKey
-  return headers
-}
+import { authHeaders, authCreds, type Auth } from './auth'
 
 async function parseWrapped<T>(response: Response): Promise<T> {
   const body = (await response.json()) as Wrapped<T>
@@ -84,7 +80,7 @@ async function parseWrapped<T>(response: Response): Promise<T> {
   return body.data
 }
 
-export async function listJobs(opts: ListJobsOptions, apiKey?: string): Promise<JobsListResponse> {
+export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<JobsListResponse> {
   const params = new URLSearchParams()
   if (opts.profile_id) params.set('profile_id', opts.profile_id)
   if (opts.mine) params.set('mine', 'true')
@@ -96,8 +92,8 @@ export async function listJobs(opts: ListJobsOptions, apiKey?: string): Promise<
   const url = `${BASE_URL}/jobs${params.toString() ? `?${params}` : ''}`
   const response = await fetch(url, {
     method: 'GET',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   return parseWrapped<JobsListResponse>(response)
 }
@@ -105,13 +101,13 @@ export async function listJobs(opts: ListJobsOptions, apiKey?: string): Promise<
 export async function getJob(
   id: string,
   profileId: string | undefined,
-  apiKey?: string
+  auth?: Auth
 ): Promise<JobDetail> {
   const params = profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''
   const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}${params}`, {
     method: 'GET',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   const data = await parseWrapped<{ job: JobDetail }>(response)
   return data.job

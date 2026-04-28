@@ -41,11 +41,7 @@ export class ProfilesApiError extends Error {
   }
 }
 
-function authHeaders(apiKey?: string): HeadersInit {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (apiKey) headers['X-User-Key'] = apiKey
-  return headers
-}
+import { authHeaders, authCreds, type Auth } from './auth'
 
 async function parseWrapped<T>(response: Response): Promise<T> {
   const body = (await response.json()) as Wrapped<T>
@@ -58,21 +54,21 @@ async function parseWrapped<T>(response: Response): Promise<T> {
   return body.data
 }
 
-export async function listProfiles(apiKey?: string): Promise<JobProfile[]> {
+export async function listProfiles(auth?: Auth): Promise<JobProfile[]> {
   const response = await fetch(`${BASE_URL}/profiles`, {
     method: 'GET',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   const data = await parseWrapped<{ profiles: JobProfile[] }>(response)
   return data.profiles
 }
 
-export async function createProfile(input: ProfileInput, apiKey?: string): Promise<JobProfile> {
+export async function createProfile(input: ProfileInput, auth?: Auth): Promise<JobProfile> {
   const response = await fetch(`${BASE_URL}/profiles`, {
     method: 'POST',
-    headers: { ...authHeaders(apiKey), 'Content-Type': 'application/json' },
-    credentials: apiKey ? 'same-origin' : 'include',
+    headers: authHeaders(auth, true),
+    credentials: authCreds(auth),
     body: JSON.stringify(input)
   })
   const data = await parseWrapped<{ profile: JobProfile }>(response)
@@ -82,23 +78,23 @@ export async function createProfile(input: ProfileInput, apiKey?: string): Promi
 export async function updateProfile(
   id: string,
   input: Partial<ProfileInput>,
-  apiKey?: string
+  auth?: Auth
 ): Promise<JobProfile> {
   const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
     method: 'PUT',
-    headers: { ...authHeaders(apiKey), 'Content-Type': 'application/json' },
-    credentials: apiKey ? 'same-origin' : 'include',
+    headers: authHeaders(auth, true),
+    credentials: authCreds(auth),
     body: JSON.stringify(input)
   })
   const data = await parseWrapped<{ profile: JobProfile }>(response)
   return data.profile
 }
 
-export async function deleteProfile(id: string, apiKey?: string): Promise<void> {
+export async function deleteProfile(id: string, auth?: Auth): Promise<void> {
   const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   await parseWrapped<{ deleted: true; id: string }>(response)
 }

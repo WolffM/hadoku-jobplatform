@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listJobs, JobsApiError, type JobSummary } from '../api/jobs'
+import type { Auth } from '../api/auth'
 import { JobCard } from './JobCard'
 
 interface Props {
-  apiKey?: string
+  auth: Auth
   profileId: string | null
   onSelect: (jobId: string) => void
 }
 
-export function JobsList({ apiKey, profileId, onSelect }: Props) {
+export function JobsList({ auth, profileId, onSelect }: Props) {
   const [jobs, setJobs] = useState<JobSummary[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -35,7 +36,7 @@ export function JobsList({ apiKey, profileId, onSelect }: Props) {
           sort,
           min_score: minScore
         },
-        apiKey
+        auth
       )
       setJobs(res.jobs)
       setTotal(res.total)
@@ -44,7 +45,7 @@ export function JobsList({ apiKey, profileId, onSelect }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [apiKey, profileId, mine, page, sort, minScore])
+  }, [auth, profileId, mine, page, sort, minScore])
 
   useEffect(() => {
     void load()

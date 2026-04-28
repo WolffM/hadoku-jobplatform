@@ -11,9 +11,16 @@ import './styles/index.css'
 export interface JobPlatformProps {
   theme?: string // Theme passed from parent (e.g., 'default', 'ocean', 'forest')
   /**
-   * Optional admin/friend API key to send as `X-User-Key` on authed requests.
-   * If omitted, the micro-frontend uses `credentials: 'include'` and relies on
-   * the hadoku_site edge-router to inject auth from the session cookie.
+   * Preferred auth: session id from the parent's hadoku_session cookie. The
+   * MFE sends it as `X-Session-Id`; edge-router resolves it to the underlying
+   * key and injects `X-User-Key` on the proxied request. The raw key never
+   * leaves the parent's localStorage.
+   */
+  sessionId?: string
+  /**
+   * Legacy: raw admin/friend key, sent as `X-User-Key`. Kept for backwards
+   * compatibility while mf-loader still passes the raw key (auth-rework PR 3c
+   * removes it). Both can be passed during the transition.
    */
   apiKey?: string
 }
