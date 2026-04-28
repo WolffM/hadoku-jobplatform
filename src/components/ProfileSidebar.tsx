@@ -7,14 +7,15 @@ import {
   type JobProfile,
   type RemotePref
 } from '../api/profiles'
+import type { Auth } from '../api/auth'
 
 interface Props {
-  apiKey?: string
+  auth: Auth
   selectedId: string | null
   onSelect: (id: string | null) => void
 }
 
-export function ProfileSidebar({ apiKey, selectedId, onSelect }: Props) {
+export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
   const [profiles, setProfiles] = useState<JobProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,14 +25,14 @@ export function ProfileSidebar({ apiKey, selectedId, onSelect }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const rows = await listProfiles(apiKey)
+      const rows = await listProfiles(auth)
       setProfiles(rows)
     } catch (err) {
       setError(err instanceof ProfilesApiError ? err.message : 'Failed to load profiles')
     } finally {
       setLoading(false)
     }
-  }, [apiKey])
+  }, [auth])
 
   useEffect(() => {
     void refresh()
@@ -54,7 +55,7 @@ export function ProfileSidebar({ apiKey, selectedId, onSelect }: Props) {
   const handleDelete = async (id: string) => {
     if (!window.confirm('Delete this profile?')) return
     try {
-      await deleteProfile(id, apiKey)
+      await deleteProfile(id, auth)
       await refresh()
     } catch (err) {
       setError(err instanceof ProfilesApiError ? err.message : 'Failed to delete profile')
@@ -72,7 +73,7 @@ export function ProfileSidebar({ apiKey, selectedId, onSelect }: Props) {
 
       {creating && (
         <NewProfileForm
-          apiKey={apiKey}
+          auth={auth}
           onCreated={id => {
             setCreating(false)
             void refresh().then(() => onSelect(id))
@@ -126,12 +127,12 @@ export function ProfileSidebar({ apiKey, selectedId, onSelect }: Props) {
 }
 
 interface NewProfileFormProps {
-  apiKey?: string
+  auth: Auth
   onCreated: (id: string) => void
   onError: (msg: string) => void
 }
 
-function NewProfileForm({ apiKey, onCreated, onError }: NewProfileFormProps) {
+function NewProfileForm({ auth, onCreated, onError }: NewProfileFormProps) {
   const [name, setName] = useState('')
   const [keywords, setKeywords] = useState('')
   const [targetCompanies, setTargetCompanies] = useState('')
@@ -161,7 +162,7 @@ function NewProfileForm({ apiKey, onCreated, onError }: NewProfileFormProps) {
           remote_pref: remotePref,
           experience_levels: []
         },
-        apiKey
+        auth
       )
       onCreated(created.id)
     } catch (err) {

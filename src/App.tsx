@@ -18,10 +18,15 @@ import { CompaniesManager } from './components/CompaniesManager'
 import { ProfileSidebar } from './components/ProfileSidebar'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
+import type { Auth } from './api/auth'
 import type { JobPlatformProps } from './entry'
 
 export default function App(props: JobPlatformProps = {}) {
   const containerRef = useRef<HTMLElement>(null)
+
+  // Bundle the auth credentials (apiKey legacy / sessionId preferred) once at
+  // the root, then thread the same object through every component.
+  const auth: Auth = { apiKey: props.apiKey, sessionId: props.sessionId }
 
   const [systemPrefersDark] = useState(() => {
     if (window.matchMedia) {
@@ -70,11 +75,11 @@ export default function App(props: JobPlatformProps = {}) {
           </header>
 
           <Routes>
-            <Route element={<Dashboard apiKey={props.apiKey} />}>
+            <Route element={<Dashboard auth={auth} />}>
               <Route index element={null} />
-              <Route path="jobs/:jobId" element={<JobDrawerRoute apiKey={props.apiKey} />} />
+              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
             </Route>
-            <Route path="/companies" element={<CompaniesPage apiKey={props.apiKey} />} />
+            <Route path="/companies" element={<CompaniesPage auth={auth} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -83,7 +88,7 @@ export default function App(props: JobPlatformProps = {}) {
   )
 }
 
-function Dashboard({ apiKey }: { apiKey?: string }) {
+function Dashboard({ auth }: { auth: Auth }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const profileId = searchParams.get('profile')
   const navigate = useNavigate()
@@ -105,10 +110,10 @@ function Dashboard({ apiKey }: { apiKey?: string }) {
 
   return (
     <div className="jp-dashboard">
-      <ProfileSidebar apiKey={apiKey} selectedId={profileId} onSelect={setProfileId} />
+      <ProfileSidebar auth={auth} selectedId={profileId} onSelect={setProfileId} />
       <section className="jp-main">
         <JobsList
-          apiKey={apiKey}
+          auth={auth}
           profileId={profileId}
           onSelect={jobId => {
             const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
@@ -121,7 +126,7 @@ function Dashboard({ apiKey }: { apiKey?: string }) {
   )
 }
 
-function JobDrawerRoute({ apiKey }: { apiKey?: string }) {
+function JobDrawerRoute({ auth }: { auth: Auth }) {
   const { jobId } = useParams<{ jobId: string }>()
   const [searchParams] = useSearchParams()
   const profileId = searchParams.get('profile')
@@ -134,16 +139,16 @@ function JobDrawerRoute({ apiKey }: { apiKey?: string }) {
     void navigate(`/${params}`)
   }
 
-  return <JobDrawer apiKey={apiKey} jobId={jobId} profileId={profileId} onClose={closeDrawer} />
+  return <JobDrawer auth={auth} jobId={jobId} profileId={profileId} onClose={closeDrawer} />
 }
 
-function CompaniesPage({ apiKey }: { apiKey?: string }) {
+function CompaniesPage({ auth }: { auth: Auth }) {
   return (
     <section className="job-platform__content">
       <p className="jp-companies-intro">
         <Link to="/">← Back to jobs</Link>
       </p>
-      <CompaniesManager apiKey={apiKey} />
+      <CompaniesManager auth={auth} />
     </section>
   )
 }

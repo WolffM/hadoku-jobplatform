@@ -1,10 +1,12 @@
 /**
  * Thin fetch wrapper for the /jobplatform/api/companies routes.
  *
- * Auth model: if `apiKey` is provided, it's sent as `X-User-Key`. Otherwise
- * the request goes with `credentials: 'include'` so the hadoku_site
- * edge-router can inject auth from the user's session cookie.
+ * Auth model: see `./auth.ts`. Either `sessionId` or `apiKey` (legacy);
+ * the helper sends X-Session-Id and/or X-User-Key. Edge-router injects
+ * X-User-Key on the proxied request when X-Session-Id is present.
  */
+
+import { authHeaders, authCreds, type Auth } from './auth'
 
 const BASE_URL = '/jobplatform/api'
 
@@ -40,12 +42,6 @@ export class CompaniesApiError extends Error {
   }
 }
 
-function authHeaders(apiKey?: string): HeadersInit {
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (apiKey) headers['X-User-Key'] = apiKey
-  return headers
-}
-
 async function parseWrapped<T>(response: Response): Promise<T> {
   const body = (await response.json()) as Wrapped<T>
   if (!response.ok || !body.success || !body.data) {
@@ -57,11 +53,11 @@ async function parseWrapped<T>(response: Response): Promise<T> {
   return body.data
 }
 
-export async function listCompanies(apiKey?: string): Promise<UserCompany[]> {
+export async function listCompanies(auth?: Auth): Promise<UserCompany[]> {
   const response = await fetch(`${BASE_URL}/companies`, {
     method: 'GET',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   const data = await parseWrapped<{ companies: UserCompany[] }>(response)
   return data.companies
@@ -69,25 +65,22 @@ export async function listCompanies(apiKey?: string): Promise<UserCompany[]> {
 
 export async function createCompany(
   displayName: string,
-  apiKey?: string
+  auth?: Auth
 ): Promise<CreateCompanyResponse> {
   const response = await fetch(`${BASE_URL}/companies`, {
     method: 'POST',
-    headers: {
-      ...authHeaders(apiKey),
-      'Content-Type': 'application/json'
-    },
-    credentials: apiKey ? 'same-origin' : 'include',
+    headers: authHeaders(auth, true),
+    credentials: authCreds(auth),
     body: JSON.stringify({ display_name: displayName })
   })
   return parseWrapped<CreateCompanyResponse>(response)
 }
 
-export async function deleteCompany(id: string, apiKey?: string): Promise<void> {
+export async function deleteCompany(id: string, auth?: Auth): Promise<void> {
   const response = await fetch(`${BASE_URL}/companies/${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: authHeaders(apiKey),
-    credentials: apiKey ? 'same-origin' : 'include'
+    headers: authHeaders(auth),
+    credentials: authCreds(auth)
   })
   await parseWrapped<{ deleted: true; id: string }>(response)
 }

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getJob, JobsApiError, type JobDetail, type ScoreBreakdown } from '../api/jobs'
+import type { Auth } from '../api/auth'
 
 interface Props {
-  apiKey?: string
+  auth: Auth
   jobId: string
   profileId: string | null
   onClose: () => void
@@ -35,7 +36,7 @@ function Description({ text }: { text: string }) {
   return <div className="jp-drawer__description jp-drawer__description--plain">{text}</div>
 }
 
-export function JobDrawer({ apiKey, jobId, profileId, onClose }: Props) {
+export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +46,7 @@ export function JobDrawer({ apiKey, jobId, profileId, onClose }: Props) {
     setLoading(true)
     setError(null)
     setJob(null)
-    getJob(jobId, profileId ?? undefined, apiKey)
+    getJob(jobId, profileId ?? undefined, auth)
       .then(result => {
         if (!cancelled) setJob(result)
       })
@@ -60,7 +61,7 @@ export function JobDrawer({ apiKey, jobId, profileId, onClose }: Props) {
     return () => {
       cancelled = true
     }
-  }, [apiKey, jobId, profileId])
+  }, [auth, jobId, profileId])
 
   // Esc closes
   useEffect(() => {

@@ -6,12 +6,13 @@ import {
   CompaniesApiError,
   type UserCompany
 } from '../api/companies'
+import type { Auth } from '../api/auth'
 
 interface Props {
-  apiKey?: string
+  auth: Auth
 }
 
-export function CompaniesManager({ apiKey }: Props) {
+export function CompaniesManager({ auth }: Props) {
   const [companies, setCompanies] = useState<UserCompany[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,7 +24,7 @@ export function CompaniesManager({ apiKey }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const rows = await listCompanies(apiKey)
+      const rows = await listCompanies(auth)
       setCompanies(rows)
     } catch (err) {
       const msg = err instanceof CompaniesApiError ? err.message : 'Failed to load companies'
@@ -31,7 +32,7 @@ export function CompaniesManager({ apiKey }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [apiKey])
+  }, [auth])
 
   useEffect(() => {
     void refresh()
@@ -45,7 +46,7 @@ export function CompaniesManager({ apiKey }: Props) {
     setError(null)
     setLastAddNote(null)
     try {
-      const result = await createCompany(displayName, apiKey)
+      const result = await createCompany(displayName, auth)
       const added = result.companies.length
       const searchNote = result.search_triggered ? 'scrape triggered' : 'scrape NOT triggered'
       setLastAddNote(
@@ -66,7 +67,7 @@ export function CompaniesManager({ apiKey }: Props) {
   const handleDelete = async (id: string) => {
     setError(null)
     try {
-      await deleteCompany(id, apiKey)
+      await deleteCompany(id, auth)
       await refresh()
     } catch (err) {
       const msg = err instanceof CompaniesApiError ? err.message : 'Failed to remove company'
