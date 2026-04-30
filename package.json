@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "sideEffects": [
@@ -24,7 +24,7 @@
     "./style.css": "./dist/style.css"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "node ../hadoku_site/scripts/secrets/dev-vault.mjs -- vite",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
