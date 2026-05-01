@@ -32,17 +32,44 @@
   <script type="module">
     import { mount } from './src/entry.tsx'
 
-    // Get params from URL
+    // Dev harness only. Production never accepts URL keys — mf-loader injects
+    // sessionId after fetching /session/whoami, the cookie path handles it.
+    //
+    // Here in dev, we let the developer paste their key as ?apiKey=… and we
+    // exchange it for a sessionId by calling /session/create (proxied via
+    // vite to hadoku.me). The MFE then uses the sessionId via X-Session-Id
+    // for the rest of the session — same code path as production.
     const params = new URLSearchParams(window.location.search)
-    const theme = params.get('theme') || undefined // Let the app handle default theme
-    const apiKey = params.get('apiKey') || undefined // Optional for local dev auth
+    const theme = params.get('theme') || undefined
+    const apiKey = params.get('apiKey') || undefined
 
-    console.log('[mount] Mounting job-platform with:', { theme, hasApiKey: !!apiKey })
+    let sessionId
+    if (apiKey) {
+      try {
+        const resp = await fetch('/session/create', {
+          method: 'POST',
+          headers: { 'X-User-Key': apiKey }
+        })
+        if (resp.ok) {
+          const data = await resp.json()
+          sessionId = data.sessionId
+          console.log('[dev-auth] /session/create ok', {
+            userType: data.userType,
+            sessionIdPrefix: sessionId ? sessionId.slice(0, 8) + '…' : null
+          })
+        } else {
+          console.warn('[dev-auth] /session/create failed', { status: resp.status })
+        }
+      } catch (err) {
+        console.error('[dev-auth] /session/create threw', err)
+      }
+    }
 
-    // Mount the app
+    console.log('[mount] Mounting job-platform', { theme, hasSession: !!sessionId })
+
     mount(document.getElementById('app'), {
       theme,
-      apiKey
+      sessionId
     })
   </script>
 </body>

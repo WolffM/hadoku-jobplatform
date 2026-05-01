@@ -24,9 +24,9 @@ import type { JobPlatformProps } from './entry'
 export default function App(props: JobPlatformProps = {}) {
   const containerRef = useRef<HTMLElement>(null)
 
-  // Bundle the auth credentials (apiKey legacy / sessionId preferred) once at
-  // the root, then thread the same object through every component.
-  const auth: Auth = { apiKey: props.apiKey, sessionId: props.sessionId }
+  // Bundle the auth credentials once at the root, then thread the same
+  // object through every component.
+  const auth: Auth = { sessionId: props.sessionId }
 
   const [systemPrefersDark] = useState(() => {
     if (window.matchMedia) {

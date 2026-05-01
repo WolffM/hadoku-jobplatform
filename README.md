@@ -47,9 +47,13 @@ This app is a child component of the [hadoku_site](https://github.com/WolffM/had
 ```typescript
 interface JobPlatformProps {
   theme?: string // 'light', 'dark', 'coffee-dark', etc.
-  apiKey?: string // optional — if omitted, `credentials: 'include'` is used and hadoku_site's edge-router injects auth from the session cookie
+  sessionId?: string // session id from hadoku_site's hadoku_session cookie; sent as X-Session-Id. mf-loader injects this after /session/whoami. If omitted, `credentials: 'include'` lets the cookie carry auth on its own.
 }
 ```
+
+### Local dev auth
+
+`pnpm dev` serves at `http://localhost:5173/`. To act as an authenticated user pass `?apiKey=<your admin or friend key>` once. The dev harness in `index.html` exchanges that for a sessionId via `/session/create` (proxied to `hadoku.me`) and threads the sessionId into the MFE — same code path as production. The URL param is dev-only and never accepted in production.
 
 ### Mounting
 
