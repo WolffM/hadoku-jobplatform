@@ -17,6 +17,8 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './tests',
+  testMatch: /.*\.spec\.ts$/,
+  globalSetup: './tests/global-setup.ts',
   fullyParallel: false, // dev server is single-tenant; serialize for clarity
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

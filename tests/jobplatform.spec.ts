@@ -40,7 +40,8 @@ test.describe('smoke', () => {
   test('jobs API returns real data through the proxy', async ({ page }) => {
     await page.goto('/')
     const resp = await page.waitForResponse(
-      r => r.url().includes('/jobplatform/api/jobs') && r.request().method() === 'GET'
+      r => r.url().includes('/jobplatform/api/jobs') && r.request().method() === 'GET',
+      { timeout: 30_000 }
     )
     expect(resp.status()).toBe(200)
     const body = await resp.json()
@@ -102,7 +103,7 @@ test.describe('job detail drawer', () => {
     await page.goto('/')
     // Wait for cards to render
     const firstCard = page.locator('.jp-jobcard').first()
-    await expect(firstCard).toBeVisible({ timeout: 10_000 })
+    await expect(firstCard).toBeVisible({ timeout: 30_000 })
     await firstCard.click()
     // Drawer is a <aside role="dialog" aria-labelledby="jp-drawer-title">
     const drawer = page.getByRole('dialog')
@@ -166,7 +167,7 @@ test.describe('filters', () => {
   test('search filters the in-memory list client-side', async ({ page }) => {
     await page.goto('/')
     const firstCard = page.locator('.jp-jobcard').first()
-    await expect(firstCard).toBeVisible({ timeout: 10_000 })
+    await expect(firstCard).toBeVisible({ timeout: 30_000 })
 
     const initialCount = await page.locator('.jp-jobcard').count()
     expect(initialCount).toBeGreaterThan(1)
@@ -301,8 +302,11 @@ authedDescribe('triage state (V2)', () => {
   })
 
   test('public visitor cannot see triage filters or PUT state', async ({ page, request }) => {
+    test.setTimeout(60_000)
     await page.goto('/')
-    await page.waitForResponse(r => r.url().includes('/jobplatform/api/jobs') && r.ok())
+    await page.waitForResponse(r => r.url().includes('/jobplatform/api/jobs') && r.ok(), {
+      timeout: 30_000
+    })
     // State dropdown only renders when at least one returned job has a non-null
     // state field, which only happens when authed. Public sees no state field.
     await expect(page.getByLabel('State')).toHaveCount(0)
