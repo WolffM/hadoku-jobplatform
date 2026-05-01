@@ -8,6 +8,7 @@ import {
   Route,
   Routes,
   useNavigate,
+  useOutletContext,
   useParams,
   useSearchParams
 } from 'react-router-dom'
@@ -20,6 +21,10 @@ import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
 import type { Auth } from './api/auth'
 import type { JobPlatformProps } from './entry'
+
+interface DashboardOutletCtx {
+  onJobStateChanged: () => void
+}
 
 export default function App(props: JobPlatformProps = {}) {
   const containerRef = useRef<HTMLElement>(null)
@@ -108,6 +113,13 @@ function Dashboard({ auth }: { auth: Auth }) {
     [setSearchParams]
   )
 
+  // Bump on every triage transition coming from the drawer so JobsList
+  // re-fetches and reflects the new state in the cards + filter counts.
+  const [refreshKey, setRefreshKey] = useState(0)
+  const onJobStateChanged = useCallback(() => setRefreshKey(k => k + 1), [])
+
+  const ctx: DashboardOutletCtx = { onJobStateChanged }
+
   return (
     <div className="jp-dashboard">
       <ProfileSidebar auth={auth} selectedId={profileId} onSelect={setProfileId} />
@@ -115,13 +127,14 @@ function Dashboard({ auth }: { auth: Auth }) {
         <JobsList
           auth={auth}
           profileId={profileId}
+          refreshKey={refreshKey}
           onSelect={jobId => {
             const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
             void navigate(`/jobs/${encodeURIComponent(jobId)}${params}`)
           }}
         />
       </section>
-      <Outlet />
+      <Outlet context={ctx} />
     </div>
   )
 }
@@ -131,6 +144,7 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
   const [searchParams] = useSearchParams()
   const profileId = searchParams.get('profile')
   const navigate = useNavigate()
+  const ctx = useOutletContext<DashboardOutletCtx>()
 
   if (!jobId) return null
 
@@ -139,7 +153,15 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
     void navigate(`/${params}`)
   }
 
-  return <JobDrawer auth={auth} jobId={jobId} profileId={profileId} onClose={closeDrawer} />
+  return (
+    <JobDrawer
+      auth={auth}
+      jobId={jobId}
+      profileId={profileId}
+      onClose={closeDrawer}
+      onStateChange={() => ctx.onJobStateChanged()}
+    />
+  )
 }
 
 function CompaniesPage({ auth }: { auth: Auth }) {

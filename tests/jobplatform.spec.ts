@@ -184,3 +184,183 @@ test.describe('filters', () => {
     expect(filteredCount).toBeLessThanOrEqual(initialCount)
   })
 })
+
+authedDescribe('triage state (V2)', () => {
+  // The dev harness exchanges ?apiKey= for a sessionId on every page load,
+  // and the worker resolves sessionId → admin key → user_id. Same user_id
+  // each run, so cleanup is reliable.
+  async function clearState(
+    request: import('@playwright/test').APIRequestContext,
+    jobId: string,
+    sessionId: string
+  ) {
+    await request.delete(
+      `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(jobId)}/state`,
+      {
+        headers: { 'X-Session-Id': sessionId }
+      }
+    )
+  }
+
+  async function freshSessionId(
+    request: import('@playwright/test').APIRequestContext
+  ): Promise<string> {
+    const r = await request.post('http://localhost:5173/session/create', {
+      headers: { 'X-User-Key': ADMIN_KEY }
+    })
+    const body = (await r.json()) as { sessionId: string }
+    return body.sessionId
+  }
+
+  test('drawer shows the triage section with 4 state buttons when authed', async ({
+    page,
+    request
+  }) => {
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=10')
+    const job = ((await list.json()) as { data: { jobs: Array<{ id: string }> } }).data.jobs[0]
+
+    await gotoAuthed(page, `/jobs/${job.id}`)
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible({ timeout: 10_000 })
+
+    for (const state of ['interested', 'saved', 'applied', 'dismissed']) {
+      await expect(drawer.getByTestId(`state-action-${state}`)).toBeEnabled()
+    }
+  })
+
+  test('clicking a state action persists + drawer + card reflect it; cleanup', async ({
+    page,
+    request
+  }) => {
+    const sessionId = await freshSessionId(request)
+
+    // Pick a job that doesn't currently have state — first card on page 1.
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=10', {
+      headers: { 'X-Session-Id': sessionId }
+    })
+    const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string; state: string }> } })
+      .data.jobs
+    const target = jobs.find(j => j.state === 'new') ?? jobs[0]
+    expect(target).toBeDefined()
+
+    // Make sure starting state is clean
+    await clearState(request, target.id, sessionId)
+
+    try {
+      await gotoAuthed(page, `/jobs/${target.id}`)
+      const drawer = page.getByRole('dialog')
+      await expect(drawer).toBeVisible({ timeout: 10_000 })
+
+      // No badge before action (state = 'new' is implicit and not rendered)
+      await expect(drawer.getByTestId('drawer-state-badge')).toHaveCount(0)
+
+      // Click "Mark interested"
+      const interestedBtn = drawer.getByTestId('state-action-interested')
+      const setRespPromise = page.waitForResponse(
+        r =>
+          r.url().endsWith(`/jobs/${target.id}/state`) && r.request().method() === 'PUT' && r.ok()
+      )
+      await interestedBtn.click()
+      const setResp = await setRespPromise
+      const setBody = (await setResp.json()) as { data: { state: string; job_id: string } }
+      expect(setBody.data.state).toBe('interested')
+      expect(setBody.data.job_id).toBe(target.id)
+
+      // Drawer reflects the new state via badge + active button
+      await expect(drawer.getByTestId('drawer-state-badge')).toHaveText('interested')
+      await expect(interestedBtn).toHaveAttribute('aria-pressed', 'true')
+
+      // Close drawer; the list refresh fires; the card shows the badge
+      await page.keyboard.press('Escape')
+      await expect(drawer).toBeHidden()
+
+      // Find the card by job id — easiest path is filter to interested only
+      // (or by URL hash). Use the state filter dropdown.
+      const stateSelect = page.getByLabel('State')
+      await stateSelect.selectOption('interested')
+
+      // Wait for the resulting GET /jobs to come back, then check the card
+      // is in the list with the badge.
+      await page.waitForResponse(
+        r =>
+          r.url().includes('/jobplatform/api/jobs') &&
+          r.url().includes('state=interested') &&
+          r.ok()
+      )
+
+      const interestedCards = page.locator('.jp-jobcard')
+      await expect(interestedCards.first()).toBeVisible({ timeout: 10_000 })
+      const interestedBadges = page
+        .getByTestId('card-state-badge')
+        .filter({ hasText: 'interested' })
+      expect(await interestedBadges.count()).toBeGreaterThan(0)
+    } finally {
+      // Always clear state to keep prod tidy
+      await clearState(request, target.id, sessionId)
+    }
+  })
+
+  test('public visitor cannot see triage filters or PUT state', async ({ page, request }) => {
+    await page.goto('/')
+    await page.waitForResponse(r => r.url().includes('/jobplatform/api/jobs') && r.ok())
+    // State dropdown only renders when at least one returned job has a non-null
+    // state field, which only happens when authed. Public sees no state field.
+    await expect(page.getByLabel('State')).toHaveCount(0)
+    await expect(page.getByText('Hide dismissed')).toHaveCount(0)
+
+    // Direct PUT without auth → 403
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=1')
+    const job = ((await list.json()) as { data: { jobs: Array<{ id: string }> } }).data.jobs[0]
+    const putResp = await request.put(
+      `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(job.id)}/state`,
+      {
+        data: { state: 'interested' },
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
+    expect(putResp.status()).toBe(403)
+  })
+
+  test('hide_dismissed=true excludes dismissed jobs from the list', async ({ request }) => {
+    const sessionId = await freshSessionId(request)
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=5', {
+      headers: { 'X-Session-Id': sessionId }
+    })
+    const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string }> } }).data.jobs
+    const target = jobs[0]
+
+    try {
+      // Mark dismissed via API
+      const putResp = await request.put(
+        `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(target.id)}/state`,
+        {
+          data: { state: 'dismissed' },
+          headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId }
+        }
+      )
+      expect(putResp.ok()).toBe(true)
+
+      // Default hide_dismissed=true: target shouldn't appear.
+      const hidden = await request.get(
+        'http://localhost:5173/jobplatform/api/jobs?hide_dismissed=true&limit=100',
+        { headers: { 'X-Session-Id': sessionId } }
+      )
+      const hiddenIds = (
+        (await hidden.json()) as { data: { jobs: Array<{ id: string }> } }
+      ).data.jobs.map(j => j.id)
+      expect(hiddenIds).not.toContain(target.id)
+
+      // Without hide_dismissed: target should appear (it's still on page 1).
+      const visible = await request.get(
+        'http://localhost:5173/jobplatform/api/jobs?state=dismissed&limit=100',
+        { headers: { 'X-Session-Id': sessionId } }
+      )
+      const dismissedIds = (
+        (await visible.json()) as { data: { jobs: Array<{ id: string; state: string }> } }
+      ).data.jobs.map(j => j.id)
+      expect(dismissedIds).toContain(target.id)
+    } finally {
+      await clearState(request, target.id, sessionId)
+    }
+  })
+})

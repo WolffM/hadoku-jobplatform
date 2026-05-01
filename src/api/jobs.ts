@@ -1,3 +1,5 @@
+import { authHeaders, type Auth } from './auth'
+
 const BASE_URL = '/jobplatform/api'
 
 export interface ScoreBreakdown {
@@ -8,6 +10,13 @@ export interface ScoreBreakdown {
   remote_match: number
   salary_match: number
 }
+
+/**
+ * V2 triage states. 'new' surfaces on read when the authed caller hasn't
+ * touched a job yet. Writeable values exclude 'new' (no row = 'new').
+ */
+export type JobStateRead = 'new' | 'interested' | 'dismissed' | 'saved' | 'applied'
+export type JobStateWrite = 'interested' | 'dismissed' | 'saved' | 'applied'
 
 export interface JobSummary {
   id: string
@@ -25,6 +34,9 @@ export interface JobSummary {
   slug: string | null
   score: number
   score_breakdown: ScoreBreakdown
+  // null when caller is unauthenticated (no per-user join). 'new' when
+  // there's no job_states row for the authed user.
+  state: JobStateRead | null
 }
 
 export interface JobDetail extends JobSummary {
@@ -34,6 +46,7 @@ export interface JobDetail extends JobSummary {
   department: string | null
   scraper_used: string | null
   run_id: string | null
+  state_updated_at: string | null
 }
 
 export interface JobsListResponse {
@@ -47,6 +60,8 @@ export interface JobsListResponse {
 export interface ListJobsOptions {
   profile_id?: string
   mine?: boolean
+  state?: JobStateRead
+  hide_dismissed?: boolean
   page?: number
   limit?: number
   sort?: 'score' | 'date'
@@ -70,8 +85,6 @@ export class JobsApiError extends Error {
   }
 }
 
-import { authHeaders, type Auth } from './auth'
-
 async function parseWrapped<T>(response: Response): Promise<T> {
   const body = (await response.json()) as Wrapped<T>
   if (!response.ok || !body.success || !body.data) {
@@ -84,6 +97,8 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   const params = new URLSearchParams()
   if (opts.profile_id) params.set('profile_id', opts.profile_id)
   if (opts.mine) params.set('mine', 'true')
+  if (opts.state) params.set('state', opts.state)
+  if (opts.hide_dismissed) params.set('hide_dismissed', 'true')
   if (opts.page) params.set('page', String(opts.page))
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.sort) params.set('sort', opts.sort)
@@ -111,4 +126,38 @@ export async function getJob(
   })
   const data = await parseWrapped<{ job: JobDetail }>(response)
   return data.job
+}
+
+/**
+ * PUT /jobs/:id/state — upsert the caller's triage state for one job.
+ * Returns the new state + server-stamped updated_at.
+ */
+export async function setJobState(
+  id: string,
+  state: JobStateWrite,
+  auth?: Auth
+): Promise<{ job_id: string; state: JobStateRead; updated_at: string }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
+    method: 'PUT',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify({ state })
+  })
+  return parseWrapped<{ job_id: string; state: JobStateRead; updated_at: string }>(response)
+}
+
+/**
+ * DELETE /jobs/:id/state — clear the caller's state for one job (returns to
+ * implicit 'new'). Idempotent: safe to call when no state row exists.
+ */
+export async function clearJobState(
+  id: string,
+  auth?: Auth
+): Promise<{ job_id: string; deleted: boolean }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
+    method: 'DELETE',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  return parseWrapped<{ job_id: string; deleted: boolean }>(response)
 }

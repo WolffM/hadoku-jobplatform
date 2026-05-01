@@ -687,6 +687,54 @@
   gap: var(--hdk-space-xl);
 }
 
+.jp-jobcard__top-right {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  flex-shrink: 0;
+}
+
+/* Triage state badge on the card. Uppercased for visual contrast vs title.
+   Each state pulls a distinct theme family so it's recognisable at a glance. */
+.jp-jobcard__state {
+  padding: 2px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.jp-jobcard__state--interested {
+  background-color: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.jp-jobcard__state--saved {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.jp-jobcard__state--applied {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+}
+
+.jp-jobcard__state--dismissed {
+  background-color: var(--color-muted-bg);
+  color: var(--color-text-tertiary);
+}
+
+/* Dim the whole card for dismissed jobs that slipped through (e.g. when
+   the user picks state=dismissed explicitly). */
+.jp-jobcard--state-dismissed {
+  opacity: 0.6;
+}
+
+.jp-jobcard--state-dismissed:hover {
+  opacity: 1;
+}
+
 .jp-jobcard__title {
   color: var(--color-text);
   font-weight: var(--font-weight-bold);
@@ -975,6 +1023,66 @@
 .jp-drawer__cta:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* V2 triage actions. Active = current state. Each action pairs colour
+   with the matching badge family so the drawer and cards read as one
+   system. */
+.jp-drawer__cta--active {
+  border-width: 2px;
+  font-weight: var(--font-weight-bold);
+}
+
+.jp-drawer__cta--state-interested.jp-drawer__cta--active {
+  background-color: var(--color-primary-bg);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.jp-drawer__cta--state-saved.jp-drawer__cta--active {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.jp-drawer__cta--state-applied.jp-drawer__cta--active {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+  border-color: var(--color-success);
+}
+
+.jp-drawer__cta--state-dismissed.jp-drawer__cta--active {
+  background-color: var(--color-muted-bg);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-text-tertiary);
+}
+
+.jp-drawer__facts-state {
+  padding: var(--hdk-space-xs) var(--hdk-space-md) !important;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-drawer__facts-state--interested {
+  background-color: var(--color-primary-bg) !important;
+  color: var(--color-primary) !important;
+}
+
+.jp-drawer__facts-state--saved {
+  background-color: var(--color-warning-bg) !important;
+  color: var(--color-warning) !important;
+}
+
+.jp-drawer__facts-state--applied {
+  background-color: var(--color-success-bg) !important;
+  color: var(--color-success-dark) !important;
+}
+
+.jp-drawer__facts-state--dismissed {
+  background-color: var(--color-muted-bg) !important;
+  color: var(--color-text-tertiary) !important;
 }
 
 /* ============================================================================
