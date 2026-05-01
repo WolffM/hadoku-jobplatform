@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
-import { getJob, JobsApiError, type JobDetail, type ScoreBreakdown } from '../api/jobs'
+import {
+  getJob,
+  setJobState,
+  JobsApiError,
+  type JobDetail,
+  type ScoreBreakdown,
+  type JobStateRead,
+  type JobStateWrite
+} from '../api/jobs'
 import type { Auth } from '../api/auth'
 
 interface Props {
@@ -7,6 +15,7 @@ interface Props {
   jobId: string
   profileId: string | null
   onClose: () => void
+  onStateChange?: (jobId: string, newState: JobStateRead) => void
 }
 
 const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
@@ -17,6 +26,13 @@ const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
   remote_match: 'Remote',
   salary_match: 'Salary'
 }
+
+const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[] = [
+  { state: 'interested', label: 'Interested', verb: 'Mark interested' },
+  { state: 'saved', label: 'Saved', verb: 'Save' },
+  { state: 'applied', label: 'Applied', verb: 'Mark applied' },
+  { state: 'dismissed', label: 'Dismissed', verb: 'Dismiss' }
+]
 
 // Greenhouse descriptions are HTML (<p>, <br>, <li>). Lever and LinkedIn are
 // plain text with \n linebreaks. dangerouslySetInnerHTML on plain text collapses
@@ -36,19 +52,26 @@ function Description({ text }: { text: string }) {
   return <div className="jp-drawer__description jp-drawer__description--plain">{text}</div>
 }
 
-export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
+export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Props) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Optimistic local state so the buttons update without a full refetch.
+  const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
+  const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     setJob(null)
+    setCurrentState(null)
     getJob(jobId, profileId ?? undefined, auth)
       .then(result => {
-        if (!cancelled) setJob(result)
+        if (!cancelled) {
+          setJob(result)
+          setCurrentState(result.state)
+        }
       })
       .catch(err => {
         if (!cancelled) {
@@ -63,7 +86,6 @@ export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
     }
   }, [auth, jobId, profileId])
 
-  // Esc closes
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -71,6 +93,25 @@ export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
+
+  const handleSetState = async (next: JobStateWrite) => {
+    if (pendingState) return
+    setPendingState(next)
+    setError(null)
+    try {
+      const res = await setJobState(jobId, next, auth)
+      setCurrentState(res.state)
+      onStateChange?.(jobId, res.state)
+    } catch (err) {
+      setError(err instanceof JobsApiError ? err.message : 'Failed to update state')
+    } finally {
+      setPendingState(null)
+    }
+  }
+
+  // Auth state is unknown until first fetch resolves. After load, `state`
+  // null means caller is unauthenticated.
+  const stateButtonsEnabled = currentState !== null
 
   return (
     <>
@@ -104,6 +145,14 @@ export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
                 </span>
               )}
               {job.posted_date && <span>Posted {job.posted_date}</span>}
+              {currentState && currentState !== 'new' && (
+                <span
+                  className={`jp-drawer__facts-state jp-drawer__facts-state--${currentState}`}
+                  data-testid="drawer-state-badge"
+                >
+                  {currentState}
+                </span>
+              )}
             </div>
 
             {profileId && (
@@ -137,7 +186,35 @@ export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
             </section>
 
             <section className="jp-drawer__section">
-              <h3>Actions</h3>
+              <h3>Triage</h3>
+              {!stateButtonsEnabled && (
+                <p className="jp-muted">Sign in to track your interest in this job.</p>
+              )}
+              <div className="jp-drawer__actions">
+                {STATE_ACTIONS.map(({ state, label, verb }) => {
+                  const isActive = currentState === state
+                  const isPending = pendingState === state
+                  return (
+                    <button
+                      key={state}
+                      type="button"
+                      className={`jp-drawer__cta jp-drawer__cta--state-${state}${
+                        isActive ? ' jp-drawer__cta--active' : ''
+                      }`}
+                      disabled={!stateButtonsEnabled || pendingState !== null}
+                      onClick={() => void handleSetState(state)}
+                      aria-pressed={isActive}
+                      data-testid={`state-action-${state}`}
+                    >
+                      {isPending ? '…' : isActive ? label : verb}
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="jp-drawer__section">
+              <h3>Apply</h3>
               <div className="jp-drawer__actions">
                 <a
                   className="jp-drawer__cta jp-drawer__cta--primary"
@@ -147,12 +224,6 @@ export function JobDrawer({ auth, jobId, profileId, onClose }: Props) {
                 >
                   Apply on {job.source_site}
                 </a>
-                <button type="button" disabled className="jp-drawer__cta">
-                  Mark interested (V2)
-                </button>
-                <button type="button" disabled className="jp-drawer__cta">
-                  Dismiss (V2)
-                </button>
                 <button type="button" disabled className="jp-drawer__cta">
                   Generate resume (V3)
                 </button>

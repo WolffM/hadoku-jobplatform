@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { listJobs, JobsApiError, type JobSummary } from '../api/jobs'
+import { listJobs, JobsApiError, type JobSummary, type JobStateRead } from '../api/jobs'
 import type { Auth } from '../api/auth'
 import { JobCard } from './JobCard'
 
@@ -7,9 +7,21 @@ interface Props {
   auth: Auth
   profileId: string | null
   onSelect: (jobId: string) => void
+  // Bumped by the drawer when the user transitions a job — forces a refetch
+  // so the list reflects the new state immediately.
+  refreshKey?: number
 }
 
-export function JobsList({ auth, profileId, onSelect }: Props) {
+const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'new', label: 'New' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'saved', label: 'Saved' },
+  { value: 'applied', label: 'Applied' },
+  { value: 'dismissed', label: 'Dismissed' }
+]
+
+export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   const [jobs, setJobs] = useState<JobSummary[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -20,8 +32,14 @@ export function JobsList({ auth, profileId, onSelect }: Props) {
   const [minScore, setMinScore] = useState(0)
   const [mine, setMine] = useState(false)
   const [search, setSearch] = useState('')
+  const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
+  const [hideDismissed, setHideDismissed] = useState(true)
 
   const limit = 25
+
+  // hide_dismissed only matters when no specific state filter is active.
+  // When the user picks state='dismissed' explicitly, we want them to see them.
+  const effectiveHideDismissed = hideDismissed && stateFilter === ''
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -31,6 +49,8 @@ export function JobsList({ auth, profileId, onSelect }: Props) {
         {
           profile_id: profileId ?? undefined,
           mine: mine || undefined,
+          state: stateFilter || undefined,
+          hide_dismissed: effectiveHideDismissed || undefined,
           page,
           limit,
           sort,
@@ -45,16 +65,16 @@ export function JobsList({ auth, profileId, onSelect }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [auth, profileId, mine, page, sort, minScore])
+  }, [auth, profileId, mine, stateFilter, effectiveHideDismissed, page, sort, minScore])
 
   useEffect(() => {
     void load()
-  }, [load])
+  }, [load, refreshKey])
 
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, mine, sort, minScore])
+  }, [profileId, mine, sort, minScore, stateFilter, effectiveHideDismissed])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs
@@ -68,6 +88,11 @@ export function JobsList({ auth, profileId, onSelect }: Props) {
   }, [jobs, search])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
+  // Auth-gated filters: the API requires admin/friend for state= / mine= / hide_dismissed=.
+  // We don't pre-flight whoami here — instead, rely on a real state value in the
+  // response. Both null (authed-but-no-row) and undefined (older worker without
+  // the field) mean "not authed enough to surface the filters".
+  const seemsAuthed = jobs.some(j => j.state !== null && j.state !== undefined)
 
   return (
     <div className="jp-jobs">
@@ -102,6 +127,31 @@ export function JobsList({ auth, profileId, onSelect }: Props) {
               <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
             </label>
           </>
+        )}
+        {seemsAuthed && (
+          <label className="jp-jobs__filter">
+            State
+            <select
+              value={stateFilter}
+              onChange={e => setStateFilter(e.target.value as '' | JobStateRead)}
+            >
+              {STATE_FILTERS.map(opt => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {seemsAuthed && stateFilter === '' && (
+          <label className="jp-jobs__filter">
+            <input
+              type="checkbox"
+              checked={hideDismissed}
+              onChange={e => setHideDismissed(e.target.checked)}
+            />
+            Hide dismissed
+          </label>
         )}
         <label className="jp-jobs__filter">
           <input type="checkbox" checked={mine} onChange={e => setMine(e.target.checked)} />

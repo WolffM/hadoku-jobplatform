@@ -73,6 +73,20 @@ export const ScoreBreakdownSchema = z
 	})
 	.openapi('ScoreBreakdown');
 
+// Triage states (V2). 'new' is implicit — the absence of a job_states row.
+// Code reads/writes only 'interested' | 'dismissed' | 'saved' | 'applied'.
+// V5 will add 'offered' | 'rejected'. The DB column is unconstrained TEXT,
+// so adding states later is a code-only change.
+export const JobStateSchema = z
+	.enum(['interested', 'dismissed', 'saved', 'applied'])
+	.openapi('JobState');
+export type JobStateValue = z.infer<typeof JobStateSchema>;
+
+// Read-only state on returned jobs. 'new' surfaces here when there's no row.
+export const JobStateReadSchema = z
+	.enum(['new', 'interested', 'dismissed', 'saved', 'applied'])
+	.openapi('JobStateRead');
+
 export const JobSummarySchema = z
 	.object({
 		id: z.string(),
@@ -90,6 +104,9 @@ export const JobSummarySchema = z
 		slug: z.string().nullable(),
 		score: z.number(),
 		score_breakdown: ScoreBreakdownSchema,
+		// 'new' when no row in job_states for the caller, or null when
+		// unauthenticated (we don't know which user is asking).
+		state: JobStateReadSchema.nullable(),
 	})
 	.openapi('JobSummary');
 
@@ -100,7 +117,23 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	department: z.string().nullable(),
 	scraper_used: z.string().nullable(),
 	run_id: z.string().nullable(),
+	state_updated_at: z.string().nullable(),
 }).openapi('JobDetail');
+
+// PUT /jobs/:id/state — body
+export const SetJobStateSchema = z
+	.object({
+		state: JobStateSchema,
+	})
+	.openapi('SetJobState');
+
+export const JobStateResponseSchema = S(
+	z.object({
+		job_id: z.string(),
+		state: JobStateReadSchema,
+		updated_at: z.string(),
+	})
+).openapi('JobStateResponse');
 
 export const JobsResponseSchema = S(
 	z.object({

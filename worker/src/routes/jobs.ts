@@ -1,6 +1,12 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
-import { JobsResponseSchema, JobResponseSchema, ErrorResponseSchema } from '../schemas.js';
+import {
+	JobsResponseSchema,
+	JobResponseSchema,
+	ErrorResponseSchema,
+	SetJobStateSchema,
+	JobStateResponseSchema,
+} from '../schemas.js';
 import type { HadokuAuthContext } from '@wolffm/worker-utils';
 import { userIdFromCredential } from '../userId.js';
 
@@ -11,6 +17,17 @@ interface RouteContext {
 
 const app = new OpenAPIHono<RouteContext>();
 
+// Resolve the caller to an opaque user id, or null when unauthenticated.
+async function maybeUserId(c: {
+	get: (k: 'authContext') => HadokuAuthContext;
+}): Promise<string | null> {
+	const auth = c.get('authContext');
+	if ((auth.userType === 'admin' || auth.userType === 'friend') && auth.credential) {
+		return userIdFromCredential(auth.credential);
+	}
+	return null;
+}
+
 // ============================================================================
 // GET /jobs
 // ============================================================================
@@ -20,7 +37,7 @@ app.openapi(
 		method: 'get',
 		path: '/jobs',
 		tags: ['Jobs'],
-		summary: 'List jobs (optionally scored for a profile and/or filtered to mine)',
+		summary: 'List jobs (optionally scored, mine-only, or filtered by triage state)',
 		request: {
 			query: z.object({
 				profile_id: z
@@ -30,6 +47,14 @@ app.openapi(
 				mine: z.enum(['true', 'false']).optional().openapi({
 					description:
 						'If true, filter to jobs from companies the caller is subscribed to (via /companies). Requires admin/friend auth.',
+				}),
+				state: z.enum(['interested', 'dismissed', 'saved', 'applied', 'new']).optional().openapi({
+					description:
+						'Filter to a single triage state for the authed user. Requires admin/friend auth. "new" filters to jobs without any state row.',
+				}),
+				hide_dismissed: z.enum(['true', 'false']).optional().openapi({
+					description:
+						'If true, exclude state=dismissed for the authed user. No effect when unauthed (no per-user join).',
 				}),
 				page: z.coerce.number().int().positive().default(1).openapi({ description: 'Page number' }),
 				limit: z.coerce
@@ -54,14 +79,24 @@ app.openapi(
 				content: { 'application/json': { schema: JobsResponseSchema } },
 			},
 			401: {
-				description: 'mine=true requires an authenticated admin/friend caller',
+				description: 'mine=true / state= / hide_dismissed= require auth',
 				content: { 'application/json': { schema: ErrorResponseSchema } },
 			},
 		},
 	}),
 	async (c) => {
-		const { profile_id, mine: mineRaw, page, limit, sort, min_score } = c.req.valid('query');
+		const {
+			profile_id,
+			mine: mineRaw,
+			state: stateFilter,
+			hide_dismissed: hideDismissedRaw,
+			page,
+			limit,
+			sort,
+			min_score,
+		} = c.req.valid('query');
 		const mine = mineRaw === 'true';
+		const hideDismissed = hideDismissedRaw === 'true';
 		const db = c.env.JOB_PLATFORM_DB;
 		const offset = (page - 1) * limit;
 
@@ -90,37 +125,25 @@ app.openapi(
 			slug: string | null;
 			score: number | null;
 			score_breakdown: string | null;
+			row_state: string | null;
 		}
 
-		// mine=true requires auth, even though the rest of GET /jobs is open.
-		let userId: string | null = null;
-		if (mine) {
-			const auth = c.get('authContext');
-			if (auth.userType !== 'admin' && auth.userType !== 'friend') {
-				return c.json(
-					{
-						success: false as const,
-						error: 'Unauthorized',
-						message: 'mine=true requires an authenticated admin/friend caller',
-					},
-					401
-				);
-			}
-			if (!auth.credential) {
-				return c.json(
-					{
-						success: false as const,
-						error: 'Unauthorized',
-						message: 'Authenticated credential missing',
-					},
-					401
-				);
-			}
-			userId = await userIdFromCredential(auth.credential);
+		// mine=true / state= / hide_dismissed= all need a userId. Establish it
+		// once and reject the request if any per-user filter is requested
+		// without auth.
+		const userId = await maybeUserId(c);
+		const needsAuth = mine || stateFilter !== undefined || hideDismissed;
+		if (needsAuth && !userId) {
+			return c.json(
+				{
+					success: false as const,
+					error: 'Unauthorized',
+					message: 'mine=true, state=, and hide_dismissed=true require admin/friend auth',
+				},
+				401
+			);
 		}
 
-		// Build JOIN / WHERE fragments based on which filters are active.
-		// Order of binds is: profile_id?, min_score?, userId?, limit, offset
 		const joins: string[] = [];
 		const wheres: string[] = [];
 		const binds: (string | number)[] = [];
@@ -128,6 +151,15 @@ app.openapi(
 		const scoredCols = profile_id
 			? 'm.score, m.score_breakdown'
 			: 'NULL as score, NULL as score_breakdown';
+
+		// LEFT JOIN job_states once when authed so we can both surface state on
+		// every row AND filter by it cheaply. js.user_id binds first if present
+		// because the join clause has to come before any state filter binds.
+		const stateCols = userId ? 'js.state as row_state' : 'NULL as row_state';
+		if (userId) {
+			joins.push('LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?');
+			binds.push(userId);
+		}
 
 		if (profile_id) {
 			joins.push('JOIN job_profile_matches m ON m.job_id = j.id');
@@ -141,6 +173,16 @@ app.openapi(
 			joins.push('INNER JOIN user_companies uc ON uc.ats = j.ats AND uc.slug = j.slug');
 			wheres.push('uc.user_id = ?');
 			binds.push(userId);
+		}
+
+		// State filter: 'new' = no row in job_states for this user.
+		if (stateFilter === 'new') {
+			wheres.push('js.state IS NULL');
+		} else if (stateFilter) {
+			wheres.push('js.state = ?');
+			binds.push(stateFilter);
+		} else if (hideDismissed) {
+			wheres.push("(js.state IS NULL OR js.state != 'dismissed')");
 		}
 
 		const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
@@ -159,7 +201,8 @@ app.openapi(
 				j.id, j.title, j.company, j.location, j.workplace_type,
 				j.salary_min, j.salary_max, j.source_site, j.url,
 				j.posted_date, j.scraped_at, j.ats, j.slug,
-				${scoredCols}
+				${scoredCols},
+				${stateCols}
 			FROM jobs j
 			${joinClause}
 			${whereClause}
@@ -189,6 +232,7 @@ app.openapi(
 			score_breakdown: r.score_breakdown
 				? (JSON.parse(r.score_breakdown) as typeof zeroBreakdown)
 				: zeroBreakdown,
+			state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
 		}));
 
 		return c.json(
@@ -272,6 +316,20 @@ app.openapi(
 			}
 		}
 
+		// Per-user state if authed.
+		type StateRead = 'new' | 'interested' | 'dismissed' | 'saved' | 'applied';
+		const userId = await maybeUserId(c);
+		let state: StateRead | null = null;
+		let stateUpdatedAt: string | null = null;
+		if (userId) {
+			const stateRow = await db
+				.prepare('SELECT state, updated_at FROM job_states WHERE job_id = ? AND user_id = ?')
+				.bind(id, userId)
+				.first<{ state: string; updated_at: string }>();
+			state = stateRow ? (stateRow.state as StateRead) : 'new';
+			stateUpdatedAt = stateRow?.updated_at ?? null;
+		}
+
 		const job = {
 			id: row.id as string,
 			title: row.title as string,
@@ -294,9 +352,155 @@ app.openapi(
 			run_id: row.run_id as string | null,
 			score,
 			score_breakdown,
+			state,
+			state_updated_at: stateUpdatedAt,
 		};
 
 		return c.json({ success: true as const, data: { job } }, 200);
+	}
+);
+
+// ============================================================================
+// PUT /jobs/:id/state — set the caller's triage state for one job
+// ============================================================================
+
+async function gateAuthed(
+	c: { get: (k: 'authContext') => HadokuAuthContext; json: (b: unknown, s?: number) => Response },
+	next: () => Promise<void>
+) {
+	const auth = c.get('authContext');
+	if (auth.userType !== 'admin' && auth.userType !== 'friend') {
+		return c.json(
+			{ success: false as const, error: 'Forbidden', message: 'Authentication required' },
+			403
+		);
+	}
+	await next();
+	return;
+}
+
+app.put('/jobs/:id/state', gateAuthed);
+app.delete('/jobs/:id/state', gateAuthed);
+
+app.openapi(
+	createRoute({
+		method: 'put',
+		path: '/jobs/{id}/state',
+		tags: ['Jobs'],
+		summary: 'Set triage state for a job (per-user, upsert)',
+		request: {
+			params: z.object({ id: z.string() }),
+			body: { content: { 'application/json': { schema: SetJobStateSchema } } },
+		},
+		responses: {
+			200: {
+				description: 'State updated',
+				content: { 'application/json': { schema: JobStateResponseSchema } },
+			},
+			403: {
+				description: 'Forbidden',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+			404: {
+				description: 'Job not found',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const userId = await maybeUserId(c);
+		if (!userId) {
+			return c.json(
+				{ success: false as const, error: 'Forbidden', message: 'Authentication required' },
+				403
+			);
+		}
+
+		const { id } = c.req.valid('param');
+		const body = c.req.valid('json');
+		const db = c.env.JOB_PLATFORM_DB;
+
+		// Verify the job exists — better error than relying on FK to scream.
+		const exists = await db
+			.prepare('SELECT id FROM jobs WHERE id = ?')
+			.bind(id)
+			.first<{ id: string }>();
+		if (!exists) {
+			return c.json(
+				{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
+				404
+			);
+		}
+
+		const now = new Date().toISOString();
+		await db
+			.prepare(
+				`INSERT INTO job_states (job_id, user_id, state, notes, updated_at)
+				 VALUES (?, ?, ?, NULL, ?)
+				 ON CONFLICT (job_id, user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`
+			)
+			.bind(id, userId, body.state, now)
+			.run();
+
+		return c.json(
+			{
+				success: true as const,
+				data: { job_id: id, state: body.state, updated_at: now },
+			},
+			200
+		);
+	}
+);
+
+// ============================================================================
+// DELETE /jobs/:id/state — clear state (back to implicit 'new'). Idempotent.
+// ============================================================================
+
+app.openapi(
+	createRoute({
+		method: 'delete',
+		path: '/jobs/{id}/state',
+		tags: ['Jobs'],
+		summary: 'Clear triage state for a job — returns the row to implicit "new"',
+		request: {
+			params: z.object({ id: z.string() }),
+		},
+		responses: {
+			200: {
+				description: 'State cleared (or already absent)',
+				content: {
+					'application/json': {
+						schema: z
+							.object({
+								success: z.literal(true),
+								data: z.object({ job_id: z.string(), deleted: z.boolean() }),
+							})
+							.openapi('ClearJobStateResponse'),
+					},
+				},
+			},
+			403: {
+				description: 'Forbidden',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const userId = await maybeUserId(c);
+		if (!userId) {
+			return c.json(
+				{ success: false as const, error: 'Forbidden', message: 'Authentication required' },
+				403
+			);
+		}
+		const { id } = c.req.valid('param');
+		const result = await c.env.JOB_PLATFORM_DB.prepare(
+			'DELETE FROM job_states WHERE job_id = ? AND user_id = ?'
+		)
+			.bind(id, userId)
+			.run();
+		const deleted = (result.meta?.changes ?? 0) > 0;
+		return c.json({ success: true as const, data: { job_id: id, deleted } }, 200);
 	}
 );
 

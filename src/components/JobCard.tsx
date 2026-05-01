@@ -33,15 +33,28 @@ export function JobCard({ job, showScore, onClick }: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
   const tier = showScore ? scoreTier(job.score) : null
+  const hasState = job.state && job.state !== 'new'
 
-  const cardClass = tier ? `jp-jobcard jp-jobcard--score-${tier}` : 'jp-jobcard'
+  const cardClasses = ['jp-jobcard']
+  if (tier) cardClasses.push(`jp-jobcard--score-${tier}`)
+  if (hasState) cardClasses.push(`jp-jobcard--state-${job.state}`)
   const scoreClass = tier ? `jp-jobcard__score jp-jobcard__score--${tier}` : 'jp-jobcard__score'
 
   return (
-    <button type="button" className={cardClass} onClick={onClick}>
+    <button type="button" className={cardClasses.join(' ')} onClick={onClick}>
       <div className="jp-jobcard__top">
         <span className="jp-jobcard__title">{job.title}</span>
-        {showScore && <span className={scoreClass}>{job.score.toFixed(2)}</span>}
+        <div className="jp-jobcard__top-right">
+          {hasState && (
+            <span
+              className={`jp-jobcard__state jp-jobcard__state--${job.state}`}
+              data-testid="card-state-badge"
+            >
+              {job.state}
+            </span>
+          )}
+          {showScore && <span className={scoreClass}>{job.score.toFixed(2)}</span>}
+        </div>
       </div>
       <div className="jp-jobcard__meta">
         <span className="jp-jobcard__company">{job.company}</span>
