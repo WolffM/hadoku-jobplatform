@@ -12,7 +12,9 @@ export default [
       '**/coverage/**',
       '**/*.test.ts',
       '**/*.test.tsx',
-      '**/vite.config.ts'
+      'tests/**', // Playwright e2e — outside the src/ TS project
+      '**/vite.config.ts',
+      'playwright.config.ts'
     ]
   },
 

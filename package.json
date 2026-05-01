@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "sideEffects": [
@@ -31,6 +31,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "test:e2e": "node scripts/free-port.mjs 5173 && node ../hadoku_site/scripts/secrets/dev-vault.mjs -- playwright test",
+    "test:e2e:headed": "node scripts/free-port.mjs 5173 && node ../hadoku_site/scripts/secrets/dev-vault.mjs -- playwright test --headed",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "peerDependencies": {
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.59.1",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
