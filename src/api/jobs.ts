@@ -70,7 +70,7 @@ export class JobsApiError extends Error {
   }
 }
 
-import { authHeaders, authCreds, type Auth } from './auth'
+import { authHeaders, type Auth } from './auth'
 
 async function parseWrapped<T>(response: Response): Promise<T> {
   const body = (await response.json()) as Wrapped<T>
@@ -93,7 +93,7 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   const response = await fetch(url, {
     method: 'GET',
     headers: authHeaders(auth),
-    credentials: authCreds(auth)
+    credentials: 'include'
   })
   return parseWrapped<JobsListResponse>(response)
 }
@@ -107,7 +107,7 @@ export async function getJob(
   const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}${params}`, {
     method: 'GET',
     headers: authHeaders(auth),
-    credentials: authCreds(auth)
+    credentials: 'include'
   })
   const data = await parseWrapped<{ job: JobDetail }>(response)
   return data.job

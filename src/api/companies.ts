@@ -1,12 +1,9 @@
 /**
  * Thin fetch wrapper for the /jobplatform/api/companies routes.
- *
- * Auth model: see `./auth.ts`. Either `sessionId` or `apiKey` (legacy);
- * the helper sends X-Session-Id and/or X-User-Key. Edge-router injects
- * X-User-Key on the proxied request when X-Session-Id is present.
+ * Auth model: see `./auth.ts`.
  */
 
-import { authHeaders, authCreds, type Auth } from './auth'
+import { authHeaders, type Auth } from './auth'
 
 const BASE_URL = '/jobplatform/api'
 
@@ -57,7 +54,7 @@ export async function listCompanies(auth?: Auth): Promise<UserCompany[]> {
   const response = await fetch(`${BASE_URL}/companies`, {
     method: 'GET',
     headers: authHeaders(auth),
-    credentials: authCreds(auth)
+    credentials: 'include'
   })
   const data = await parseWrapped<{ companies: UserCompany[] }>(response)
   return data.companies
@@ -70,7 +67,7 @@ export async function createCompany(
   const response = await fetch(`${BASE_URL}/companies`, {
     method: 'POST',
     headers: authHeaders(auth, true),
-    credentials: authCreds(auth),
+    credentials: 'include',
     body: JSON.stringify({ display_name: displayName })
   })
   return parseWrapped<CreateCompanyResponse>(response)
@@ -80,7 +77,7 @@ export async function deleteCompany(id: string, auth?: Auth): Promise<void> {
   const response = await fetch(`${BASE_URL}/companies/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(auth),
-    credentials: authCreds(auth)
+    credentials: 'include'
   })
   await parseWrapped<{ deleted: true; id: string }>(response)
 }

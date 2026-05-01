@@ -4,11 +4,18 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Dev smoke-testing: proxy API calls to production so the MFE renders real
-    // data when running `pnpm dev` locally. Safe for reads; authed writes need
-    // an apiKey (see index.html — pass `?apiKey=...` in the URL).
+    // Dev smoke-testing: proxy hadoku-mediated paths to production so the MFE
+    // renders real data when running `pnpm dev` locally.
+    //   /jobplatform/api  — worker calls (jobs, profiles, companies, ingest)
+    //   /session          — auth handshake; index.html exchanges ?apiKey= for
+    //                       a sessionId via /session/create on first load
     proxy: {
       '/jobplatform/api': {
+        target: 'https://hadoku.me',
+        changeOrigin: true,
+        secure: true
+      },
+      '/session': {
         target: 'https://hadoku.me',
         changeOrigin: true,
         secure: true
