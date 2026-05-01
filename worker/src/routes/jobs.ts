@@ -128,17 +128,19 @@ app.openapi(
 			row_state: string | null;
 		}
 
-		// mine=true / state= / hide_dismissed= all need a userId. Establish it
-		// once and reject the request if any per-user filter is requested
-		// without auth.
+		// mine=true and state= require an authed caller — they explicitly opt
+		// into per-user filtering and the wrong answer is misleading. hide_dismissed
+		// is treated as a no-op for unauthed callers (no per-user join, nothing
+		// to hide) so the UI can default it on without forcing a pre-flight
+		// auth check.
 		const userId = await maybeUserId(c);
-		const needsAuth = mine || stateFilter !== undefined || hideDismissed;
+		const needsAuth = mine || stateFilter !== undefined;
 		if (needsAuth && !userId) {
 			return c.json(
 				{
 					success: false as const,
 					error: 'Unauthorized',
-					message: 'mine=true, state=, and hide_dismissed=true require admin/friend auth',
+					message: 'mine=true and state= require admin/friend auth',
 				},
 				401
 			);
@@ -175,14 +177,18 @@ app.openapi(
 			binds.push(userId);
 		}
 
-		// State filter: 'new' = no row in job_states for this user.
-		if (stateFilter === 'new') {
-			wheres.push('js.state IS NULL');
-		} else if (stateFilter) {
-			wheres.push('js.state = ?');
-			binds.push(stateFilter);
-		} else if (hideDismissed) {
-			wheres.push("(js.state IS NULL OR js.state != 'dismissed')");
+		// State / hide_dismissed clauses reference the LEFT JOIN above, which
+		// only exists when authed. Skip them otherwise — they'd dangle on
+		// `js.state` and the SQL would fail to parse.
+		if (userId) {
+			if (stateFilter === 'new') {
+				wheres.push('js.state IS NULL');
+			} else if (stateFilter) {
+				wheres.push('js.state = ?');
+				binds.push(stateFilter);
+			} else if (hideDismissed) {
+				wheres.push("(js.state IS NULL OR js.state != 'dismissed')");
+			}
 		}
 
 		const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
