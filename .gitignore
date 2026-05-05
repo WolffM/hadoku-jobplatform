@@ -41,3 +41,6 @@ playwright/.cache/
 
 # Legacy scraper (replaced by hadoku-scrape)
 extract/
+
+# per-repo vault key (Phase 2 of per-key ACL plan; never commit)
+.devvault.local.json
