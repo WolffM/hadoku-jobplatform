@@ -88,25 +88,30 @@ Monorepo with two pnpm workspace packages:
 
 ## Vault — what your service-tier key can and can't do
 
-You (or any agent) on this repo run dev commands with `HADOKU_VAULT_KEY` in env (populated from `~/.bashrc` / Windows env). That's a **service-tier** key. Tier-gate landed 2026-05-04.
+This repo's vault key lives in `.devvault.local.json` at the repo root (gitignored, mode 0600). `dev-vault.mjs` reads it automatically. Per-key ACL is enforced as of 2026-05-04.
 
 CAN do (no operator needed):
 
 - `GET /api/secrets/status` — sealed/unlocked check
-- `GET /api/secrets/get/:key` — fetch a value declared in `.devvault.json`
+- `GET /api/secrets/get/:key` — fetch a value declared in this repo's `.devvault.json`
+  (other repos' secrets return 403 — your key is scoped to THIS repo)
+- `GET /api/secrets/acl/me` — see what your key is granted
 - Verify with: `node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`
 
-CANNOT do (returns `403 admin tier required` — by design, not a bug):
+CANNOT do (returns `403` — by design):
 
+- Read secrets NOT in this repo's `.devvault.json`
 - `POST /api/secrets/admin/set-many` — adding/changing secrets
 - `POST /api/secrets/admin/lock` — sealing the vault
 - `GET /api/secrets/list` — enumerating every secret name
 - `GET /api/secrets/audit` — dead-key report
 
-If you need any of those, **ask the operator**. They use `HADOKU_ADMIN_KEY` and run `python scripts/administration.py …` from the `hadoku_site` repo. Don't try to escalate by overwriting `ADMIN_KEYS` — that path is closed.
-
 If your code reads a new `process.env.X` that isn't in `.devvault.json` yet:
 
 1. Add the mapping to `.devvault.json` (commit-safe, no values).
-2. Tell the operator the vault key name + value to set.
+2. Tell the operator: they grant the new entries via `key-acl-sync --repo ../<this-repo> --key <uuid> [--prune]`.
 3. Re-run your dev command.
+
+Operator-only operations (set / lock / audit / grant) use `HADOKU_ADMIN_KEY`. Don't try to escalate by writing to `ADMIN_KEYS` — service tier can't write.
+
+Lost or rotating your key? Operator: `python scripts/administration.py key-generate --tier service --repo ../<repo> --name <your-name>-<repo>` then drop the new UUID in `.devvault.local.json`.
