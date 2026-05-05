@@ -1,9 +1,10 @@
 /**
  * Typed client for hadoku-scrape `/api/v1/jobboards/*` endpoints.
  *
- * Auth: `Authorization: Bearer ${env.SCRAPER_API_KEY}` (the scraper's
- * `HADOKU_API_KEY` on the other side). Set via
- * `python scripts/administration.py cloudflare-secrets` on jobplatform-api.
+ * Auth: `X-User-Key: ${env.SCRAPER_USER_KEY}` — service-tier key bound from
+ * vault JOBPLATFORM_SCRAPER_KEY. Bearer was deprecated 2026-05-05 (scraper
+ * backend rejects Bearer; only X-User-Key is accepted post-PR1). Push key
+ * via `python scripts/administration.py cloudflare-secrets jobplatform-api`.
  *
  * OpenAPI source of truth: https://scraper.hadoku.me/openapi.json
  */
@@ -58,8 +59,8 @@ interface ScraperFetchInit {
 }
 
 async function scraperFetch(env: AppEnv, path: string, init: ScraperFetchInit): Promise<Response> {
-	if (!env.SCRAPER_API_KEY) {
-		throw new ScraperClientError('SCRAPER_API_KEY is not configured', 500, '');
+	if (!env.SCRAPER_USER_KEY) {
+		throw new ScraperClientError('SCRAPER_USER_KEY is not configured', 500, '');
 	}
 	const url = `${baseUrl(env)}${path}`;
 	return fetch(url, {
@@ -67,7 +68,7 @@ async function scraperFetch(env: AppEnv, path: string, init: ScraperFetchInit): 
 		body: init.body,
 		headers: {
 			'Content-Type': 'application/json',
-			Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
+			'X-User-Key': env.SCRAPER_USER_KEY,
 		},
 	});
 }
