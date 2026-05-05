@@ -22,8 +22,13 @@ export interface AppEnv {
 	// Scraper client (outbound to hadoku-scrape)
 	// ============================================================================
 
-	/** Bearer token for scraper API. Set via `python scripts/administration.py cloudflare-secrets`. */
-	SCRAPER_API_KEY?: string;
+	/**
+	 * Service-tier key for scraper outbound (sent as X-User-Key, NOT Bearer —
+	 * scraper backend dropped Bearer support 2026-05-05). Set via
+	 * `python scripts/administration.py cloudflare-secrets jobplatform-api`,
+	 * which pulls the value from vault key JOBPLATFORM_SCRAPER_KEY.
+	 */
+	SCRAPER_USER_KEY?: string;
 
 	/** Override scraper base URL (default https://scraper.hadoku.me). Optional. */
 	SCRAPER_BASE_URL?: string;
