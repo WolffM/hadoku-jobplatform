@@ -2,6 +2,7 @@ import { useState, useEffect, type RefObject } from 'react'
 import { setTheme as applyTheme } from '@wolffm/themes'
 import { logger } from '@wolffm/task-ui-components'
 import { getThemeFamilies } from '../app/themeConfig'
+import { themePrefs } from '../prefs/themePrefs'
 
 interface UseThemeOptions {
   propsTheme?: string
@@ -103,6 +104,7 @@ export function useTheme(options: UseThemeOptions = {}) {
     } catch (err) {
       logger.error('[useTheme] Failed to save theme:', err as Record<string, unknown>)
     }
+    void themePrefs.save({ theme: newTheme }, { scope: 'device' })
   }
 
   const isDarkTheme = theme.endsWith('-dark') || theme === 'dark'
