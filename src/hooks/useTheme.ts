@@ -1,5 +1,6 @@
-import { useState, useEffect, type RefObject } from 'react'
+import { useState, useEffect, useRef, type RefObject } from 'react'
 import { setTheme as applyTheme } from '@wolffm/themes'
+import { usePrefs } from '@wolffm/prefs-client/react'
 import { logger } from '@wolffm/task-ui-components'
 import { getThemeFamilies } from '../app/themeConfig'
 import { themePrefs } from '../prefs/themePrefs'
@@ -37,6 +38,16 @@ export function useTheme(options: UseThemeOptions = {}) {
   const [isThemeReady, setIsThemeReady] = useState(false)
   const [isInitialThemeLoad, setIsInitialThemeLoad] = useState(true)
 
+  // Subscribe to the cross-device prefs row so a freshly opened tab adopts
+  // the persisted theme as soon as the SDK resolves — the useState seed
+  // above only sees sessionStorage / data-theme, neither of which survives
+  // a browser close. Without this read, `themePrefs.save` was effectively
+  // write-only and the theme appeared to reset between sessions.
+  const { prefs: persistedPrefs, save: savePrefs } = usePrefs(themePrefs)
+  // Track whether the user has already changed the theme this session, so a
+  // late prefs resolve doesn't yank them back to the old persisted value.
+  const userOverroteThemeRef = useRef(false)
+
   // Get available theme families
   const THEME_FAMILIES = getThemeFamilies(experimentalThemes)
 
@@ -73,6 +84,19 @@ export function useTheme(options: UseThemeOptions = {}) {
     }
   }, [theme, containerRef, isInitialThemeLoad])
 
+  // When the prefs SDK resolves the persisted row, adopt that theme — but
+  // only if the user hasn't already changed it this session AND it differs
+  // from what we currently have. propsTheme (from the parent shell) takes
+  // priority since the shell already plumbs the SDK read through.
+  useEffect(() => {
+    if (propsTheme) return
+    if (userOverroteThemeRef.current) return
+    const persisted = persistedPrefs?.theme
+    if (persisted && persisted !== theme && isThemeAvailable(persisted)) {
+      setThemeState(persisted)
+    }
+  }, [persistedPrefs?.theme, propsTheme])
+
   // Auto-switch theme variant on system preference change
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
@@ -98,13 +122,26 @@ export function useTheme(options: UseThemeOptions = {}) {
 
   const setTheme = (newTheme: string) => {
     setThemeState(newTheme)
-    // Save to sessionStorage for persistence
+    userOverroteThemeRef.current = true
+    // Synchronous sessionStorage write preserves FOUC + same-tab behavior.
     try {
       sessionStorage.setItem('hadoku-theme', newTheme)
     } catch (err) {
-      logger.error('[useTheme] Failed to save theme:', err as Record<string, unknown>)
+      logger.error('[useTheme] Failed to save theme to sessionStorage:', {
+        error: (err as Error)?.message ?? String(err)
+      })
     }
-    void themePrefs.save({ theme: newTheme }, { scope: 'device' })
+    // Persist via the unified prefs store. Use the live save() returned by
+    // usePrefs so the SDK can update its in-memory cache (otherwise the
+    // next read could race a stale snapshot back into state). Log failures
+    // instead of swallowing — silent saves were the original "my theme
+    // reset" bug.
+    savePrefs({ theme: newTheme }, { scope: 'device' }).catch(err => {
+      logger.error('[useTheme] prefs save failed:', {
+        error: (err as Error)?.message ?? String(err),
+        theme: newTheme
+      })
+    })
   }
 
   const isDarkTheme = theme.endsWith('-dark') || theme === 'dark'
