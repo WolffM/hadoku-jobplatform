@@ -42,7 +42,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
-          pnpm update "@wolffm/*" --latest
+          # -r so worker/ subpackage's @wolffm/* deps update too
+          pnpm update -r "@wolffm/*" --latest
 
       - name: Commit and push if changed
         run: |
@@ -54,7 +55,7 @@ jobs:
             exit 0
           fi
 
-          git add package.json pnpm-lock.yaml
+          git add package.json pnpm-lock.yaml worker/package.json
           git commit -m "chore: auto-update @wolffm/* to latest"
 
           for i in 1 2 3; do
