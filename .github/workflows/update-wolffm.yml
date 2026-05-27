@@ -1,0 +1,70 @@
+name: Auto-update @wolffm packages
+
+on:
+  repository_dispatch:
+    types: [wolffm_published]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *' # safety net every 6h
+
+concurrency:
+  group: update-wolffm
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  update:
+    runs-on: [self-hosted, hadoku-builder]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Configure .npmrc for GitHub Packages
+        run: |
+          echo "@wolffm:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.HADOKU_SITE_TOKEN }}" >> .npmrc
+
+      - name: Update @wolffm/* to latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+        run: |
+          pnpm update "@wolffm/*" --latest
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "✅ No @wolffm package updates available"
+            exit 0
+          fi
+
+          git add package.json pnpm-lock.yaml
+          git commit -m "chore: auto-update @wolffm/* to latest"
+
+          for i in 1 2 3; do
+            if git push; then
+              echo "✅ Pushed"
+              exit 0
+            fi
+            echo "Push failed (attempt $i), rebasing..."
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; exit 1; }
+          done
+          echo "❌ Push failed after retries"
+          exit 1
