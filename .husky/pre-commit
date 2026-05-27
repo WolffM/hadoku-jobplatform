@@ -17,6 +17,14 @@ fi
 echo "Auto-formatting code..."
 pnpm run format
 
+# CSS gate — fails on `var(--x)` references to undeclared custom properties
+# (catches typos against @wolffm/themes).
+echo "Running stylelint..."
+if ! pnpm run lint:css; then
+  echo "stylelint found unknown CSS custom properties — check the var name against @wolffm/themes."
+  exit 1
+fi
+
 echo "Linting and formatting complete!"
 
 # ----------------------------------------------------------------------------
