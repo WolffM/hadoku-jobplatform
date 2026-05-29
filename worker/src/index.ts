@@ -19,7 +19,7 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import {
-	createHadokuAuth,
+	createEdgeAuth,
 	wrappedValidationHook,
 	createErrorHandlers,
 	createOpenAPIDocConfig,
@@ -54,9 +54,12 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 		})
 	);
 
-	// Standard auth middleware — attaches authContext to all routes.
-	// The /ingest route does its own key check on top of this.
-	app.use('*', createHadokuAuth());
+	// Edge-auth — trusts the edge-stamped tier (centralized auth channel)
+	// instead of validating ADMIN_KEYS/FRIEND_KEYS. Drop-in for createHadokuAuth;
+	// attaches the same authContext. Inbound (browser/friend + scrape's ingest
+	// webhook at hadoku.me/jobplatform/api/ingest) all arrives via the edge, so
+	// X-Edge-Auth is stamped. The /ingest route's own admin||friend check stays.
+	app.use('*', createEdgeAuth());
 
 	app.route('/', healthRoutes);
 	app.route('/', ingestRoutes);
