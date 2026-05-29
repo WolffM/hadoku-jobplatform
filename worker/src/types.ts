@@ -2,13 +2,16 @@ import type { D1Database } from '@cloudflare/workers-types';
 
 export interface AppEnv {
 	// ============================================================================
-	// Authentication (parsed by @wolffm/worker-utils)
+	// Authentication — edge-auth (createEdgeAuth verifies inbound X-Edge-Auth)
 	// ============================================================================
 
-	/** JSON array of admin API keys */
+	/** Edge provenance secret — createEdgeAuth verifies inbound X-Edge-Auth. */
+	EDGE_AUTH_SECRET?: string;
+
+	/** @deprecated no longer read inbound (createEdgeAuth replaced createHadokuAuth); pruned Step 5 */
 	ADMIN_KEYS?: string;
 
-	/** JSON array of friend API keys */
+	/** @deprecated no longer read inbound; pruned Step 5 */
 	FRIEND_KEYS?: string;
 
 	// ============================================================================
