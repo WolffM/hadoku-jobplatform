@@ -1,5 +1,5 @@
 import { createRoot, type Root } from 'react-dom/client'
-import { logger } from '@wolffm/task-ui-components'
+import { logger } from '@wolffm/logger/client'
 import App from './App'
 // REQUIRED: Import @wolffm/themes CSS - DO NOT REMOVE
 import '@wolffm/themes/style.css'

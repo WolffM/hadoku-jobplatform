@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type RefObject } from 'react'
 import { setTheme as applyTheme } from '@wolffm/themes'
 import { usePrefs } from '@wolffm/prefs-client/react'
-import { logger } from '@wolffm/task-ui-components'
+import { logger } from '@wolffm/logger/client'
 import { getThemeFamilies } from '../app/themeConfig'
 import { themePrefs } from '../prefs/themePrefs'
 
