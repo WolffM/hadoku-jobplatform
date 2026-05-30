@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@wolffm/logger':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@wolffm/prefs-client':
         specifier: ^1.0.1
         version: 1.0.1(react@19.2.4)(zod@4.3.6)
@@ -854,6 +857,10 @@ packages:
 
   '@vue/shared@3.5.30':
     resolution: {integrity: sha512-YXgQ7JjaO18NeK2K9VTbDHaFy62WrObMa6XERNfNOkAhD1F1oDSf3ZJ7K6GqabZ0BvSDHajp8qfS5Sa2I9n8uQ==}
+
+  '@wolffm/logger@1.1.0':
+    resolution: {integrity: sha512-GU9gEvpWjV6l2bEIwM1YUa8BiGtf0BpOiUX5ab0x2h2GX/sAz/cjSl5YdAPmtJkCip8lUqIrkR4PwLM+RvOe5Q==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.1.0/840a3412fc301295186d226b24dae56fdee8b414}
+    engines: {node: '>=18'}
 
   '@wolffm/prefs-client@1.0.1':
     resolution: {integrity: sha512-E/KTe+MfQbb6YfOZuQjGhX1lbIeJchz5oL8cptUcnlwm2FqmT5OrqClqdZcgGJ6D8CKaJkg2VCXx3486mJ5Exg==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.1/d02adcf65668a2de113f8bfcae62ec31ec55f6c1}
@@ -3063,6 +3070,8 @@ snapshots:
       typescript: 5.9.3
 
   '@vue/shared@3.5.30': {}
+
+  '@wolffm/logger@1.1.0': {}
 
   '@wolffm/prefs-client@1.0.1(react@19.2.4)(zod@4.3.6)':
     dependencies:
