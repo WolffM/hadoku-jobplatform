@@ -12,7 +12,11 @@ interface RouteContext {
 
 const app = new OpenAPIHono<RouteContext>();
 
-app.use('/ingest', requireUserType(['admin', 'friend']));
+// /ingest is the scraper webhook target — hadoku-scrape's jobboards orchestrator
+// POSTs batches with its HADOKU_SERVICE_KEY (service tier). Same shape as the
+// monitoring-api/contact-api service-tier carve-outs for internal writes.
+// /rescore and /backfill-slugs stay admin/friend — operator tools, not webhooks.
+app.use('/ingest', requireUserType(['admin', 'friend', 'service']));
 app.use('/ingest/rescore', requireUserType(['admin', 'friend']));
 app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend']));
 
@@ -28,7 +32,7 @@ const ingestRoute = createRoute({
 	tags: ['Ingest'],
 	summary: 'Receive job batch from hadoku-scrape',
 	description:
-		'Called by hadoku-scrape after each batch. Requires admin or friend auth via X-User-Key.',
+		'Called by hadoku-scrape after each batch. Requires admin, friend, or service auth via X-User-Key.',
 	request: {
 		body: {
 			content: { 'application/json': { schema: IngestPayloadSchema } },
