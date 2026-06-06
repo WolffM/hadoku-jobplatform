@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@wolffm/logger':
-        specifier: ^1.1.0
-        version: 1.1.0
+        specifier: ^1.2.1
+        version: 1.2.1
       '@wolffm/prefs-client':
-        specifier: ^1.0.1
-        version: 1.0.1(react@19.2.4)(zod@4.3.6)
+        specifier: ^1.0.2
+        version: 1.0.2(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -43,11 +43,11 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(vite@7.3.1(yaml@2.8.3))
       '@wolffm/task-ui-components':
-        specifier: ^1.0.0
-        version: 1.3.7(react@19.2.4)
+        specifier: ^2.0.1
+        version: 2.0.1(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^2.0.6
-        version: 2.0.6(@wolffm/task-ui-components@1.3.7(react@19.2.4))(react@19.2.4)
+        specifier: ^2.0.16
+        version: 2.0.16(@wolffm/task-ui-components@2.0.1(react@19.2.4))(react@19.2.4)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -106,8 +106,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.2.8
-        version: 1.2.8(zod@4.3.6)
+        specifier: ^1.2.10
+        version: 1.2.10(zod@4.3.6)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -600,79 +600,66 @@ packages:
     resolution: {integrity: sha512-RzeBwv0B3qtVBWtcuABtSuCzToo2IEAIQrcyB/b2zMvBWVbjo8bZDjACUpnaafaxhTw2W+imQbP2BD1usasK4g==}
     cpu: [arm]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-arm-musleabihf@4.60.0':
     resolution: {integrity: sha512-Sf7zusNI2CIU1HLzuu9Tc5YGAHEZs5Lu7N1ssJG4Tkw6e0MEsN7NdjUDDfGNHy2IU+ENyWT+L2obgWiguWibWQ==}
     cpu: [arm]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-linux-arm64-gnu@4.60.0':
     resolution: {integrity: sha512-DX2x7CMcrJzsE91q7/O02IJQ5/aLkVtYFryqCjduJhUfGKG6yJV8hxaw8pZa93lLEpPTP/ohdN4wFz7yp/ry9A==}
     cpu: [arm64]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-arm64-musl@4.60.0':
     resolution: {integrity: sha512-09EL+yFVbJZlhcQfShpswwRZ0Rg+z/CsSELFCnPt3iK+iqwGsI4zht3secj5vLEs957QvFFXnzAT0FFPIxSrkQ==}
     cpu: [arm64]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-linux-loong64-gnu@4.60.0':
     resolution: {integrity: sha512-i9IcCMPr3EXm8EQg5jnja0Zyc1iFxJjZWlb4wr7U2Wx/GrddOuEafxRdMPRYVaXjgbhvqalp6np07hN1w9kAKw==}
     cpu: [loong64]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-loong64-musl@4.60.0':
     resolution: {integrity: sha512-DGzdJK9kyJ+B78MCkWeGnpXJ91tK/iKA6HwHxF4TAlPIY7GXEvMe8hBFRgdrR9Ly4qebR/7gfUs9y2IoaVEyog==}
     cpu: [loong64]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-linux-ppc64-gnu@4.60.0':
     resolution: {integrity: sha512-RwpnLsqC8qbS8z1H1AxBA1H6qknR4YpPR9w2XX0vo2Sz10miu57PkNcnHVaZkbqyw/kUWfKMI73jhmfi9BRMUQ==}
     cpu: [ppc64]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-ppc64-musl@4.60.0':
     resolution: {integrity: sha512-Z8pPf54Ly3aqtdWC3G4rFigZgNvd+qJlOE52fmko3KST9SoGfAdSRCwyoyG05q1HrrAblLbk1/PSIV+80/pxLg==}
     cpu: [ppc64]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-linux-riscv64-gnu@4.60.0':
     resolution: {integrity: sha512-3a3qQustp3COCGvnP4SvrMHnPQ9d1vzCakQVRTliaz8cIp/wULGjiGpbcqrkv0WrHTEp8bQD/B3HBjzujVWLOA==}
     cpu: [riscv64]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-riscv64-musl@4.60.0':
     resolution: {integrity: sha512-pjZDsVH/1VsghMJ2/kAaxt6dL0psT6ZexQVrijczOf+PeP2BUqTHYejk3l6TlPRydggINOeNRhvpLa0AYpCWSQ==}
     cpu: [riscv64]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-linux-s390x-gnu@4.60.0':
     resolution: {integrity: sha512-3ObQs0BhvPgiUVZrN7gqCSvmFuMWvWvsjG5ayJ3Lraqv+2KhOsp+pUbigqbeWqueGIsnn+09HBw27rJ+gYK4VQ==}
     cpu: [s390x]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-x64-gnu@4.60.0':
     resolution: {integrity: sha512-EtylprDtQPdS5rXvAayrNDYoJhIz1/vzN2fEubo3yLE7tfAw+948dO0g4M0vkTVFhKojnF+n6C8bDNe+gDRdTg==}
     cpu: [x64]
     os: [linux]
-    libc: [glibc]
 
   '@rollup/rollup-linux-x64-musl@4.60.0':
     resolution: {integrity: sha512-k09oiRCi/bHU9UVFqD17r3eJR9bn03TyKraCrlz5ULFJGdJGi7VOmm9jl44vOJvRJ6P7WuBi/s2A97LxxHGIdw==}
     cpu: [x64]
     os: [linux]
-    libc: [musl]
 
   '@rollup/rollup-openbsd-x64@4.60.0':
     resolution: {integrity: sha512-1o/0/pIhozoSaDJoDcec+IVLbnRtQmHwPV730+AOD29lHEEo4F5BEUB24H0OBdhbBBDwIOSuf7vgg0Ywxdfiiw==}
@@ -865,26 +852,30 @@ packages:
     resolution: {integrity: sha512-GU9gEvpWjV6l2bEIwM1YUa8BiGtf0BpOiUX5ab0x2h2GX/sAz/cjSl5YdAPmtJkCip8lUqIrkR4PwLM+RvOe5Q==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.1.0/840a3412fc301295186d226b24dae56fdee8b414}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.0.1':
-    resolution: {integrity: sha512-E/KTe+MfQbb6YfOZuQjGhX1lbIeJchz5oL8cptUcnlwm2FqmT5OrqClqdZcgGJ6D8CKaJkg2VCXx3486mJ5Exg==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.1/d02adcf65668a2de113f8bfcae62ec31ec55f6c1}
+  '@wolffm/logger@1.2.1':
+    resolution: {integrity: sha512-HTKg6runjmoRdiIuzNaUla/6u9DekPv5j55rG1DoUoYmELC+fAZRbeJxEuag9NMAzqbhHUC/QtDMSiPFQpXyag==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.2.1/0b7d17996195ec741784bd89430e4a9d895b519c}
+    engines: {node: '>=18'}
+
+  '@wolffm/prefs-client@1.0.2':
+    resolution: {integrity: sha512-7GTvZMQb8KEp5pR1ZDmk+veSuNP1/u22cBIHdHr0KKwMILuTZ3F4fYUHF6lUsc5OfmlDsxOWrb7OSTdfJLXHyw==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.2/175c485248d16ef3a59bec1fae6f3a660d9751ad}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       zod: ^3.25.0 || ^4.0.0
 
-  '@wolffm/task-ui-components@1.3.7':
-    resolution: {integrity: sha512-sS4VULnXGzQz1VUNtvqynuw3t+2+lA5q8Z5O/ygcuvM4EU+plcC7yObh5ZwSH97ff+ifiAaR/jqGemU8tgiNQw==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/1.3.7/3c203117717a1e8c4b1dd26eabc53ce7d110b2f6}
+  '@wolffm/task-ui-components@2.0.1':
+    resolution: {integrity: sha512-grhGP1fg5qv3Tg2N3UkWe+3pIzvZbDGJYVsxkR67n4zEe6NBmJywMWzAsszReBFlZYnxxncRP6kPR8YI38R9qQ==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/2.0.1/6e44f28433392fa8e9de94f11dc95e0f868b2974}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/themes@2.0.6':
-    resolution: {integrity: sha512-dzAsaj7Q8zoWkNrGku0BPY08w1/cwV7rJtFt6V2sNH3nCQa3WRT6e0GCbnD8UNKxaqyiAxJKWritn7KuXiuQyg==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/2.0.6/9b852806e066c7d50ce836a378052a18d77f9e67}
+  '@wolffm/themes@2.0.16':
+    resolution: {integrity: sha512-xyAnKE0VolXzMojZ8Fi55sCqrOorLv2DUUAbqTecDs+/OiaXW4bzwbWXfCIoIIw8mEIwii8q95uUFoBNwsZtiQ==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/2.0.16/dd1d8edd5e208f79aa99b946d1ce05fd92e2d54e}
     peerDependencies:
       '@wolffm/task-ui-components': '*'
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/worker-utils@1.2.8':
-    resolution: {integrity: sha512-QrBlgOxUr/1JGl5stma25ukOZrDZsYw8dv0CUs+74uX2fSPjT8d29VAZmg7k9Dz+b7AAW9xs94Y0MzKyCblFCg==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.2.8/e863a229555f2d7000671cbdaa733e67370ba437}
+  '@wolffm/worker-utils@1.2.10':
+    resolution: {integrity: sha512-jKepBZ5WnYqsf/kVU/Ij6eVkndr4voT20h5N/3Ib/eTiWrGU/HLkxxhRPrtYcTTHiH0faNFtMmI9Y5decIth3g==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.2.10/d2d15f5ea656a127c068a78b85a17425e74ae3ff}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -3072,23 +3063,26 @@ snapshots:
 
   '@wolffm/logger@1.1.0': {}
 
-  '@wolffm/prefs-client@1.0.1(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/logger@1.2.1': {}
+
+  '@wolffm/prefs-client@1.0.2(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@1.3.7(react@19.2.4)':
+  '@wolffm/task-ui-components@2.0.1(react@19.2.4)':
     dependencies:
       react: 19.2.4
 
-  '@wolffm/themes@2.0.6(@wolffm/task-ui-components@1.3.7(react@19.2.4))(react@19.2.4)':
+  '@wolffm/themes@2.0.16(@wolffm/task-ui-components@2.0.1(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/task-ui-components': 1.3.7(react@19.2.4)
+      '@wolffm/task-ui-components': 2.0.1(react@19.2.4)
       react: 19.2.4
 
-  '@wolffm/worker-utils@1.2.8(zod@4.3.6)':
+  '@wolffm/worker-utils@1.2.10(zod@4.3.6)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.3.6)
+      '@wolffm/logger': 1.1.0
       hono: 4.12.9
     transitivePeerDependencies:
       - zod
