@@ -1,3 +1,5 @@
 packages:
   - '.'
   - 'worker'
+allowBuilds:
+  esbuild: true
