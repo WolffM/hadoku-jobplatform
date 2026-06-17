@@ -106,8 +106,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.2.10
-        version: 1.2.10(zod@4.4.3)
+        specifier: ^1.2.11
+        version: 1.2.11(zod@4.4.3)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -861,8 +861,8 @@ packages:
   '@vue/shared@3.5.30':
     resolution: {integrity: sha512-YXgQ7JjaO18NeK2K9VTbDHaFy62WrObMa6XERNfNOkAhD1F1oDSf3ZJ7K6GqabZ0BvSDHajp8qfS5Sa2I9n8uQ==}
 
-  '@wolffm/logger@1.1.0':
-    resolution: {integrity: sha512-GU9gEvpWjV6l2bEIwM1YUa8BiGtf0BpOiUX5ab0x2h2GX/sAz/cjSl5YdAPmtJkCip8lUqIrkR4PwLM+RvOe5Q==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.1.0/840a3412fc301295186d226b24dae56fdee8b414}
+  '@wolffm/logger@1.2.0':
+    resolution: {integrity: sha512-9pqcvJDxovJM4Oa8HGOJjAsQhLWvKRggCYA/GxLLx4ecL5LfNQ7e0rloGj+7vmPVi99LSKM62bdFLCkqriQ8ow==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.2.0/f5273f73dcd94c4a33615068e0710f988a9ad793}
     engines: {node: '>=18'}
 
   '@wolffm/logger@1.2.1':
@@ -887,8 +887,8 @@ packages:
       '@wolffm/task-ui-components': '*'
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/worker-utils@1.2.10':
-    resolution: {integrity: sha512-jKepBZ5WnYqsf/kVU/Ij6eVkndr4voT20h5N/3Ib/eTiWrGU/HLkxxhRPrtYcTTHiH0faNFtMmI9Y5decIth3g==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.2.10/d2d15f5ea656a127c068a78b85a17425e74ae3ff}
+  '@wolffm/worker-utils@1.2.11':
+    resolution: {integrity: sha512-P4D2jZHlFH+Mt91XOJFfhyih8LV2yWTbIqewhmAos5xprg6TaTk0WuJKzHbuF+vMozu9u93M0297bOUVRo3QyQ==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.2.11/3f3dd9f907a1a7633947801e36cfc22444b3d777}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -3077,7 +3077,7 @@ snapshots:
 
   '@vue/shared@3.5.30': {}
 
-  '@wolffm/logger@1.1.0': {}
+  '@wolffm/logger@1.2.0': {}
 
   '@wolffm/logger@1.2.1': {}
 
@@ -3095,10 +3095,10 @@ snapshots:
       '@wolffm/task-ui-components': 2.0.1(react@19.2.4)
       react: 19.2.4
 
-  '@wolffm/worker-utils@1.2.10(zod@4.4.3)':
+  '@wolffm/worker-utils@1.2.11(zod@4.4.3)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.4.3)
-      '@wolffm/logger': 1.1.0
+      '@wolffm/logger': 1.2.0
       hono: 4.12.9
     transitivePeerDependencies:
       - zod
