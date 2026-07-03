@@ -1,5 +1,4 @@
 #!/bin/sh
-# Windows users: run via Git Bash or WSL
 echo "Running pre-commit checks..."
 
 # Capture originally staged files BEFORE any modifications
