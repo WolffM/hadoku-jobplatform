@@ -4,16 +4,18 @@
 
 A job hunting pipeline that automatically aggregates postings from multiple sources, scores them against configurable role profiles, and gives a clean front-end to review, apply, and track applications.
 
+Cross-repo orchestration (scraper cadence, resume-bot block pipeline, link-tailored resumes) is planned in `hadoku_site/docs/planning/job-search-orchestration.md`.
+
 ### Roadmap
 
-| Phase                          | Status      | Scope                                                                                                                                                 |
-| ------------------------------ | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **V1 — Scrape & Display**      | In progress | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                        |
-| **V2 — Triage State**          | Next        | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5. |
-| **V3 — Tailored Applications** | Deferred    | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
-| **V4 — Auto Apply**            | Deferred    | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)                                                                         |
-| **V5 — Tracking & Follow-ups** | Deferred    | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                          |
-| **V6 — Alerts & Digest**       | Deferred    | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                        |
+| Phase                          | Status   | Scope                                                                                                                                                 |
+| ------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **V1 — Scrape & Display**      | Shipped  | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                        |
+| **V2 — Triage State**          | Shipped  | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5. |
+| **V3 — Tailored Applications** | Next     | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
+| **V4 — Auto Apply**            | Deferred | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)                                                                         |
+| **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                          |
+| **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                        |
 
 ---
 
@@ -507,17 +509,10 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 ## Open Questions
 
-### V1 remaining
+### V1/V2 remaining
 
-- [ ] **UI mount in hadoku_site** — `/jobplatform/` route needs whitelisting in `src/pages/[app].astro`. Confirm before shipping finished UI.
-- [ ] **`IngestPayloadSchema.source` enum** — still locked to `greenhouse | lever | linkedin`. Scraper's resolver supports Ashby. Loosen to `z.string()` or extend before first Ashby target is added.
-- [ ] **Seed one real profile** — production `profiles` table is empty, so no scoring has run against the 3,000+ ingested jobs. Blocks a meaningful job-list view. Either build the profile CRUD UI (preferred), or one-off insert via SQL.
-
-### V2 readiness (cheap refactors before feature work)
-
-- [ ] **`profiles.user_id` migration** — profiles are global today (`ARCHITECTURE.md` §Data Model flagged this when the table was designed). Before any prod profile data lands, add `user_id` column and scope per-user. Retrofit gets expensive once populated.
-- [ ] **UI routing / state scaffolding** — single-page today (`App.tsx` renders only `CompaniesManager`). V2 introduces list ↔ detail ↔ triage actions — pick react-router vs. Zustand vs. context before building the second view.
-- [ ] **`job_states` schema lock-in** — data model proposed above. Sanity-check state vocabulary before writing the migration; additions later are fine, renames are painful.
+- [ ] **`IngestPayloadSchema.source` enum** — still locked to `greenhouse | lever | linkedin` (`worker/src/schemas.ts:186`). Scraper's resolver supports Ashby. Loosen to `z.string()` or extend before first Ashby target is added.
+- [ ] **Verify a real profile exists in prod** — profile CRUD UI shipped (`ProfileSidebar`), but confirm the production `profiles` table actually has a row so scoring runs against ingested jobs.
 
 ### V3 blockers (resume-bot)
 
@@ -533,6 +528,8 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 ### Resolved
 
+- [x] **V1 shipped** — scrape → ingest → score → browsable UI live at `/jobplatform` (whitelisted + friend-gated in hadoku_site `src/pages/[app].astro`).
+- [x] **V2 shipped** — `job_states` table (migration 0005), triage endpoints + JobDrawer buttons, `profiles.user_id` (migration 0004), react-router UI scaffolding (HashRouter, list ↔ drawer ↔ companies).
 - [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs.ts:26`).
 - [x] **User scoping** — `user_companies` table + `userIdFromCredential()` helper shipped. Profiles staying global for V1; per-user scoping moved to V2 readiness.
 - [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used by `mine=true`.
