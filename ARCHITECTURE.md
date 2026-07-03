@@ -57,11 +57,7 @@ hadoku_site
   └── mounts React micro-frontend at /jobs/
 ```
 
-**Live today**: scraper pipeline end-to-end (greenhouse / lever / linkedin, 3,000+ jobs in D1, daily scheduled scrape via hadoku_site cron), worker `/ingest` receiving inline webhooks, D1 storage, scoring, `/jobs` / `/profiles` / `/companies` APIs, `mine=true` filter with slug-based join, `CompaniesManager` UI.
-
-**V1 remaining** (UI-only): profile CRUD UI, job list view (cards with score + filters), job detail drawer with score breakdown, seed one real profile + backfill scores, confirm `/jobplatform/` route whitelist in hadoku_site.
-
-**V2 prereqs** (cheap modularity refactors, do before feature work starts): add `profiles.user_id` column to lock in per-user scoping before any prod profile data lands; introduce UI routing/state scaffolding (react-router or equivalent) so list/detail/triage don't need a re-plumb after the fact.
+**Live today**: scraper pipeline end-to-end (greenhouse / lever / linkedin, 3,000+ jobs in D1, daily scheduled scrape via hadoku_site cron), worker `/ingest` receiving inline webhooks, D1 storage, scoring, `/jobs` / `/profiles` / `/companies` APIs, `mine=true` filter with slug-based join, full V1/V2 UI (profile CRUD sidebar, job list with score/filter/pagination, detail drawer with score breakdown + triage buttons, companies manager), `job_states` triage persistence, per-user scoping (`profiles.user_id`, react-router scaffolding).
 
 ---
 
