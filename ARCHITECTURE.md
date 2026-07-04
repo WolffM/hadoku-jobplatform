@@ -350,13 +350,45 @@ POST  /jobs/:id/cover-letter     ← cover letter via same service binding
 
 Rationale for service binding: resume-bot's `/tailored-resume` and `/cover-letter` endpoints exist but are gated by hadoku_site's edge-router (`validateFriendOrAdminKey`). A service binding from `hadoku_site/workers/jobplatform-api/` to `hadoku_site/workers/resume-api/` bypasses the edge entirely — zero-trust pre-authenticated — so jobplatform never needs to hold a key for resume-bot. See V3 section and Open Questions for block-seeding status (verified unseeded as of 2026-04-19).
 
-### V4 — deferred (auto apply)
+### V4 — deferred (tiered apply)
+
+Every job gets an **apply tier** describing how automatable its application is.
+The tier drives the primary action shown in the JobDrawer and what the daily
+cron is allowed to do unattended.
+
+| Tier      | Meaning                                                                                                                                   | Primary UI action                                                                   | Cron behavior                                       |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `auto`    | Standard form on a known ATS, no custom essay questions — system can submit end-to-end                                                    | "Auto-apply"                                                                        | may submit unattended (per-user opt-in + daily cap) |
+| `approve` | System can fill everything but the submission needs human review (custom questions answered by LLM, salary fields, demographic questions) | "Prepare application" → review screen → one-click submit                            | prepares and queues, never submits                  |
+| `assist`  | Can't drive the form (login wall, captcha, Workday/in-house ATS, LinkedIn) — but we still scrape the posting and generate materials       | "Generate packet" (tailored resume + cover letter + variant link, copy-paste ready) | generates packet for high scorers                   |
+
+Classification is two-stage:
+
+1. **Static default at ingest** from `(ats, source_site)`: greenhouse/lever/ashby
+   start at `approve`, everything else at `assist`. Nothing defaults to `auto`.
+2. **Form introspection (scraper) upgrades/downgrades**: before an
+   `approve`-tier apply, the scraper fetches the application form; if every
+   field maps to a known schema (name/email/resume/linkedin/standard selects)
+   the job is eligible for `auto` (still requires per-user opt-in); any unknown
+   or free-text question pins it at `approve`; fetch failure/captcha demotes to
+   `assist`.
+
+Per-user override wins over both (e.g. pin a specific company to `assist`).
+LinkedIn is permanently `assist` — browser automation there is an account-ban
+risk (locked decision, see hadoku_site job-search-orchestration.md).
 
 ```
-POST  /jobs/:id/apply            ← trigger automated apply flow (drives browser via scraper)
+POST  /jobs/:id/apply            ← tier auto/approve: trigger prepare (and submit when allowed)
+GET   /jobs/:id/application      ← prepared packet: filled fields, generated answers, artifacts
+POST  /jobs/:id/application/approve  ← human sign-off on an approve-tier prepared submission
 ```
 
-Executes in hadoku-scrape (not here) — jobplatform POSTs the job ID + V3 resume/cover-letter output, scraper drives the browser (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby forms). Result reported back via webhook and stored as state=`applied` in the V2 table.
+Schema: `jobs.apply_tier` (text, set at ingest), `application_packets
+(job_id, user_id, resume_markdown, cover_letter, answers_json, variant_slug,
+status: draft|ready|approved|submitted|failed, created_at, submitted_at)`.
+Browser execution happens in hadoku-scrape; result webhooks back and writes
+state=`applied` in the V2 table. A submitted packet also archives the exact
+materials sent — provenance for V5 follow-ups.
 
 ### V5 — deferred (tracking & follow-ups)
 
