@@ -15,7 +15,7 @@ import {
 	ScraperClientError,
 	type TargetView,
 } from '../clients/scraper.js';
-import { userIdFromCredential } from '../userId.js';
+import { resolveUserId } from '../userId.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -48,12 +48,11 @@ function rowToApi(r: UserCompanyRow) {
 	};
 }
 
-async function currentUserId(c: { get: (k: 'authContext') => HadokuAuthContext }): Promise<string> {
-	const auth = c.get('authContext');
-	if (!auth.credential) {
-		throw new Error('credential missing on authenticated route');
-	}
-	return userIdFromCredential(auth.credential);
+// Identity for D1 row scoping. Prefers the edge-injected X-User-Id (stable
+// across key rotation); falls back to the legacy credential hash only for
+// non-edge callers. See userId.ts.
+async function currentUserId(c: Parameters<typeof resolveUserId>[0]): Promise<string> {
+	return resolveUserId(c);
 }
 
 // ============================================================================
