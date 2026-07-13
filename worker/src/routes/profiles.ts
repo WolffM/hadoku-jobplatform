@@ -9,7 +9,7 @@ import {
 	DeleteResponseSchema,
 	ErrorResponseSchema,
 } from '../schemas.js';
-import { userIdFromCredential } from '../userId.js';
+import { resolveUserId } from '../userId.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -21,12 +21,11 @@ const app = new OpenAPIHono<RouteContext>();
 app.use('/profiles', requireUserType(['admin', 'friend']));
 app.use('/profiles/*', requireUserType(['admin', 'friend']));
 
-async function currentUserId(c: { get: (k: 'authContext') => HadokuAuthContext }): Promise<string> {
-	const auth = c.get('authContext');
-	if (!auth.credential) {
-		throw new Error('credential missing on authenticated route');
-	}
-	return userIdFromCredential(auth.credential);
+// Identity for D1 row scoping. Prefers the edge-injected X-User-Id (stable
+// across key rotation); falls back to the legacy credential hash only for
+// non-edge callers. See userId.ts.
+async function currentUserId(c: Parameters<typeof resolveUserId>[0]): Promise<string> {
+	return resolveUserId(c);
 }
 
 // ============================================================================

@@ -8,7 +8,7 @@ import {
 	JobStateResponseSchema,
 } from '../schemas.js';
 import type { HadokuAuthContext } from '@wolffm/worker-utils';
-import { userIdFromCredential } from '../userId.js';
+import { resolveUserId } from '../userId.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -17,13 +17,19 @@ interface RouteContext {
 
 const app = new OpenAPIHono<RouteContext>();
 
-// Resolve the caller to an opaque user id, or null when unauthenticated.
+// Resolve the caller to a user id, or null when unauthenticated.
+//
+// Prefers the edge-injected X-User-Id (the registry UUID that survives key
+// rotation, and the identity job_states rows are keyed by after the one-time
+// migration). Falls back to the legacy credential hash only for callers that
+// bypass the edge. See userId.ts.
 async function maybeUserId(c: {
+	req: { header: (name: string) => string | undefined };
 	get: (k: 'authContext') => HadokuAuthContext;
 }): Promise<string | null> {
 	const auth = c.get('authContext');
 	if ((auth.userType === 'admin' || auth.userType === 'friend') && auth.credential) {
-		return userIdFromCredential(auth.credential);
+		return resolveUserId(c);
 	}
 	return null;
 }
