@@ -29,7 +29,9 @@ export async function userIdFromCredential(credential: string): Promise<string> 
  */
 export async function resolveUserId(c: {
 	req: { header: (name: string) => string | undefined };
-	get: (k: 'authContext') => { credential?: string } | undefined;
+	// `credential` is `string | null` on HadokuAuthContext — accept null explicitly
+	// so callers passing the real auth context type-check.
+	get: (k: 'authContext') => { credential?: string | null } | undefined;
 }): Promise<string> {
 	const injected = c.req.header('X-User-Id');
 	if (injected) return injected;
