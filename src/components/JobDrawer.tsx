@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import {
   getJob,
   setJobState,
+  generateResume,
+  generateCoverLetter,
   JobsApiError,
   type JobDetail,
   type ScoreBreakdown,
@@ -59,6 +61,10 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
   // Optimistic local state so the buttons update without a full refetch.
   const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
   const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
+  // V3 application packet (tailored resume + cover letter), generated on demand.
+  const [generating, setGenerating] = useState(false)
+  const [packet, setPacket] = useState<{ resume: string; coverLetter: string } | null>(null)
+  const [packetError, setPacketError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -66,6 +72,8 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setError(null)
     setJob(null)
     setCurrentState(null)
+    setPacket(null)
+    setPacketError(null)
     getJob(jobId, profileId ?? undefined, auth)
       .then(result => {
         if (!cancelled) {
@@ -106,6 +114,23 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
       setError(err instanceof JobsApiError ? err.message : 'Failed to update state')
     } finally {
       setPendingState(null)
+    }
+  }
+
+  const handleGenerate = async () => {
+    if (generating) return
+    setGenerating(true)
+    setPacketError(null)
+    try {
+      const [resume, cover] = await Promise.all([
+        generateResume(jobId, auth),
+        generateCoverLetter(jobId, auth)
+      ])
+      setPacket({ resume: resume.resume_markdown, coverLetter: cover.cover_letter_markdown })
+    } catch (err) {
+      setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate packet')
+    } finally {
+      setGenerating(false)
     }
   }
 
@@ -224,10 +249,41 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                 >
                   Apply on {job.source_site}
                 </a>
-                <button type="button" disabled className="jp-drawer__cta">
-                  Generate resume (V3)
+                <button
+                  type="button"
+                  className="jp-drawer__cta"
+                  onClick={() => void handleGenerate()}
+                  disabled={!stateButtonsEnabled || generating}
+                  data-testid="generate-packet"
+                >
+                  {generating ? 'Generating…' : packet ? 'Regenerate packet' : 'Generate packet'}
                 </button>
               </div>
+              {packetError && <p className="jp-error">{packetError}</p>}
+              {packet && (
+                <div className="jp-drawer__packet">
+                  <label className="jp-drawer__packet-label">
+                    Tailored resume
+                    <textarea
+                      className="jp-drawer__packet-text"
+                      readOnly
+                      rows={12}
+                      value={packet.resume}
+                      onFocus={e => e.currentTarget.select()}
+                    />
+                  </label>
+                  <label className="jp-drawer__packet-label">
+                    Cover letter
+                    <textarea
+                      className="jp-drawer__packet-text"
+                      readOnly
+                      rows={12}
+                      value={packet.coverLetter}
+                      onFocus={e => e.currentTarget.select()}
+                    />
+                  </label>
+                </div>
+              )}
             </section>
           </>
         )}

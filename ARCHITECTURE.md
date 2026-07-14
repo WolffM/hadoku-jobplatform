@@ -341,14 +341,19 @@ All gated by `requireUserType(['admin','friend'])`. Per-user via the same `userI
 
 Schema: new `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)`. See Data Model below.
 
-### V3 — deferred (tailored applications)
+### V3 — shipped 2026-07-14 (tailored applications)
 
 ```
-POST  /jobs/:id/resume           ← tailored resume via Cloudflare service binding to resume-api (no HTTPS / no key)
+POST  /jobs/:id/resume           ← tailored resume via Cloudflare service binding to resume-api
 POST  /jobs/:id/cover-letter     ← cover letter via same service binding
 ```
 
-Rationale for service binding: resume-bot's `/tailored-resume` and `/cover-letter` endpoints exist but are gated by hadoku_site's edge-router (`validateFriendOrAdminKey`). A service binding from `hadoku_site/workers/jobplatform-api/` to `hadoku_site/workers/resume-api/` bypasses the edge entirely — zero-trust pre-authenticated — so jobplatform never needs to hold a key for resume-bot. See V3 section and Open Questions for block-seeding status (verified unseeded as of 2026-04-19).
+Both gated by `gateAuthed` (admin/friend) inbound; the handler pulls the job's
+title/company/description from D1 and proxies to resume-api over the `RESUME`
+service binding, stamping `X-Edge-Auth` + `X-Hadoku-Tier: service` (see the
+corrected Auth model section — a raw binding call would 403 without the stamp).
+The JobDrawer "Generate packet" button calls both and shows the resume +
+cover-letter markdown copy-paste-ready.
 
 ### V4 — deferred (tiered apply)
 
@@ -441,8 +446,8 @@ Both endpoints already exist in `@wolffm/resume-bot/api` (`hadoku-resume-bot/wor
 
 Live probed with a real job posting + admin key:
 
-- `POST /resume/api/cover-letter` — **HTTP 200**, 1942-char coherent letter in 2.4s (Groq, not cached). Reads plaintext `resume` key from `CONTENT_KV` which is seeded. **Production-ready today.**
-- `POST /resume/api/tailored-resume` — **HTTP 500**: `"No resume blocks found in KV storage"`. `CONTENT_KV` contains exactly one key (`resume`); no `resume:blocks:index`, zero `resume:blocks:*` records. Blocks have never been seeded. Resume-bot has no introspection or upload endpoint — block state can only be inspected via wrangler/CF API.
+- `POST /resume/api/cover-letter` — **HTTP 200**, coherent letter (Groq). Reads the plaintext `resume` key from `CONTENT_KV`. **Production-ready.**
+- `POST /resume/api/tailored-resume` — **HTTP 200 as of 2026-07 (blocks now seeded)**. Was 500 `"No resume blocks found"` at the 2026-04-19 audit; the block library (`resume:blocks:index` + `resume:blocks:*`) has since been seeded to prod `CONTENT_KV`, verified returning a real assembled resume. Both endpoints are live for V3.
 
 Implication: `/cover-letter` integration could ship in V3 ahead of `/tailored-resume`. The latter is blocked on (a) authoring 20–40 resume blocks from the plaintext, (b) deciding on a seeding path (one-off wrangler script vs. adding a gated `POST /resume/api/blocks` to resume-bot).
 
@@ -464,17 +469,46 @@ Input shape matches jobplatform's `jobs` table exactly — no translation layer 
 
 ### Auth model (important — differs from jobplatform)
 
-- Resume-bot worker code has **no in-worker auth**.
-- Gating happens **upstream in hadoku_site's edge-router**, via a function named `validateFriendOrAdminKey` (per the resume-bot commit message). This is a **different gate** from jobplatform's in-worker `requireUserType(['admin','friend'])`. The two key lists may or may not be the same — verified empirically that a known-good jobplatform `svc-…` service key is accepted on `/jobplatform/api/*` but **rejected** on `/resume/api/{tailored-resume,cover-letter,system-prompt}` with 403.
-- **For V3 jobplatform→resume-bot calls**: use a **Cloudflare service binding** between the two host workers, not HTTPS. Service bindings are zero-trust pre-authenticated and bypass the edge-router entirely, so jobplatform never needs to hold a resume-bot key. Wire in `hadoku_site/workers/jobplatform-api/wrangler.toml`:
+> **Corrected 2026-07-14 (V3 implementation).** The claims below were true when
+> written, but resume-bot added in-worker auth on 2026-07-13
+> (`@wolffm/resume-bot@1.2.3`+): `createEdgeAuth()` + `requireUserType(...)`. So a
+> service binding call is **not** trusted just because it's a binding — it hits
+> the same gate any request does and must present provenance. See the corrected
+> flow below.
+
+- Resume-bot worker code **now has in-worker auth**: `createEdgeAuth()` verifies
+  `X-Edge-Auth` against `EDGE_AUTH_SECRET`; a request with no valid stamp degrades
+  to `public`. `requireUserType(...)` then gates the protected routes. As of
+  `@wolffm/resume-bot@1.2.4`, `/tailored-resume` and `/cover-letter` accept
+  `['admin','friend','service']`; `/system-prompt` and `/variants` stay
+  `['admin','friend']`.
+- A **Cloudflare service binding bypasses the edge**, so the binding call carries
+  no edge stamp by default → it would land as `public` → **403**. jobplatform-api
+  must stamp the provenance itself. It already holds `EDGE_AUTH_SECRET` (same
+  shared value resume-api verifies), so:
 
   ```toml
+  # hadoku_site/workers/jobplatform-api/wrangler.toml
   [[services]]
   binding = "RESUME"
   service = "resume-api"
   ```
 
-  Then call `env.RESUME.fetch(new Request('/resume/api/tailored-resume', {...}))` from the jobplatform worker.
+  ```ts
+  // jobplatform worker (@wolffm/jobplatform-worker)
+  env.RESUME.fetch('https://resume-api/resume/api/tailored-resume', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Edge-Auth': env.EDGE_AUTH_SECRET, // provenance
+      'X-Hadoku-Tier': 'service' // its actual tier
+    },
+    body: JSON.stringify({ job_title, company, description })
+  })
+  ```
+
+  Note the **full path** (`/resume/api/...`) — resume-api's Hono router does no
+  prefix stripping, so a bare `/tailored-resume` 404s.
 
 ### Resume blocks shape
 
