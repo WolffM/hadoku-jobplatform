@@ -147,6 +147,42 @@ export async function setJobState(
 }
 
 /**
+ * POST /jobs/:id/resume — generate a tailored resume for one job. jobplatform
+ * proxies title/company/description to resume-api over a service binding.
+ */
+export async function generateResume(
+  id: string,
+  auth?: Auth,
+  opts?: { profile_type?: string; tailor?: boolean }
+): Promise<{ resume_markdown: string; blocks_used: string[]; cached: boolean }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/resume`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(opts ?? {})
+  })
+  return parseWrapped<{ resume_markdown: string; blocks_used: string[]; cached: boolean }>(response)
+}
+
+/**
+ * POST /jobs/:id/cover-letter — generate a cover letter for one job (same
+ * binding path; uses the full resume rather than blocks).
+ */
+export async function generateCoverLetter(
+  id: string,
+  auth?: Auth,
+  opts?: { tone?: 'formal' | 'conversational' }
+): Promise<{ cover_letter_markdown: string; cached: boolean }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/cover-letter`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(opts ?? {})
+  })
+  return parseWrapped<{ cover_letter_markdown: string; cached: boolean }>(response)
+}
+
+/**
  * DELETE /jobs/:id/state — clear the caller's state for one job (returns to
  * implicit 'new'). Idempotent: safe to call when no state row exists.
  */

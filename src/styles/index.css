@@ -1025,6 +1025,36 @@
   cursor: not-allowed;
 }
 
+/* V3 application packet — generated tailored resume + cover letter. */
+.jp-drawer__packet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+  margin-top: var(--hdk-space-md);
+}
+
+.jp-drawer__packet-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-drawer__packet-text {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--hdk-font-mono, monospace);
+  font-size: var(--hdk-text-sm);
+  font-weight: normal;
+  line-height: 1.5;
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
 /* V2 triage actions. Active = current state. Each action pairs colour
    with the matching badge family so the drawer and cards read as one
    system. */
