@@ -6,6 +6,10 @@ import {
 	ErrorResponseSchema,
 	SetJobStateSchema,
 	JobStateResponseSchema,
+	GenerateResumeRequestSchema,
+	GenerateResumeResponseSchema,
+	GenerateCoverLetterRequestSchema,
+	GenerateCoverLetterResponseSchema,
 } from '../schemas.js';
 import type { HadokuAuthContext } from '@wolffm/worker-utils';
 import { resolveUserId } from '../userId.js';
@@ -513,6 +517,185 @@ app.openapi(
 			.run();
 		const deleted = (result.meta?.changes ?? 0) > 0;
 		return c.json({ success: true as const, data: { job_id: id, deleted } }, 200);
+	}
+);
+
+// ============================================================================
+// V3 — tailored application packets (POST /jobs/:id/{resume,cover-letter})
+//
+// The caller (dashboard user, admin/friend) hits these; we pull the job row and
+// proxy title/company/description to resume-api over a Cloudflare service
+// binding. The binding bypasses the public edge, so we stamp X-Edge-Auth +
+// X-Hadoku-Tier: service ourselves — resume-api's in-worker gate admits service
+// on these two routes.
+// ============================================================================
+
+interface JobTailoringFields {
+	title: string;
+	company: string;
+	description: string;
+}
+
+async function loadTailoringFields(
+	db: AppEnv['JOB_PLATFORM_DB'],
+	id: string
+): Promise<JobTailoringFields | null> {
+	return db
+		.prepare('SELECT title, company, description FROM jobs WHERE id = ?')
+		.bind(id)
+		.first<JobTailoringFields>();
+}
+
+async function callResumeBinding(
+	env: AppEnv,
+	path: string,
+	payload: Record<string, unknown>
+): Promise<Response> {
+	if (!env.RESUME) {
+		throw new Error('RESUME service binding not configured');
+	}
+	return env.RESUME.fetch(`https://resume-api${path}`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'X-Edge-Auth': env.EDGE_AUTH_SECRET ?? '',
+			'X-Hadoku-Tier': 'service',
+		},
+		body: JSON.stringify(payload),
+	});
+}
+
+app.post('/jobs/:id/resume', gateAuthed);
+app.post('/jobs/:id/cover-letter', gateAuthed);
+
+app.openapi(
+	createRoute({
+		method: 'post',
+		path: '/jobs/{id}/resume',
+		tags: ['Jobs'],
+		summary: 'Generate a tailored resume for a job (via resume-api binding)',
+		request: {
+			params: z.object({ id: z.string() }),
+			body: {
+				required: false,
+				content: { 'application/json': { schema: GenerateResumeRequestSchema } },
+			},
+		},
+		responses: {
+			200: {
+				description: 'Tailored resume',
+				content: { 'application/json': { schema: GenerateResumeResponseSchema } },
+			},
+			403: {
+				description: 'Forbidden',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+			404: {
+				description: 'Job not found',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+			502: {
+				description: 'resume-api error',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const { id } = c.req.valid('param');
+		const opts = c.req.valid('json') ?? {};
+		const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
+		if (!job) {
+			return c.json(
+				{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
+				404
+			);
+		}
+
+		const res = await callResumeBinding(c.env, '/resume/api/tailored-resume', {
+			job_title: job.title,
+			company: job.company,
+			description: job.description,
+			...(opts.profile_type ? { profile_type: opts.profile_type } : {}),
+			...(opts.tailor !== undefined ? { tailor: opts.tailor } : {}),
+		});
+		if (!res.ok) {
+			const detail = await res.text();
+			return c.json(
+				{
+					success: false as const,
+					error: 'Upstream error',
+					message: `resume-api ${res.status}: ${detail.slice(0, 300)}`,
+				},
+				502
+			);
+		}
+		const data = await res.json();
+		return c.json({ success: true as const, data }, 200);
+	}
+);
+
+app.openapi(
+	createRoute({
+		method: 'post',
+		path: '/jobs/{id}/cover-letter',
+		tags: ['Jobs'],
+		summary: 'Generate a cover letter for a job (via resume-api binding)',
+		request: {
+			params: z.object({ id: z.string() }),
+			body: {
+				required: false,
+				content: { 'application/json': { schema: GenerateCoverLetterRequestSchema } },
+			},
+		},
+		responses: {
+			200: {
+				description: 'Cover letter',
+				content: { 'application/json': { schema: GenerateCoverLetterResponseSchema } },
+			},
+			403: {
+				description: 'Forbidden',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+			404: {
+				description: 'Job not found',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+			502: {
+				description: 'resume-api error',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const { id } = c.req.valid('param');
+		const opts = c.req.valid('json') ?? {};
+		const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
+		if (!job) {
+			return c.json(
+				{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
+				404
+			);
+		}
+
+		const res = await callResumeBinding(c.env, '/resume/api/cover-letter', {
+			job_title: job.title,
+			company: job.company,
+			description: job.description,
+			...(opts.tone ? { tone: opts.tone } : {}),
+		});
+		if (!res.ok) {
+			const detail = await res.text();
+			return c.json(
+				{
+					success: false as const,
+					error: 'Upstream error',
+					message: `resume-api ${res.status}: ${detail.slice(0, 300)}`,
+				},
+				502
+			);
+		}
+		const data = await res.json();
+		return c.json({ success: true as const, data }, 200);
 	}
 );
 

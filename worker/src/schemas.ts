@@ -148,6 +148,40 @@ export const JobsResponseSchema = S(
 export const JobResponseSchema = S(z.object({ job: JobDetailSchema })).openapi('JobResponse');
 
 // ============================================================================
+// V3 — tailored application packets (proxied to resume-api via service binding)
+// ============================================================================
+
+export const GenerateResumeRequestSchema = z
+	.object({
+		/** Block-selection hint forwarded to resume-api (e.g. "ml", "leadership"). */
+		profile_type: z.string().optional(),
+		/** false skips the pass-2 bullet rewrite (faster, less tailored). */
+		tailor: z.boolean().optional(),
+	})
+	.openapi('GenerateResumeRequest');
+
+export const GenerateResumeResponseSchema = S(
+	z.object({
+		resume_markdown: z.string(),
+		blocks_used: z.array(z.string()),
+		cached: z.boolean(),
+	})
+).openapi('GenerateResumeResponse');
+
+export const GenerateCoverLetterRequestSchema = z
+	.object({
+		tone: z.enum(['formal', 'conversational']).optional(),
+	})
+	.openapi('GenerateCoverLetterRequest');
+
+export const GenerateCoverLetterResponseSchema = S(
+	z.object({
+		cover_letter_markdown: z.string(),
+		cached: z.boolean(),
+	})
+).openapi('GenerateCoverLetterResponse');
+
+// ============================================================================
 // Ingest
 // ============================================================================
 

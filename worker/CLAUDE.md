@@ -23,8 +23,11 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 
 ## Auth
 
-All mutation endpoints use `requireUserType(['admin', 'friend'])` via `X-User-Key` header.
-Auth middleware from `@wolffm/worker-utils`.
+Mutation endpoints gate in-worker via `@wolffm/worker-utils` `createEdgeAuth()` +
+`requireUserType(...)`: most are `['admin','friend']`; `/ingest` and the V3
+`/jobs/:id/{resume,cover-letter}` also admit `'service'` (scraper posts / the
+resume-api service binding). The worker trusts the edge-stamped `X-Hadoku-Tier`
+only when `X-Edge-Auth` verifies — a direct origin hit degrades to `public`.
 
 ## Environment Variables (set in host wrangler.toml)
 

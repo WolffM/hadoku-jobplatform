@@ -1,4 +1,4 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 
 export interface AppEnv {
 	// ============================================================================
@@ -35,4 +35,16 @@ export interface AppEnv {
 
 	/** Override scraper base URL (default https://scraper.hadoku.me). Optional. */
 	SCRAPER_BASE_URL?: string;
+
+	// ============================================================================
+	// resume-bot service binding (V3 — tailored application packets)
+	// ============================================================================
+
+	/**
+	 * Cloudflare service binding to the resume-api worker, declared in
+	 * hadoku_site wrangler.toml as [[services]] binding="RESUME" service="resume-api".
+	 * Bypasses the public edge; calls stamp X-Edge-Auth (= EDGE_AUTH_SECRET) +
+	 * X-Hadoku-Tier: service so resume-api's in-worker gate admits them.
+	 */
+	RESUME?: Fetcher;
 }
