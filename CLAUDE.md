@@ -18,9 +18,9 @@ Monorepo with two pnpm workspace packages:
 
 | Version                        | Status      | Scope                                                                         |
 | ------------------------------ | ----------- | ----------------------------------------------------------------------------- |
-| **V1 — Scrape & Display**      | In progress | Company subscriptions → scrape → ingest → score → browsable UI                |
-| **V2 — Triage State**          | Next        | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
-| **V3 — Tailored Applications** | Deferred    | Resume + cover letter via service binding to resume-api                       |
+| **V1 — Scrape & Display**      | Shipped     | Company subscriptions → scrape → ingest → score → browsable UI                |
+| **V2 — Triage State**          | Shipped     | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
+| **V3 — Tailored Applications** | Shipped     | Resume + cover letter via service binding to resume-api                       |
 | **V4 — Auto Apply**            | Deferred    | Automated apply (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)      |
 | **V5 — Tracking & Follow-ups** | Deferred    | Timeline per application, Kanban view, follow-up dates                        |
 | **V6 — Alerts & Digest**       | Deferred    | Daily email / push when new jobs score above per-profile threshold            |
@@ -29,7 +29,7 @@ Monorepo with two pnpm workspace packages:
 
 | Method | Path                   | Auth         | Purpose                                                      |
 | ------ | ---------------------- | ------------ | ------------------------------------------------------------ |
-| POST   | /ingest                | admin/friend | Scraper webhook — receives jobs inline, scores, stores in D1 |
+| POST   | /ingest                | admin/friend/service | Scraper webhook (posts as service) — receives jobs inline, scores, stores in D1 |
 | POST   | /ingest/rescore        | admin/friend | Rescore all jobs against updated profiles                    |
 | POST   | /ingest/backfill-slugs | admin/friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows    |
 | GET    | /profiles              | open         | List scoring profiles                                        |
@@ -52,8 +52,8 @@ Monorepo with two pnpm workspace packages:
 - V1 company-subscription flow (shipped): `POST /companies` → scraper `/targets` → scraper scrapes → webhook fires → jobs land. Scraper owns the resolver/registry; jobplatform owns per-user subscriptions and scoring.
 - V1 `(ats, slug)` is derived at ingest time from `job.url` via `worker/src/slugParse.ts` and stored on the `jobs` table (migration 0003). Used by `mine=true` to join jobs against `user_companies`.
 - V1 user identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1.
-- V2 triage state will live in a new `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)`. See ARCHITECTURE.md §"Worker API V2" and §"Data Model — Job States".
-- V3 resume-bot integration will use a Cloudflare **service binding** from `hadoku_site/workers/jobplatform-api/` to `hadoku_site/workers/resume-api/`. As of 2026-04-19, `/cover-letter` is verified working end-to-end; `/tailored-resume` is blocked on block seeding in `CONTENT_KV` (verified empty).
+- V2 triage state lives in the `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)` (migration 0005). See ARCHITECTURE.md §"Worker API V2" and §"Data Model — Job States".
+- V3 resume-bot integration (shipped 2026-07-14) uses a Cloudflare **service binding** from `hadoku_site/workers/jobplatform-api/` to `resume-api`. Both `/tailored-resume` and `/cover-letter` are live; blocks are seeded. The binding call stamps `X-Edge-Auth` + `X-Hadoku-Tier: service` to satisfy resume-bot's in-worker gate (added 2026-07-13 — the old "zero-trust binding, no key" assumption is dead).
 - Scheduling is owned upstream: hadoku_site's `mgmt-api` cron dispatches `/api/v1/jobboards/search` on the daily 2am UTC cadence. `createScheduledHandler` in this worker stays a stub.
 - Canonical roadmap (V1–V6), full data model, scoring algorithm, and open questions all live in `ARCHITECTURE.md`. Treat it as the north star for any planning work.
 
@@ -62,7 +62,7 @@ Monorepo with two pnpm workspace packages:
 - Bundle react, react-dom, @wolffm/themes (externalized — see `vite.config.ts`)
 - Run its own Cloudflare Worker directly (host is in `hadoku_site/workers/jobplatform-api/`)
 - Handle scraping (that's hadoku-scrape)
-- Handle resume generation (that's resume-bot, planned for V3)
+- Generate resumes itself (that's resume-bot; jobplatform proxies to it over the `RESUME` service binding as of V3)
 
 ## External Dependencies
 
