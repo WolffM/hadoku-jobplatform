@@ -1,6 +1,6 @@
 # @wolffm/jobplatform
 
-Job hunting pipeline: scrape postings from multiple ATS sources, score them against configurable role profiles, triage + track applications, and eventually auto-generate tailored resumes and cover letters. Mounts as a micro-frontend in `hadoku_site` at `/jobs/`.
+Job hunting pipeline: scrape postings from multiple ATS sources, score them against configurable role profiles, triage + track applications, and generate tailored resumes and cover letters per job (V3, via a service binding to resume-bot). Mounts as a micro-frontend in `hadoku_site` at `/jobs/`.
 
 Companion package `@wolffm/jobplatform-worker` under `worker/` provides the Cloudflare Worker API.
 

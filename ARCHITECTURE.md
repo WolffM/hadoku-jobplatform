@@ -12,7 +12,7 @@ Cross-repo orchestration (scraper cadence, resume-bot block pipeline, link-tailo
 | ------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **V1 — Scrape & Display**      | Shipped  | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                        |
 | **V2 — Triage State**          | Shipped  | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5. |
-| **V3 — Tailored Applications** | Next     | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
+| **V3 — Tailored Applications** | Shipped  | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
 | **V4 — Auto Apply**            | Deferred | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)                                                                         |
 | **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                          |
 | **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                        |
@@ -246,7 +246,7 @@ interface ProfileMatch {
 }
 ```
 
-### Job States (V2, not yet built)
+### Job States (V2, shipped)
 
 ```typescript
 interface JobState {
@@ -327,7 +327,7 @@ Profile CRUD UI, job list view, job detail drawer, and wiring against existing `
 
 Scheduling is not a V1 task for this repo — hadoku_site's `mgmt-api` cron dispatches `/api/v1/jobboards/search` on the existing 2am UTC daily cadence. `createScheduledHandler` in this worker remains a stub and is not expected to be used.
 
-### V2 — planned (triage state)
+### V2 — shipped (triage state)
 
 Per-user, per-job lifecycle. Without this every dashboard visit re-triages the same jobs you already looked at yesterday.
 
@@ -449,7 +449,7 @@ Live probed with a real job posting + admin key:
 - `POST /resume/api/cover-letter` — **HTTP 200**, coherent letter (Groq). Reads the plaintext `resume` key from `CONTENT_KV`. **Production-ready.**
 - `POST /resume/api/tailored-resume` — **HTTP 200 as of 2026-07 (blocks now seeded)**. Was 500 `"No resume blocks found"` at the 2026-04-19 audit; the block library (`resume:blocks:index` + `resume:blocks:*`) has since been seeded to prod `CONTENT_KV`, verified returning a real assembled resume. Both endpoints are live for V3.
 
-Implication: `/cover-letter` integration could ship in V3 ahead of `/tailored-resume`. The latter is blocked on (a) authoring 20–40 resume blocks from the plaintext, (b) deciding on a seeding path (one-off wrangler script vs. adding a gated `POST /resume/api/blocks` to resume-bot).
+Both endpoints shipped in V3 (2026-07-14). The block library is seeded in prod and `/tailored-resume` returns 200 — the "blocked on block seeding" caveat that lived here is resolved.
 
 ### Endpoint contracts (implemented)
 
@@ -527,13 +527,13 @@ interface ResumeBlock {
 
 Blocks live in `CONTENT_KV` under `resume:blocks:index` (array of IDs) + `resume:blocks:{id}`. `profile_type` is a freeform hint — the LLM prefers blocks whose `tags` match but isn't restricted to them. **There is no `swe` / `ml_ai` / `leadership` / `creative` taxonomy** — that was aspirational.
 
-### Block seeding — unverified
+### Block seeding — done
 
-**Nothing in the resume-bot repo seeds blocks.** No seed script, no committed block files, no init command — `blocks.ts` only reads. The plaintext `/resume` endpoint works (proof that `CONTENT_KV` has `resume:full` or legacy `resume`), but that's a different KV key from `resume:blocks:*`.
-
-Status as of 2026-04-19: **verified unseeded.** Live `wrangler kv list` against namespace `963eeaa358d44c88a7e4047303e20997` returned exactly one key (`resume`, the plaintext resume). Zero `resume:blocks:*` records. Live `POST /resume/api/tailored-resume` with a real job + admin key returned HTTP 500 with the expected error.
-
-Block seeding is a resume-bot repo task, not a jobplatform task, but it blocks V3's `/tailored-resume` integration. `/cover-letter` reads from the plaintext `resume` key and works today — it can ship in V3 ahead of `/tailored-resume`.
+Blocks are seeded in prod `CONTENT_KV` (`resume:blocks:index` + `resume:blocks:*`,
+51 blocks / 81 tags), and `POST /resume/api/tailored-resume` returns 200 with a
+real assembled resume. Seeding is a resume-bot-side task (`hadoku_site/scripts/
+admin/resume_ingest.py --blocks`). The 2026-04-19 "verified unseeded / 500"
+finding is history — both V3 endpoints are live.
 
 ---
 
@@ -556,7 +556,7 @@ Block seeding is a resume-bot repo task, not a jobplatform task, but it blocks V
                         └──────────────────────────────────────────────┘
 ```
 
-Job detail opens in a right-side drawer: full description, score breakdown by signal, source URL, and action buttons — disabled in V1, activated in V2 (triage: interested/dismissed/saved/applied) and extended in V3 (generate resume/cover-letter).
+Job detail opens in a right-side drawer: full description, score breakdown by signal, source URL, and action buttons — disabled in V1, activated in V2 (triage: interested/dismissed/saved/applied) and extended in V3 with the "Generate packet" button (tailored resume + cover letter).
 
 ---
 
@@ -564,8 +564,12 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 | Endpoint                   | Auth                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------- |
-| `POST /ingest`             | `requireUserType(['admin', 'friend'])` via `X-User-Key` header (standard hadoku auth) |
-| All other worker endpoints | Open — gated by hadoku_site's auth layer upstream                                     |
+| `POST /ingest`                                         | `requireUserType(['admin','friend','service'])` (scraper posts as service)      |
+| `POST/PUT /profiles`, all `/companies`, `mine=true`    | `requireUserType(['admin','friend'])` in-worker                                  |
+| `PUT/DELETE /jobs/:id/state`, `POST /jobs/:id/{resume,cover-letter}` | `gateAuthed` (admin/friend) in-worker                              |
+| Read-only `GET /jobs`, `/jobs/:id` (unscoped)          | Public                                                                           |
+
+All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `requireUserType()` — the worker trusts the edge-stamped `X-Hadoku-Tier` only when `X-Edge-Auth` verifies. (It is no longer true that "all other endpoints are open, gated only upstream".)
 
 ---
 
@@ -576,11 +580,11 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 - [ ] **`IngestPayloadSchema.source` enum** — still locked to `greenhouse | lever | linkedin` (`worker/src/schemas.ts:186`). Scraper's resolver supports Ashby. Loosen to `z.string()` or extend before first Ashby target is added.
 - [ ] **Verify a real profile exists in prod** — profile CRUD UI shipped (`ProfileSidebar`), but confirm the production `profiles` table actually has a row so scoring runs against ingested jobs.
 
-### V3 blockers (resume-bot)
+### V3 — shipped 2026-07-14, with follow-ups
 
-- [ ] **Block seeding** — **verified missing** in production KV (2026-04-19). `CONTENT_KV` has one key: `resume`. Need to author 20–40 blocks from the plaintext and seed them. Options: (a) one-off `wrangler kv key put` script in this repo; (b) push resume-bot to add a gated `POST /blocks` endpoint + introspection `GET /blocks`.
-- [ ] **Service binding wiring** — `hadoku_site/workers/jobplatform-api/wrangler.toml` needs a `RESUME` service binding. Coordinated change across hadoku_site + this repo.
-- [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. Agree on a shared vocabulary (e.g. `ml`, `staff`, `leadership`) or they'll drift.
+- [x] **Block seeding** — blocks seeded in prod (`resume:blocks:*`); `/tailored-resume` returns 200.
+- [x] **Service binding wiring** — `RESUME` binding declared (hadoku_site#193) and used (`worker/src/routes/jobs.ts`), stamping `X-Edge-Auth` + `X-Hadoku-Tier: service`.
+- [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. The V3 UI does NOT pass `profile_type` yet (the passthrough is wired but unused) pending a shared vocab (e.g. `ml`, `staff`, `leadership`), or they'll drift.
 - [ ] **Tailored-resume provenance on jobs** — add `job_profile_matches.tailored_resume_cached_at` or similar so the UI can show a "Generate" vs "Regenerate" state without round-tripping resume-bot.
 
 ### V4+ to scope later
@@ -592,6 +596,7 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 - [x] **V1 shipped** — scrape → ingest → score → browsable UI live at `/jobplatform` (whitelisted + friend-gated in hadoku_site `src/pages/[app].astro`).
 - [x] **V2 shipped** — `job_states` table (migration 0005), triage endpoints + JobDrawer buttons, `profiles.user_id` (migration 0004), react-router UI scaffolding (HashRouter, list ↔ drawer ↔ companies).
+- [x] **V3 shipped (2026-07-14)** — `POST /jobs/:id/{resume,cover-letter}` proxy to resume-api over the `RESUME` service binding; JobDrawer "Generate packet" button renders both artifacts.
 - [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs.ts:26`).
 - [x] **User scoping** — `user_companies` table + `userIdFromCredential()` helper shipped. Profiles staying global for V1; per-user scoping moved to V2 readiness.
 - [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used by `mine=true`.
