@@ -16,6 +16,7 @@ import {
 	type TargetView,
 } from '../clients/scraper.js';
 import { resolveUserId } from '../userId.js';
+import { logger } from '../logger.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -188,7 +189,9 @@ app.openapi(
 			await triggerSearch(c.env);
 			searchTriggered = true;
 		} catch (err) {
-			console.error('[companies] triggerSearch failed:', err);
+			logger.error('triggerSearch failed', {
+				error: err instanceof Error ? err.message : String(err),
+			});
 		}
 
 		return c.json(
@@ -253,7 +256,9 @@ app.openapi(
 		try {
 			await deleteTarget(c.env, row.target_id);
 		} catch (err) {
-			console.error('[companies] deleteTarget failed:', err);
+			logger.error('deleteTarget failed', {
+				error: err instanceof Error ? err.message : String(err),
+			});
 		}
 
 		await db.prepare('DELETE FROM user_companies WHERE id = ?').bind(id).run();

@@ -27,6 +27,7 @@ import {
 	type HadokuAuthContext,
 } from '@wolffm/worker-utils';
 import type { AppEnv } from './types.js';
+import { logger } from './logger.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
@@ -100,7 +101,7 @@ export function createFetchHandler(env: AppEnv) {
 
 export function createScheduledHandler(_env: AppEnv) {
 	return (cron: string) => {
-		console.log(`[jobplatform-worker] Scheduled task: ${cron}`);
+		logger.info('scheduled task', { cron });
 	};
 }
 
