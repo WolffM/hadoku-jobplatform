@@ -16,31 +16,31 @@ Monorepo with two pnpm workspace packages:
 
 ## Roadmap (canonical: `ARCHITECTURE.md`)
 
-| Version                        | Status      | Scope                                                                         |
-| ------------------------------ | ----------- | ----------------------------------------------------------------------------- |
-| **V1 — Scrape & Display**      | Shipped     | Company subscriptions → scrape → ingest → score → browsable UI                |
-| **V2 — Triage State**          | Shipped     | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
-| **V3 — Tailored Applications** | Shipped     | Resume + cover letter via service binding to resume-api                       |
-| **V4 — Auto Apply**            | Deferred    | Automated apply (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)      |
-| **V5 — Tracking & Follow-ups** | Deferred    | Timeline per application, Kanban view, follow-up dates                        |
-| **V6 — Alerts & Digest**       | Deferred    | Daily email / push when new jobs score above per-profile threshold            |
+| Version                        | Status   | Scope                                                                         |
+| ------------------------------ | -------- | ----------------------------------------------------------------------------- |
+| **V1 — Scrape & Display**      | Shipped  | Company subscriptions → scrape → ingest → score → browsable UI                |
+| **V2 — Triage State**          | Shipped  | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
+| **V3 — Tailored Applications** | Shipped  | Resume + cover letter via service binding to resume-api                       |
+| **V4 — Auto Apply**            | Deferred | Automated apply (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)      |
+| **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, Kanban view, follow-up dates                        |
+| **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold            |
 
 ## Worker API (V1 live)
 
-| Method | Path                   | Auth         | Purpose                                                      |
-| ------ | ---------------------- | ------------ | ------------------------------------------------------------ |
+| Method | Path                   | Auth                 | Purpose                                                                         |
+| ------ | ---------------------- | -------------------- | ------------------------------------------------------------------------------- |
 | POST   | /ingest                | admin/friend/service | Scraper webhook (posts as service) — receives jobs inline, scores, stores in D1 |
-| POST   | /ingest/rescore        | admin/friend | Rescore all jobs against updated profiles                    |
-| POST   | /ingest/backfill-slugs | admin/friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows    |
-| GET    | /profiles              | open         | List scoring profiles                                        |
-| POST   | /profiles              | admin/friend | Create profile                                               |
-| PUT    | /profiles/:id          | admin/friend | Update profile                                               |
-| GET    | /jobs                  | open\*       | List scored jobs (profile_id, min_score, sort, mine=true)    |
-| GET    | /jobs/:id              | open         | Job detail + score breakdown                                 |
-| GET    | /companies             | admin/friend | List this user's subscribed companies                        |
-| POST   | /companies             | admin/friend | Subscribe; calls scraper /targets + fire-and-forget /search  |
-| DELETE | /companies/:id         | admin/friend | Unsubscribe; idempotent on scraper 404                       |
-| GET    | /health                | open         | Health check                                                 |
+| POST   | /ingest/rescore        | admin/friend         | Rescore all jobs against updated profiles                                       |
+| POST   | /ingest/backfill-slugs | admin/friend         | One-off: parse `(ats, slug)` from `job.url` for NULL rows                       |
+| GET    | /profiles              | open                 | List scoring profiles                                                           |
+| POST   | /profiles              | admin/friend         | Create profile                                                                  |
+| PUT    | /profiles/:id          | admin/friend         | Update profile                                                                  |
+| GET    | /jobs                  | open\*               | List scored jobs (profile_id, min_score, sort, mine=true)                       |
+| GET    | /jobs/:id              | open                 | Job detail + score breakdown                                                    |
+| GET    | /companies             | admin/friend         | List this user's subscribed companies                                           |
+| POST   | /companies             | admin/friend         | Subscribe; calls scraper /targets + fire-and-forget /search                     |
+| DELETE | /companies/:id         | admin/friend         | Unsubscribe; idempotent on scraper 404                                          |
+| GET    | /health                | open                 | Health check                                                                    |
 
 \*`mine=true` requires admin/friend even though the rest of `GET /jobs` is open.
 
@@ -56,6 +56,18 @@ Monorepo with two pnpm workspace packages:
 - V3 resume-bot integration (shipped 2026-07-14) uses a Cloudflare **service binding** from `hadoku_site/workers/jobplatform-api/` to `resume-api`. Both `/tailored-resume` and `/cover-letter` are live; blocks are seeded. The binding call stamps `X-Edge-Auth` + `X-Hadoku-Tier: service` to satisfy resume-bot's in-worker gate (added 2026-07-13 — the old "zero-trust binding, no key" assumption is dead).
 - Scheduling is owned upstream: hadoku_site's `mgmt-api` cron dispatches `/api/v1/jobboards/search` on the daily 2am UTC cadence. `createScheduledHandler` in this worker stays a stub.
 - Canonical roadmap (V1–V6), full data model, scoring algorithm, and open questions all live in `ARCHITECTURE.md`. Treat it as the north star for any planning work.
+
+## Colors
+
+All colors come from `@wolffm/themes` (consumed here as raw CSS `var(--color-*)` in `src/styles/index.css`).
+Read `node_modules/@wolffm/themes/THEME_USAGE_GUIDE.md` before writing styles.
+
+- **A token names a semantic role, not a hue.** Light/dark is automatic — never branch on theme mode or `[data-theme]`.
+- `<f>` ∈ `primary | success | warning | danger | neutral`. Every family has exactly six tokens: `--color-<f>`, `-dark`, `-bg`, `-hover`, `--color-on-<f>`, `--color-on-<f>-bg`. If a name isn't in that shape, it doesn't exist.
+- **Filled surface** → `background: var(--color-<f>)` + `color: var(--color-on-<f>)`. **Tint badge/banner** → `background: var(--color-<f>-bg)` + `color: var(--color-on-<f>-bg)` (NOT `var(--color-<f>)` as text — it fails AA in most themes). **Body text** → `var(--color-text)`. **Card** → `var(--color-bg-card)`. **Border** → `var(--color-border)`.
+- **Never** `var(--color-x, #hex)` fallbacks (they hide broken tokens) or hex/`white` literals on a filled background.
+- `--color-text-tertiary` / `--color-text-muted` are decorative-only (fail AA on most backgrounds); any text a user must read takes `--color-text` or `--color-text-secondary`.
+- Verify with `pnpm run lint:css` (runs stylelint + `check-usage` from the package). A reference to a token the theme doesn't define renders as nothing — the gate is the only thing that catches it.
 
 ## Does NOT
 
