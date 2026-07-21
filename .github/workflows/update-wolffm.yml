@@ -43,7 +43,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
           # -r so worker/ subpackage's @wolffm/* deps update too
-          pnpm update -r "@wolffm/*" --latest
+          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r "@wolffm/*" --latest
 
       - name: Commit and push if changed
         run: |

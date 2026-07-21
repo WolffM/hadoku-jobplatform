@@ -42,7 +42,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
 
@@ -97,7 +97,7 @@ jobs:
           if [ "$new_version" != "$current_version" ]; then
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "Version bumped: $current_version -> $new_version"
-            pnpm install --lockfile-only
+            pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --lockfile-only
           else
             echo "Version $current_version not published yet"
           fi
@@ -128,7 +128,7 @@ jobs:
           if [ "$new_version" != "$current_version" ]; then
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('worker/package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('worker/package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "Worker version bumped: $current_version -> $new_version"
-            pnpm install --lockfile-only
+            pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --lockfile-only
           else
             echo "Version $current_version not published yet"
           fi
