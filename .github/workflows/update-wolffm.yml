@@ -24,14 +24,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v5
-        with:
-          version: 11.5.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: pnpm
+
+      # pnpm via corepack, pinned by the `packageManager` field in package.json.
+      # Replaces pnpm/action-setup, whose self-installer shares one directory
+      # across every runner instance on the host and dies with
+      # `ENOENT ... uv_cwd` when concurrent jobs race it.
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.0 --activate
+          pnpm --version
 
       - name: Configure .npmrc for GitHub Packages
         run: |
