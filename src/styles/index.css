@@ -135,8 +135,8 @@
   padding: var(--hdk-space-md) var(--hdk-space-lg);
   border: 1px solid var(--color-danger);
   border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-danger-light);
-  color: var(--color-danger-darker);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
   font-size: var(--hdk-text-sm);
 }
 
@@ -207,8 +207,8 @@
   padding: var(--hdk-space-md) var(--hdk-space-lg);
   border: 1px solid var(--color-danger);
   border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-danger-light);
-  color: var(--color-danger-darker);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
   font-size: var(--hdk-text-sm);
 }
 
@@ -266,8 +266,8 @@
 }
 
 .job-platform__companies-item-remove:hover {
-  background-color: var(--color-danger-light);
-  color: var(--color-danger-darker);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
   border-color: var(--color-danger);
 }
 
@@ -541,7 +541,7 @@
   padding: 2px var(--hdk-space-md);
   border-radius: var(--hdk-radius-sm);
   background-color: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-on-primary-bg);
   font-variant-numeric: tabular-nums;
   font-weight: var(--font-weight-semibold);
   text-align: center;
@@ -707,12 +707,12 @@
 
 .jp-jobcard__state--interested {
   background-color: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-on-primary-bg);
 }
 
 .jp-jobcard__state--saved {
   background-color: var(--color-warning-bg);
-  color: var(--color-warning);
+  color: var(--color-on-warning-bg);
 }
 
 .jp-jobcard__state--applied {
@@ -721,7 +721,7 @@
 }
 
 .jp-jobcard__state--dismissed {
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   color: var(--color-text-tertiary);
 }
 
@@ -756,11 +756,11 @@
 
 .jp-jobcard__score--mid {
   background-color: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-on-primary-bg);
 }
 
 .jp-jobcard__score--low {
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   color: var(--color-text-secondary);
 }
 
@@ -801,7 +801,7 @@
   letter-spacing: 0.05em;
   padding: 2px var(--hdk-space-md);
   border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   color: var(--color-text-secondary);
   font-size: 10px;
   font-weight: var(--font-weight-semibold);
@@ -879,7 +879,7 @@
 .jp-drawer__facts span {
   padding: var(--hdk-space-xs) var(--hdk-space-md);
   border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   color: var(--color-text-secondary);
   font-size: var(--hdk-text-xs);
   font-weight: var(--font-weight-semibold);
@@ -937,7 +937,7 @@
 
 .jp-drawer__breakdown-bar {
   height: 6px;
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   border-radius: var(--hdk-radius-sm);
   overflow: hidden;
 }
@@ -1044,7 +1044,7 @@
 .jp-drawer__packet-text {
   width: 100%;
   resize: vertical;
-  font-family: var(--hdk-font-mono, monospace);
+  font-family: monospace;
   font-size: var(--hdk-text-sm);
   font-weight: normal;
   line-height: 1.5;
@@ -1065,13 +1065,13 @@
 
 .jp-drawer__cta--state-interested.jp-drawer__cta--active {
   background-color: var(--color-primary-bg);
-  color: var(--color-primary);
+  color: var(--color-on-primary-bg);
   border-color: var(--color-primary);
 }
 
 .jp-drawer__cta--state-saved.jp-drawer__cta--active {
   background-color: var(--color-warning-bg);
-  color: var(--color-warning);
+  color: var(--color-on-warning-bg);
   border-color: var(--color-warning);
 }
 
@@ -1082,7 +1082,7 @@
 }
 
 .jp-drawer__cta--state-dismissed.jp-drawer__cta--active {
-  background-color: var(--color-muted-bg);
+  background-color: var(--color-neutral-bg);
   color: var(--color-text-tertiary);
   border-color: var(--color-text-tertiary);
 }
@@ -1097,12 +1097,12 @@
 
 .jp-drawer__facts-state--interested {
   background-color: var(--color-primary-bg) !important;
-  color: var(--color-primary) !important;
+  color: var(--color-on-primary-bg) !important;
 }
 
 .jp-drawer__facts-state--saved {
   background-color: var(--color-warning-bg) !important;
-  color: var(--color-warning) !important;
+  color: var(--color-on-warning-bg) !important;
 }
 
 .jp-drawer__facts-state--applied {
@@ -1111,7 +1111,7 @@
 }
 
 .jp-drawer__facts-state--dismissed {
-  background-color: var(--color-muted-bg) !important;
+  background-color: var(--color-neutral-bg) !important;
   color: var(--color-text-tertiary) !important;
 }
 
