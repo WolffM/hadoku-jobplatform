@@ -12,7 +12,7 @@ import {
   useParams,
   useSearchParams
 } from 'react-router-dom'
-import { ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
+import { AppHeader, ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
 import { THEME_ICON_MAP } from '@wolffm/themes'
 import { useTheme } from './hooks/useTheme'
 import { CompaniesManager } from './components/CompaniesManager'
@@ -60,24 +60,30 @@ export default function App(props: JobPlatformProps = {}) {
     >
       <HashRouter>
         <div className="job-platform">
-          <header className="job-platform__header">
-            <h1>Job Platform</h1>
-            <nav className="job-platform__nav">
-              <NavLink to="/" end>
-                Jobs
-              </NavLink>
-              <NavLink to="/companies">Companies</NavLink>
-            </nav>
-            <ConnectedThemePicker
-              themeFamilies={THEME_FAMILIES}
-              currentTheme={theme}
-              onThemeChange={setTheme}
-              getThemeIcon={(themeName: string) => {
-                const Icon = THEME_ICON_MAP[themeName as keyof typeof THEME_ICON_MAP]
-                return Icon ? <Icon /> : null
-              }}
-            />
-          </header>
+          <AppHeader
+            title="Job Platform"
+            themePicker={
+              <ConnectedThemePicker
+                themeFamilies={THEME_FAMILIES}
+                currentTheme={theme}
+                onThemeChange={setTheme}
+                getThemeIcon={(themeName: string) => {
+                  const Icon = THEME_ICON_MAP[themeName as keyof typeof THEME_ICON_MAP]
+                  return Icon ? <Icon /> : null
+                }}
+              />
+            }
+          />
+
+          {/* Primary app navigation — lives in the app body, not the header
+              action bar (which is theme + settings only per the ecosystem
+              header contract). */}
+          <nav className="job-platform__nav">
+            <NavLink to="/" end>
+              Jobs
+            </NavLink>
+            <NavLink to="/companies">Companies</NavLink>
+          </nav>
 
           <Routes>
             <Route element={<Dashboard auth={auth} />}>

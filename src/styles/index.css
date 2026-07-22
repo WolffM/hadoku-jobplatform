@@ -56,22 +56,9 @@
   padding: var(--hdk-space-3xl);
 }
 
-.job-platform__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--hdk-space-3xl);
-  padding-bottom: var(--hdk-space-xl);
-  border-bottom: 1px solid var(--color-border);
-  gap: var(--hdk-space-xl);
-}
-
-.job-platform__header h1 {
-  margin: 0;
-  color: var(--color-primary);
-  font-size: var(--hdk-text-lg);
-  font-weight: var(--font-weight-bold);
-}
+/* Header now comes from the shared <AppHeader> (@wolffm/task-ui-components,
+ * app-header.css). The former .job-platform__header rules were removed on
+ * adopting the unified header. */
 
 .job-platform__content {
   padding: var(--hdk-space-xl);
@@ -95,8 +82,7 @@
 .job-platform__nav {
   display: flex;
   gap: var(--hdk-space-lg);
-  margin-left: auto;
-  margin-right: var(--hdk-space-xl);
+  margin-bottom: var(--hdk-space-xl);
 }
 
 .job-platform__nav a {
