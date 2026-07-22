@@ -43,13 +43,47 @@ jobs:
           echo "@wolffm:registry=https://npm.pkg.github.com" > .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.HADOKU_SITE_TOKEN }}" >> .npmrc
 
-      - name: Update @wolffm/* to latest
+      - name: Update @wolffm/* within their semver range
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
           # -r so worker/ subpackage's @wolffm/* deps update too
-          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r "@wolffm/*" --latest
+          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r "@wolffm/*"
 
+
+      # A major sitting outside the declared range is skipped above — by design,
+      # since crossing it needs a migration. Report it so the skip is visible;
+      # silence here is what let a breaking major land unnoticed everywhere.
+      - name: Report @wolffm majors held back by semver
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+        run: |
+          node -e '
+            const {execSync}=require("child_process"), fs=require("fs");
+            const seen=new Set(); let held=0;
+            const manifests=execSync("git ls-files \"*package.json\"").toString().trim().split("\n");
+            for (const m of manifests) {
+              if (!m || m.includes("node_modules")) continue;
+              let pkg; try { pkg=JSON.parse(fs.readFileSync(m,"utf8")); } catch { continue; }
+              for (const field of ["dependencies","devDependencies"]) {
+                for (const [name,range] of Object.entries(pkg[field]||{})) {
+                  if (!name.startsWith("@wolffm/") || String(range).startsWith("workspace:")) continue;
+                  if (seen.has(name)) continue; seen.add(name);
+                  let latest; try {
+                    latest=execSync(`npm view ${name} version --registry=https://npm.pkg.github.com`,{stdio:["ignore","pipe","ignore"]}).toString().trim();
+                  } catch { continue; }
+                  const cur=(String(range).match(/(\d+)/)||[])[1];
+                  const next=(latest.match(/^(\d+)/)||[])[1];
+                  if (cur && next && Number(next)>Number(cur)) {
+                    held++;
+                    console.log(`::warning::${name} ${latest} is available but held back — this repo declares ${range}. Crossing a major needs a deliberate migration; see the package CHANGELOG.`);
+                  }
+                }
+              }
+            }
+            console.log(held ? `${held} @wolffm package(s) have a newer major held back by semver.` : "No @wolffm majors held back.");
+          '
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
