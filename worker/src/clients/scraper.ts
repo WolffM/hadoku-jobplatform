@@ -38,6 +38,25 @@ export interface AddTargetsResponse {
 	error?: { message: string } | null;
 }
 
+/** One provider's answer for a probed slug. Only greenhouse exposes a name. */
+export interface ProviderHit {
+	ats: string;
+	company_name: string | null;
+	n_jobs: number;
+	sample_titles: string[];
+}
+
+export interface SlugProbeResult {
+	slug: string;
+	hits: ProviderHit[];
+}
+
+interface ProbeResponse {
+	success: boolean;
+	data?: { results: SlugProbeResult[] };
+	error?: { message: string } | null;
+}
+
 export class ScraperClientError extends Error {
 	constructor(
 		message: string,
@@ -106,6 +125,67 @@ export async function addTargetsByName(
 		);
 	}
 	return { added: json.data.added, skipped: json.data.skipped };
+}
+
+/**
+ * Probe explicit slugs against each ATS. Read-only — reports the company name
+ * (greenhouse only), open-job count, and sample titles per provider so the
+ * operator can confirm the correct (ats, slug) before locking it in. Does NOT
+ * register anything.
+ */
+export async function probeSlugs(
+	env: AppEnv,
+	slugs: string[],
+	providers?: string[]
+): Promise<SlugProbeResult[]> {
+	const response = await scraperFetch(env, '/api/v1/jobboards/probe', {
+		method: 'POST',
+		body: JSON.stringify(providers ? { slugs, providers } : { slugs }),
+	});
+	if (!response.ok) {
+		throw new ScraperClientError(
+			`scraper /probe returned ${response.status}`,
+			response.status,
+			await response.text()
+		);
+	}
+	const json: ProbeResponse = await response.json();
+	if (!json.success || !json.data) {
+		throw new ScraperClientError(
+			`scraper /probe reported failure: ${json.error?.message ?? 'unknown'}`,
+			500,
+			JSON.stringify(json)
+		);
+	}
+	return json.data.results;
+}
+
+/**
+ * Register a single target by explicit (ats, slug) — the "lock in" half of the
+ * verify-and-lock flow, bypassing name resolution entirely. Returns the
+ * registered TargetView.
+ */
+export async function addTargetBySlug(env: AppEnv, ats: string, slug: string): Promise<TargetView> {
+	const response = await scraperFetch(env, '/api/v1/jobboards/targets', {
+		method: 'POST',
+		body: JSON.stringify({ targets: [{ ats, slug }] }),
+	});
+	if (!response.ok) {
+		throw new ScraperClientError(
+			`scraper /targets returned ${response.status}`,
+			response.status,
+			await response.text()
+		);
+	}
+	const json: AddTargetsResponse = await response.json();
+	if (!json.success || !json.data || json.data.added.length === 0) {
+		throw new ScraperClientError(
+			`scraper /targets did not register ${ats}:${slug}: ${json.error?.message ?? 'no target added'}`,
+			500,
+			JSON.stringify(json)
+		);
+	}
+	return json.data.added[0];
 }
 
 /**
