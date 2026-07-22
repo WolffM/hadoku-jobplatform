@@ -43,11 +43,11 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(vite@7.3.1(yaml@2.8.3))
       '@wolffm/task-ui-components':
-        specifier: ^2.1.0
-        version: 2.1.0(react@19.2.4)
+        specifier: ^2.2.0
+        version: 2.2.0(react@19.2.4)
       '@wolffm/themes':
         specifier: ^3.0.2
-        version: 3.0.2(@wolffm/task-ui-components@2.1.0(react@19.2.4))(react@19.2.4)
+        version: 3.0.2(@wolffm/task-ui-components@2.2.0(react@19.2.4))(react@19.2.4)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -876,8 +876,8 @@ packages:
       react: ^18.0.0 || ^19.0.0
       zod: ^3.25.0 || ^4.0.0
 
-  '@wolffm/task-ui-components@2.1.0':
-    resolution: {integrity: sha512-Lz4LfJRVOt6UJQqhb8kg+6sX/rvamVmc35FE5VvbG/hdV+62Kdk+2eH04nzMY7MhyxAe2JhZq9lIIt9Iox8ISg==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/2.1.0/f917554b4fdb9d856f343aad61c619175c2dcaae}
+  '@wolffm/task-ui-components@2.2.0':
+    resolution: {integrity: sha512-xoJv5Pnk2+zsVCZyJFK27MO1BbVblj74kII0jJ7mEHe7u6iMtPzvX71r4aDLgd7hPTcv1iZ53niettUeUFrQUA==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/2.2.0/9e3d911851ffba47b6488bffe208e0474727d0bd}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
@@ -3086,13 +3086,13 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@2.1.0(react@19.2.4)':
+  '@wolffm/task-ui-components@2.2.0(react@19.2.4)':
     dependencies:
       react: 19.2.4
 
-  '@wolffm/themes@3.0.2(@wolffm/task-ui-components@2.1.0(react@19.2.4))(react@19.2.4)':
+  '@wolffm/themes@3.0.2(@wolffm/task-ui-components@2.2.0(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/task-ui-components': 2.1.0(react@19.2.4)
+      '@wolffm/task-ui-components': 2.2.0(react@19.2.4)
       react: 19.2.4
 
   '@wolffm/worker-utils@1.2.13(zod@4.4.3)':
