@@ -258,6 +258,135 @@
 }
 
 /* ============================================================================
+   Verify-and-lock: probe slugs before subscribing
+   ============================================================================ */
+
+.job-platform__probe {
+  margin: var(--hdk-space-lg) 0;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+}
+
+.job-platform__probe-summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.job-platform__probe[open] .job-platform__probe-summary {
+  margin-bottom: var(--hdk-space-lg);
+}
+
+.job-platform__probe-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-lg);
+}
+
+.job-platform__probe-slug {
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+}
+
+.job-platform__probe-slug-name {
+  margin-bottom: var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.job-platform__probe-none {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  font-style: italic;
+}
+
+.job-platform__probe-hit {
+  padding: var(--hdk-space-md) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.job-platform__probe-hit:first-of-type {
+  border-top: none;
+}
+
+.job-platform__probe-hit-head {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  flex-wrap: wrap;
+}
+
+.job-platform__probe-ats {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+}
+
+.job-platform__probe-count {
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.job-platform__probe-company {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.job-platform__probe-titles {
+  margin: var(--hdk-space-sm) 0;
+  font-size: var(--hdk-text-xs);
+  color: var(--color-text-secondary);
+}
+
+.job-platform__probe-lock {
+  display: flex;
+  gap: var(--hdk-space-md);
+  margin-top: var(--hdk-space-sm);
+}
+
+.job-platform__probe-lock input {
+  flex: 1;
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+}
+
+.job-platform__probe-lock input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+.job-platform__probe-lock button {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: none;
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.job-platform__probe-lock button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
    Dashboard layout: sidebar + main
    ============================================================================ */
 

@@ -29,6 +29,18 @@ interface CreateCompanyResponse {
   search_triggered: boolean
 }
 
+export interface ProviderHit {
+  ats: string
+  company_name: string | null
+  n_jobs: number
+  sample_titles: string[]
+}
+
+export interface SlugProbeResult {
+  slug: string
+  hits: ProviderHit[]
+}
+
 export class CompaniesApiError extends Error {
   constructor(
     message: string,
@@ -69,6 +81,44 @@ export async function createCompany(
     headers: authHeaders(auth, true),
     credentials: 'include',
     body: JSON.stringify({ display_name: displayName })
+  })
+  return parseWrapped<CreateCompanyResponse>(response)
+}
+
+/**
+ * Probe explicit slugs (read-only) to preview what each provider returns before
+ * locking a target in. Slugs are matched as-is, not resolved from a name.
+ */
+export async function probeSlugs(
+  slugs: string[],
+  providers: string[] | undefined,
+  auth?: Auth
+): Promise<SlugProbeResult[]> {
+  const response = await fetch(`${BASE_URL}/companies/probe`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(providers ? { slugs, providers } : { slugs })
+  })
+  const data = await parseWrapped<{ results: SlugProbeResult[] }>(response)
+  return data.results
+}
+
+/**
+ * Lock in a confirmed (ats, slug) target with an operator-approved display name,
+ * bypassing name resolution.
+ */
+export async function lockCompany(
+  ats: string,
+  slug: string,
+  displayName: string,
+  auth?: Auth
+): Promise<CreateCompanyResponse> {
+  const response = await fetch(`${BASE_URL}/companies`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify({ ats, slug, display_name: displayName })
   })
   return parseWrapped<CreateCompanyResponse>(response)
 }

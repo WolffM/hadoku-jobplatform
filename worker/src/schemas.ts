@@ -252,8 +252,35 @@ export const CreateCompanySchema = z
 	.object({
 		display_name: z.string().min(1),
 		use_llm: z.boolean().default(true),
+		// Verify-and-lock path: when both ats and slug are supplied, the target is
+		// registered directly (no name resolution), and display_name is treated as
+		// the operator-confirmed company name. Omit both for name resolution.
+		ats: z.string().optional(),
+		slug: z.string().optional(),
 	})
 	.openapi('CreateCompany');
+
+export const ProbeCompanySchema = z
+	.object({
+		slugs: z.array(z.string().min(1)).min(1),
+		providers: z.array(z.string()).optional(),
+	})
+	.openapi('ProbeCompany');
+
+export const ProviderHitSchema = z
+	.object({
+		ats: z.string(),
+		company_name: z.string().nullable(),
+		n_jobs: z.number().int(),
+		sample_titles: z.array(z.string()),
+	})
+	.openapi('ProviderHit');
+
+export const ProbeCompanyResponseSchema = S(
+	z.object({
+		results: z.array(z.object({ slug: z.string(), hits: z.array(ProviderHitSchema) })),
+	})
+).openapi('ProbeCompanyResponse');
 
 export const CompaniesResponseSchema = S(
 	z.object({ companies: z.array(UserCompanySchema) })

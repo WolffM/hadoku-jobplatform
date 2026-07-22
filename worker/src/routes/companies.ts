@@ -6,11 +6,15 @@ import {
 	CreateCompanySchema,
 	CreateCompanyResponseSchema,
 	DeleteCompanyResponseSchema,
+	ProbeCompanySchema,
+	ProbeCompanyResponseSchema,
 	ErrorResponseSchema,
 } from '../schemas.js';
 import {
+	addTargetBySlug,
 	addTargetsByName,
 	deleteTarget,
+	probeSlugs,
 	triggerSearch,
 	ScraperClientError,
 	type TargetView,
@@ -91,6 +95,55 @@ app.openapi(
 );
 
 // ============================================================================
+// POST /companies/probe — verify explicit slugs before locking them in
+// ============================================================================
+
+app.openapi(
+	createRoute({
+		method: 'post',
+		path: '/companies/probe',
+		tags: ['Companies'],
+		summary: 'Probe explicit slugs to preview each provider before subscribing',
+		description:
+			'Read-only. Proxies to scraper /probe: for each slug, reports the company ' +
+			'name (greenhouse only), open-job count, and sample titles per provider so ' +
+			'the operator confirms the correct (ats, slug) before locking it in. Writes nothing.',
+		request: {
+			body: { content: { 'application/json': { schema: ProbeCompanySchema } } },
+		},
+		responses: {
+			200: {
+				description: 'Per-slug provider hits',
+				content: { 'application/json': { schema: ProbeCompanyResponseSchema } },
+			},
+			502: {
+				description: 'Scraper upstream error',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const { slugs, providers } = c.req.valid('json');
+		try {
+			const results = await probeSlugs(c.env, slugs, providers);
+			return c.json({ success: true as const, data: { results } }, 200);
+		} catch (err) {
+			if (err instanceof ScraperClientError) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Scraper error',
+						message: `${err.message} (status ${err.status})`,
+					},
+					502
+				);
+			}
+			throw err;
+		}
+	}
+);
+
+// ============================================================================
 // POST /companies — add a company by display name, trigger scrape
 // ============================================================================
 
@@ -101,9 +154,11 @@ app.openapi(
 		tags: ['Companies'],
 		summary: 'Subscribe to a company by display name',
 		description:
-			'Resolves the display name to one or more (ats, slug) targets via scraper, ' +
-			'registers them, persists rows under the current user, and fire-and-forget ' +
-			'triggers a scrape across all active targets.',
+			'Two modes. (1) By name: resolves the display name to one or more ' +
+			'(ats, slug) targets via scraper. (2) Verify-and-lock: when ats+slug are ' +
+			'supplied, registers that exact target directly with display_name as the ' +
+			'operator-confirmed company name. Either way, persists rows under the ' +
+			'current user and fire-and-forget triggers a scrape across all active targets.',
 		request: {
 			body: { content: { 'application/json': { schema: CreateCompanySchema } } },
 		},
@@ -123,14 +178,20 @@ app.openapi(
 		},
 	}),
 	async (c) => {
-		const { display_name, use_llm } = c.req.valid('json');
+		const { display_name, use_llm, ats, slug } = c.req.valid('json');
 		const userId = await currentUserId(c);
 		const db = c.env.JOB_PLATFORM_DB;
 		const now = new Date().toISOString();
 
 		let resolved: { added: TargetView[]; skipped: TargetView[] };
 		try {
-			resolved = await addTargetsByName(c.env, [display_name], { useLlm: use_llm });
+			if (ats && slug) {
+				// Verify-and-lock: register the exact target the operator confirmed.
+				const target = await addTargetBySlug(c.env, ats, slug);
+				resolved = { added: [{ ...target, display_name }], skipped: [] };
+			} else {
+				resolved = await addTargetsByName(c.env, [display_name], { useLlm: use_llm });
+			}
 		} catch (err) {
 			if (err instanceof ScraperClientError) {
 				return c.json(
@@ -150,7 +211,10 @@ app.openapi(
 				{
 					success: false as const,
 					error: 'No targets resolved',
-					message: `Scraper could not resolve "${display_name}" to any (ats, slug) target.`,
+					message:
+						ats && slug
+							? `Scraper could not register ${ats}:${slug}.`
+							: `Scraper could not resolve "${display_name}" to any (ats, slug) target.`,
 				},
 				400
 			);
