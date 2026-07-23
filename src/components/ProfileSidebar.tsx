@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   listProfiles,
   createProfile,
+  updateProfile,
   deleteProfile,
   ProfilesApiError,
   type JobProfile,
+  type ProfileInput,
   type RemotePref
 } from '../api/profiles'
 import type { Auth } from '../api/auth'
@@ -20,6 +22,7 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -52,10 +55,14 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
     }
   }, [loading, profiles, selectedId, onSelect])
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this profile?')) return
+  const handleDelete = async (p: JobProfile) => {
+    const msg = p.is_default
+      ? 'Hide the default profile? It won’t come back (your edits/deletion are remembered).'
+      : 'Delete this profile?'
+    if (!window.confirm(msg)) return
     try {
-      await deleteProfile(id, auth)
+      await deleteProfile(p.id, auth)
+      if (editingId === p.id) setEditingId(null)
       await refresh()
     } catch (err) {
       setError(err instanceof ProfilesApiError ? err.message : 'Failed to delete profile')
@@ -66,15 +73,23 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
     <aside className="jp-sidebar">
       <div className="jp-sidebar__header">
         <h2>Profiles</h2>
-        <button type="button" className="jp-sidebar__new" onClick={() => setCreating(v => !v)}>
+        <button
+          type="button"
+          className="jp-sidebar__new"
+          onClick={() => {
+            setEditingId(null)
+            setCreating(v => !v)
+          }}
+        >
           {creating ? 'Cancel' : '+ New'}
         </button>
       </div>
 
       {creating && (
-        <NewProfileForm
+        <ProfileForm
           auth={auth}
-          onCreated={id => {
+          submitLabel="Create profile"
+          onSaved={id => {
             setCreating(false)
             void refresh().then(() => onSelect(id))
           }}
@@ -92,6 +107,7 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
         <ul className="jp-sidebar__list">
           {profiles.map(p => {
             const active = p.id === selectedId
+            const isEditing = editingId === p.id
             return (
               <li
                 key={p.id}
@@ -99,24 +115,56 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
                   active ? 'jp-sidebar__item jp-sidebar__item--active' : 'jp-sidebar__item'
                 }
               >
-                <button
-                  type="button"
-                  className="jp-sidebar__item-main"
-                  onClick={() => onSelect(p.id)}
-                >
-                  <span className="jp-sidebar__item-name">{p.name}</span>
-                  <span className="jp-sidebar__item-meta">
-                    {p.keywords.length} kw · {p.remote_pref}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="jp-sidebar__item-remove"
-                  onClick={() => void handleDelete(p.id)}
-                  aria-label={`Delete ${p.name}`}
-                >
-                  ×
-                </button>
+                {isEditing ? (
+                  <ProfileForm
+                    auth={auth}
+                    initial={p}
+                    submitLabel="Save changes"
+                    onSaved={() => {
+                      setEditingId(null)
+                      void refresh()
+                    }}
+                    onCancel={() => setEditingId(null)}
+                    onError={setError}
+                  />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="jp-sidebar__item-main"
+                      onClick={() => onSelect(p.id)}
+                    >
+                      <span className="jp-sidebar__item-name">
+                        {p.name}
+                        {p.is_default && <span className="jp-sidebar__badge">default</span>}
+                      </span>
+                      <span className="jp-sidebar__item-meta">
+                        {p.keywords.length} kw · {p.remote_pref}
+                      </span>
+                    </button>
+                    <div className="jp-sidebar__item-actions">
+                      <button
+                        type="button"
+                        className="jp-sidebar__item-edit"
+                        onClick={() => {
+                          setCreating(false)
+                          setEditingId(p.id)
+                        }}
+                        aria-label={`Edit ${p.name}`}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        type="button"
+                        className="jp-sidebar__item-remove"
+                        onClick={() => void handleDelete(p)}
+                        aria-label={p.is_default ? `Hide ${p.name}` : `Delete ${p.name}`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </>
+                )}
               </li>
             )
           })}
@@ -126,47 +174,56 @@ export function ProfileSidebar({ auth, selectedId, onSelect }: Props) {
   )
 }
 
-interface NewProfileFormProps {
+interface ProfileFormProps {
   auth: Auth
-  onCreated: (id: string) => void
+  initial?: JobProfile
+  submitLabel: string
+  onSaved: (id: string) => void
+  onCancel?: () => void
   onError: (msg: string) => void
 }
 
-function NewProfileForm({ auth, onCreated, onError }: NewProfileFormProps) {
-  const [name, setName] = useState('')
-  const [keywords, setKeywords] = useState('')
-  const [targetCompanies, setTargetCompanies] = useState('')
-  const [roleTypes, setRoleTypes] = useState('')
-  const [remotePref, setRemotePref] = useState<RemotePref>('any')
-  const [minSalary, setMinSalary] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+const joinCsv = (xs: string[]) => xs.join(', ')
+const splitCsv = (s: string) =>
+  s
+    .split(',')
+    .map(x => x.trim())
+    .filter(Boolean)
 
-  const splitCsv = (s: string) =>
-    s
-      .split(',')
-      .map(x => x.trim())
-      .filter(Boolean)
+function ProfileForm({ auth, initial, submitLabel, onSaved, onCancel, onError }: ProfileFormProps) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [keywords, setKeywords] = useState(initial ? joinCsv(initial.keywords) : '')
+  const [targetCompanies, setTargetCompanies] = useState(
+    initial ? joinCsv(initial.target_companies) : ''
+  )
+  const [roleTypes, setRoleTypes] = useState(initial ? joinCsv(initial.role_types) : '')
+  const [remotePref, setRemotePref] = useState<RemotePref>(initial?.remote_pref ?? 'any')
+  const [minSalary, setMinSalary] = useState(
+    initial && initial.min_salary !== null ? String(initial.min_salary) : ''
+  )
+  const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim() || submitting) return
     setSubmitting(true)
     try {
-      const created = await createProfile(
-        {
-          name: name.trim(),
-          keywords: splitCsv(keywords),
-          target_companies: splitCsv(targetCompanies),
-          role_types: splitCsv(roleTypes),
-          min_salary: minSalary ? Number(minSalary) : null,
-          remote_pref: remotePref,
-          experience_levels: []
-        },
-        auth
-      )
-      onCreated(created.id)
+      const input: ProfileInput = {
+        name: name.trim(),
+        keywords: splitCsv(keywords),
+        target_companies: splitCsv(targetCompanies),
+        role_types: splitCsv(roleTypes),
+        min_salary: minSalary ? Number(minSalary) : null,
+        remote_pref: remotePref,
+        // Preserve experience_levels (not exposed in this form) across edits.
+        experience_levels: initial?.experience_levels ?? []
+      }
+      const saved = initial
+        ? await updateProfile(initial.id, input, auth)
+        : await createProfile(input, auth)
+      onSaved(saved.id)
     } catch (err) {
-      onError(err instanceof ProfilesApiError ? err.message : 'Failed to create profile')
+      onError(err instanceof ProfilesApiError ? err.message : 'Failed to save profile')
     } finally {
       setSubmitting(false)
     }
@@ -229,9 +286,16 @@ function NewProfileForm({ auth, onCreated, onError }: NewProfileFormProps) {
           placeholder="(optional)"
         />
       </label>
-      <button type="submit" disabled={submitting || !name.trim()}>
-        {submitting ? 'Creating…' : 'Create profile'}
-      </button>
+      <div className="jp-profile-form__actions">
+        <button type="submit" disabled={submitting || !name.trim()}>
+          {submitting ? 'Saving…' : submitLabel}
+        </button>
+        {onCancel && (
+          <button type="button" className="jp-profile-form__cancel" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   )
 }

@@ -31,6 +31,10 @@ export const ProfileSchema = z
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
 		experience_levels: z.array(z.string()),
 		created_at: z.string(),
+		// True for the shared default profile (id 'default') — whether the caller
+		// is seeing the code seed or their own edited copy. Regular profiles omit
+		// it (defaults to false).
+		is_default: z.boolean().default(false),
 	})
 	.openapi('Profile');
 

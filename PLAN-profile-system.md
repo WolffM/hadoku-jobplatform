@@ -74,25 +74,44 @@ Read-only; nothing cached or written. Only greenhouse exposes a company name
 
 ---
 
-## WS2 — default profile + copy-on-write + tombstone ⬜
+## WS2 — default profile + copy-on-write + tombstone ✅ (this branch)
 
-Net-new; no such pattern exists in the ecosystem.
+Net-new; no such pattern existed in the ecosystem. Design decisions taken:
 
-- Ship an **editable default profile** any user can see and edit. The owner's
-  current hard-coded defaults become the seed.
-- On first edit, **copy-on-write** the default into a real per-user row.
-- On delete, write a **tombstone** so the default doesn't reappear for that user.
-- All keyed by `X-User-Id` (foundation above).
+- **Seed = code constant** (`worker/src/defaultProfile.ts`, reserved id `default`),
+  not KV — versioned, no extra binding. Owner-flavored starting values; any user
+  tailors via the UI. Changing the seed does NOT retroactively change users who
+  already edited.
+- **Copy-on-write**: editing the default (`PUT /profiles/default`) materializes it
+  into a real per-user `profiles` row flagged `is_default=1`. Editing an existing
+  copy updates it. The reserved id `default` addresses it in the API whether the
+  caller sees the seed or their own copy (the real uuid is never exposed).
+- **Tombstone**: deleting the default (`DELETE /profiles/default`) removes any COW
+  row and writes a `profile_tombstones(user_id, 'default')` row, so the factory
+  default never reappears for that user. Editing after deletion resurrects it (COW
+  - tombstone cleared).
+- **Migration `0006_default_profile.sql`**: additive — `ALTER TABLE profiles ADD
+COLUMN is_default` + `profile_tombstones` table + index. Ships with the package;
+  the host worker reads `migrations_dir` straight from
+  `node_modules/@wolffm/jobplatform-worker/migrations`, so hadoku_site's deploy
+  (`wrangler d1 migrations apply jobplatform --remote`) applies it automatically —
+  **no hadoku_site change needed**.
+- **UI**: `ProfileSidebar` gained an **edit** flow (there was none before — profiles
+  were create/select/delete only). `ProfileForm` is now shared between create and
+  edit; the default shows a `default` badge; its delete prompt warns it won't come
+  back. All keyed by `X-User-Id`.
 
-Open design questions: where the default seed lives (KV vs. code constant); how a
-tombstoned default is represented (nullable row vs. a `deleted` flag); whether the
-default is a real `profiles` row with a reserved id or a synthetic one.
+State machine (all scoped `WHERE user_id=?`): no row + no tombstone → seed · COW
+row → edited copy · tombstone → hidden. Verified by reasoning + build; no worker
+test harness exists in this repo (established pattern: build-gate + prod
+verification). Post-deploy check: GET shows default → PUT edits → GET shows edit →
+DELETE → GET omits it.
 
 ---
 
 ## Sequencing & deploy chains
 
-WS1a ✅ → WS1b ✅ → WS2 ⬜.
+WS1a ✅ → WS1b ✅ → WS2 ✅.
 
 - **hadoku-scrape**: push main → `ci.yml` (gated on `pytest tests/unit/`) →
   repository_dispatch → PM2 redeploy at scraper.hadoku.me.

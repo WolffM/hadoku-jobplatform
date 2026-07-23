@@ -12,6 +12,8 @@ export interface JobProfile {
   remote_pref: RemotePref
   experience_levels: string[]
   created_at: string
+  /** True for the shared default profile (id 'default'). */
+  is_default: boolean
 }
 
 export interface ProfileInput {
