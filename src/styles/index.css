@@ -517,8 +517,40 @@
   color: var(--color-danger);
 }
 
+.jp-sidebar__item-actions {
+  display: flex;
+  align-items: center;
+}
+
+.jp-sidebar__item-edit {
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  padding: 0 var(--hdk-space-sm);
+  font-size: var(--hdk-text-base);
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.jp-sidebar__item-edit:hover {
+  color: var(--color-primary);
+}
+
+.jp-sidebar__badge {
+  margin-left: var(--hdk-space-sm);
+  padding: 0 var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 /* ============================================================================
-   Profile create form
+   Profile create/edit form
    ============================================================================ */
 
 .jp-profile-form {
@@ -580,6 +612,31 @@
 .jp-profile-form button[type='submit']:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.jp-profile-form__actions {
+  display: flex;
+  gap: var(--hdk-space-md);
+  align-items: center;
+}
+
+.jp-profile-form__actions button[type='submit'] {
+  flex: 1;
+}
+
+.jp-profile-form__cancel {
+  margin-top: var(--hdk-space-sm);
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  cursor: pointer;
+}
+
+.jp-profile-form__cancel:hover {
+  background-color: var(--color-bg-hover);
 }
 
 /* ============================================================================
