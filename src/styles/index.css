@@ -280,6 +280,16 @@
   font-size: var(--hdk-text-sm);
 }
 
+.job-platform__match-card--warn {
+  border-color: var(--color-danger);
+}
+
+.job-platform__match-warn {
+  margin: var(--hdk-space-sm) 0 0;
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+}
+
 .job-platform__match-head {
   display: flex;
   align-items: center;
