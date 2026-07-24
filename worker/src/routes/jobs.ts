@@ -165,12 +165,22 @@ app.openapi(
 			binds.push(userId);
 		}
 
-		// A profile IS its slice: scope the feed to that profile's companies.
+		// Companies are an OPTIONAL filter, not a required scope. When a profile
+		// has companies, restrict its feed to their jobs; when it has none, the
+		// feed is the whole corpus, ranked by the profile's other criteria
+		// (keywords / roles / salary / remote). An empty profile ⇒ everything,
+		// newest first.
 		if (profile_id) {
-			joins.push(
-				'INNER JOIN profile_companies pc ON pc.ats = j.ats AND pc.slug = j.slug AND pc.profile_id = ?'
-			);
-			binds.push(profile_id);
+			const companyCount = await db
+				.prepare('SELECT COUNT(*) as n FROM profile_companies WHERE profile_id = ?')
+				.bind(profile_id)
+				.first<{ n: number }>();
+			if ((companyCount?.n ?? 0) > 0) {
+				joins.push(
+					'INNER JOIN profile_companies pc ON pc.ats = j.ats AND pc.slug = j.slug AND pc.profile_id = ?'
+				);
+				binds.push(profile_id);
+			}
 		}
 
 		// State / hide_dismissed clauses reference the LEFT JOIN above, which
@@ -191,10 +201,11 @@ app.openapi(
 		const joinClause = joins.join(' ');
 
 		// ── Score-on-read path ────────────────────────────────────────────────
-		// A profile scores its slice live, in-request: pull the (company-scoped)
-		// candidate rows, score each against the profile's current criteria in
-		// JS, then filter/sort/paginate. No precomputed job_profile_matches, so
-		// scores always reflect the profile as it stands right now.
+		// A profile scores its candidate set live, in-request: pull the rows
+		// (company-scoped when the profile has companies, else the whole corpus,
+		// most-recent first up to the cap), score each against the profile's
+		// current criteria in JS, then filter/sort/paginate. No precomputed
+		// job_profile_matches, so scores always reflect the profile right now.
 		if (profile_id) {
 			const profile = await loadScorableProfile(db, profile_id);
 
