@@ -212,12 +212,21 @@ export function CompaniesManager({ auth }: Props) {
                   key={m.query}
                   className="job-platform__match-card job-platform__match-card--empty"
                 >
-                  No board found for <strong>{m.query}</strong> on greenhouse, lever, or ashby.
+                  No board found for <strong>{m.query}</strong> on greenhouse, lever, or ashby — it
+                  may use an ATS we don’t scrape yet (e.g. Workday) or a different slug.
                 </div>
               )
             }
+            const zeroJobs = m.n_jobs === 0
             return (
-              <div key={key} className="job-platform__match-card">
+              <div
+                key={key}
+                className={
+                  zeroJobs
+                    ? 'job-platform__match-card job-platform__match-card--warn'
+                    : 'job-platform__match-card'
+                }
+              >
                 <div className="job-platform__match-head">
                   {fav && (
                     <img
@@ -242,6 +251,12 @@ export function CompaniesManager({ auth }: Props) {
                     {m.sample_titles.slice(0, 5).join(' · ')}
                   </p>
                 )}
+                {zeroJobs && (
+                  <p className="job-platform__match-warn">
+                    ⚠ 0 open roles — can’t confirm this is the right company (the board may be stale
+                    or a different one on {m.ats}). Subscribe anyway if you’re sure.
+                  </p>
+                )}
                 <button
                   type="button"
                   className="job-platform__match-confirm"
@@ -252,7 +267,9 @@ export function CompaniesManager({ auth }: Props) {
                     ? 'Subscribed ✓'
                     : subscribingKey === key
                       ? 'Subscribing…'
-                      : 'Confirm & subscribe'}
+                      : zeroJobs
+                        ? 'Subscribe anyway'
+                        : 'Confirm & subscribe'}
                 </button>
               </div>
             )
