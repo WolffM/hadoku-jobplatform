@@ -8,14 +8,14 @@ Scoping doc for the 2026-07-24 round of feedback. Status: **DRAFT — decisions 
 
 Queried the live `jobplatform` D1 with wrangler:
 
-| table | count | meaning |
-| --- | --- | --- |
-| `jobs` | ~5,400 | scraped corpus |
-| `profile_companies` | 9 | default profile's seed companies ✅ |
-| `job_profile_matches` | **0** | **no precomputed scores exist → every score renders 0.00** |
-| `job_states` | 2 | triage **works** — clicks are stored, keyed by stable `X-User-Id` ✅ |
+| table                 | count  | meaning                                                              |
+| --------------------- | ------ | -------------------------------------------------------------------- |
+| `jobs`                | ~5,400 | scraped corpus                                                       |
+| `profile_companies`   | 9      | default profile's seed companies ✅                                  |
+| `job_profile_matches` | **0**  | **no precomputed scores exist → every score renders 0.00**           |
+| `job_states`          | 2      | triage **works** — clicks are stored, keyed by stable `X-User-Id` ✅ |
 
-**Scoring 0.00 root cause:** scores are precomputed per `(job, profile)` into `job_profile_matches`, populated (a) at ingest and (b) by a one-time backfill when a profile is created. Both missed: jobs were ingested when there were **no profiles**, and the backfill rescore (`rescore.ts`, runs once in a `waitUntil` over *all* ~5,400 jobs loaded at once) is failing — almost certainly a D1 result-size / Worker-memory limit loading every description into memory — then it's caught, logged, and **never retried**.
+**Scoring 0.00 root cause:** scores are precomputed per `(job, profile)` into `job_profile_matches`, populated (a) at ingest and (b) by a one-time backfill when a profile is created. Both missed: jobs were ingested when there were **no profiles**, and the backfill rescore (`rescore.ts`, runs once in a `waitUntil` over _all_ ~5,400 jobs loaded at once) is failing — almost certainly a D1 result-size / Worker-memory limit loading every description into memory — then it's caught, logged, and **never retried**.
 
 **Triage:** confirmed working and persisted. No work needed.
 
@@ -71,7 +71,7 @@ The precompute-everything approach is the thing that broke. Options:
 
 - Companies on a profile become an **optional filter** (empty = all corpus), not a required scope. Feed query: only add the `profile_companies` join when the profile actually has companies.
 - Keywords/roles/salary/remote already degrade to neutral; make sure "none set" = no filter (not a 0 score).
-- **Base scan set**: introduce a curated global company list (admin-seeded) scanned on the daily cron regardless of profiles, so keyword-only profiles have a corpus. *(Decision: size / how curated — see below.)*
+- **Base scan set**: introduce a curated global company list (admin-seeded) scanned on the daily cron regardless of profiles, so keyword-only profiles have a corpus. _(Decision: size / how curated — see below.)_
 
 ### WS3 — Keyword-source scrapers (the breadth)
 
@@ -103,8 +103,8 @@ Every section's **preflight probe** answers "does this connect to something real
 
 ## Sequencing
 
-1. **WS1 — score-on-read** (fixes the 0.00 immediately, independent). 
-2. **WS2 — optional filters** (companies/keywords/etc. all optional; feed = corpus filtered by whatever's set).
+1. **WS1 — score-on-read** ✅ SHIPPED 2026-07-24 (worker 1.1.8, migration 0008). Feed scores compute in-request; `job_profile_matches` + rescore machinery dropped. Confirmed non-zero scores in prod.
+2. **WS2 — optional filters** ✅ SHIPPED 2026-07-24. `profile_companies` join is now conditional — a profile with no companies scores the whole corpus (capped, most-recent first); with companies it scopes to them. The profile form already made keywords/roles/salary/remote optional (only `name` required), so no UI change was needed.
 3. **WS3 — keyword-source scrapers** (Remotive/Muse/RemoteOK → Adzuna) so keyword profiles have real jobs.
 4. **WS4 — unified full-screen editor** with per-section preflight probes.
 
