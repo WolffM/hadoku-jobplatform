@@ -57,6 +57,24 @@ interface ProbeResponse {
 	error?: { message: string } | null;
 }
 
+/** The single best board matched to a typed company name (most open jobs). */
+export interface CompanyMatch {
+	query: string;
+	matched: boolean;
+	ats: string | null;
+	slug: string | null;
+	company_name: string | null;
+	n_jobs: number;
+	sample_titles: string[];
+	domain: string | null;
+}
+
+interface MatchResponse {
+	success: boolean;
+	data?: { results: CompanyMatch[] };
+	error?: { message: string } | null;
+}
+
 export class ScraperClientError extends Error {
 	constructor(
 		message: string,
@@ -153,6 +171,38 @@ export async function probeSlugs(
 	if (!json.success || !json.data) {
 		throw new ScraperClientError(
 			`scraper /probe reported failure: ${json.error?.message ?? 'unknown'}`,
+			500,
+			JSON.stringify(json)
+		);
+	}
+	return json.data.results;
+}
+
+/**
+ * Match company names to the single best board each (most open jobs). Read-only.
+ * Powers the name-driven prefetch: the user types "Scale AI" and gets
+ * greenhouse:scaleai + display name + job count to confirm before locking.
+ */
+export async function matchCompanies(
+	env: AppEnv,
+	names: string[],
+	providers?: string[]
+): Promise<CompanyMatch[]> {
+	const response = await scraperFetch(env, '/api/v1/jobboards/match', {
+		method: 'POST',
+		body: JSON.stringify(providers ? { names, providers } : { names }),
+	});
+	if (!response.ok) {
+		throw new ScraperClientError(
+			`scraper /match returned ${response.status}`,
+			response.status,
+			await response.text()
+		);
+	}
+	const json: MatchResponse = await response.json();
+	if (!json.success || !json.data) {
+		throw new ScraperClientError(
+			`scraper /match reported failure: ${json.error?.message ?? 'unknown'}`,
 			500,
 			JSON.stringify(json)
 		);

@@ -258,6 +258,69 @@
 }
 
 /* ============================================================================
+   Name-driven prefetch: matched-company confirmation cards
+   ============================================================================ */
+
+.job-platform__match-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+  margin: var(--hdk-space-md) 0 var(--hdk-space-lg);
+}
+
+.job-platform__match-card {
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+}
+
+.job-platform__match-card--empty {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+.job-platform__match-head {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  flex-wrap: wrap;
+}
+
+.job-platform__match-favicon {
+  border-radius: var(--hdk-radius-sm);
+  flex-shrink: 0;
+}
+
+.job-platform__match-name {
+  color: var(--color-text);
+  font-size: var(--hdk-text-base);
+}
+
+.job-platform__match-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  font-family: monospace;
+}
+
+.job-platform__match-confirm {
+  margin-top: var(--hdk-space-md);
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: none;
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.job-platform__match-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================================================
    Verify-and-lock: probe slugs before subscribing
    ============================================================================ */
 

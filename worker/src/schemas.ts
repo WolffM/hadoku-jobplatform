@@ -286,6 +286,30 @@ export const ProbeCompanyResponseSchema = S(
 	})
 ).openapi('ProbeCompanyResponse');
 
+export const MatchCompanySchema = z
+	.object({
+		names: z.array(z.string().min(1)).min(1),
+		providers: z.array(z.string()).optional(),
+	})
+	.openapi('MatchCompany');
+
+export const CompanyMatchSchema = z
+	.object({
+		query: z.string(),
+		matched: z.boolean(),
+		ats: z.string().nullable(),
+		slug: z.string().nullable(),
+		company_name: z.string().nullable(),
+		n_jobs: z.number().int(),
+		sample_titles: z.array(z.string()),
+		domain: z.string().nullable(),
+	})
+	.openapi('CompanyMatch');
+
+export const MatchCompanyResponseSchema = S(
+	z.object({ results: z.array(CompanyMatchSchema) })
+).openapi('MatchCompanyResponse');
+
 export const CompaniesResponseSchema = S(
 	z.object({ companies: z.array(UserCompanySchema) })
 ).openapi('CompaniesResponse');

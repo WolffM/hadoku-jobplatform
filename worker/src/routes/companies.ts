@@ -8,12 +8,15 @@ import {
 	DeleteCompanyResponseSchema,
 	ProbeCompanySchema,
 	ProbeCompanyResponseSchema,
+	MatchCompanySchema,
+	MatchCompanyResponseSchema,
 	ErrorResponseSchema,
 } from '../schemas.js';
 import {
 	addTargetBySlug,
 	addTargetsByName,
 	deleteTarget,
+	matchCompanies,
 	probeSlugs,
 	triggerSearch,
 	ScraperClientError,
@@ -126,6 +129,56 @@ app.openapi(
 		const { slugs, providers } = c.req.valid('json');
 		try {
 			const results = await probeSlugs(c.env, slugs, providers);
+			return c.json({ success: true as const, data: { results } }, 200);
+		} catch (err) {
+			if (err instanceof ScraperClientError) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Scraper error',
+						message: `${err.message} (status ${err.status})`,
+					},
+					502
+				);
+			}
+			throw err;
+		}
+	}
+);
+
+// ============================================================================
+// POST /companies/match — type a company name, get the best board to confirm
+// ============================================================================
+
+app.openapi(
+	createRoute({
+		method: 'post',
+		path: '/companies/match',
+		tags: ['Companies'],
+		summary: 'Match a typed company name to the best board (name-driven prefetch)',
+		description:
+			'Read-only. Proxies to scraper /match: for each company name, returns the ' +
+			'single best board (most open jobs) with a display name, job count, sample ' +
+			'titles, and a best-effort favicon domain — so the user confirms the right ' +
+			'company before locking it in. Writes nothing.',
+		request: {
+			body: { content: { 'application/json': { schema: MatchCompanySchema } } },
+		},
+		responses: {
+			200: {
+				description: 'Per-name best match',
+				content: { 'application/json': { schema: MatchCompanyResponseSchema } },
+			},
+			502: {
+				description: 'Scraper upstream error',
+				content: { 'application/json': { schema: ErrorResponseSchema } },
+			},
+		},
+	}),
+	async (c) => {
+		const { names, providers } = c.req.valid('json');
+		try {
+			const results = await matchCompanies(c.env, names, providers);
 			return c.json({ success: true as const, data: { results } }, 200);
 		} catch (err) {
 			if (err instanceof ScraperClientError) {

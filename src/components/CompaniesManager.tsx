@@ -1,18 +1,33 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
   listCompanies,
-  createCompany,
   deleteCompany,
   probeSlugs,
+  matchCompanies,
   lockCompany,
   CompaniesApiError,
   type UserCompany,
-  type SlugProbeResult
+  type SlugProbeResult,
+  type CompanyMatch
 } from '../api/companies'
 import type { Auth } from '../api/auth'
 
 interface Props {
   auth: Auth
+}
+
+/** Split free text into distinct company names on commas/newlines (case kept). */
+function parseNames(raw: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const tok of raw.split(/[,\n]+/)) {
+    const s = tok.trim()
+    if (s && !seen.has(s.toLowerCase())) {
+      seen.add(s.toLowerCase())
+      out.push(s)
+    }
+  }
+  return out
 }
 
 /** Split a free-text slug list on commas, whitespace, and newlines. */
@@ -29,15 +44,26 @@ function parseSlugs(raw: string): string[] {
   return out
 }
 
+function faviconUrl(domain: string | null): string | null {
+  return domain
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
+    : null
+}
+
 export function CompaniesManager({ auth }: Props) {
   const [companies, setCompanies] = useState<UserCompany[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [input, setInput] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [lastAddNote, setLastAddNote] = useState<string | null>(null)
 
-  // Verify-and-lock state
+  // Name-driven prefetch (primary flow)
+  const [nameInput, setNameInput] = useState('')
+  const [matching, setMatching] = useState(false)
+  const [matches, setMatches] = useState<CompanyMatch[] | null>(null)
+  const [matchError, setMatchError] = useState<string | null>(null)
+  const [subscribingKey, setSubscribingKey] = useState<string | null>(null)
+  const [subscribedKeys, setSubscribedKeys] = useState<Set<string>>(new Set())
+
+  // Advanced: probe explicit slugs
   const [slugsInput, setSlugsInput] = useState('')
   const [probing, setProbing] = useState(false)
   const [probeResults, setProbeResults] = useState<SlugProbeResult[] | null>(null)
@@ -64,29 +90,37 @@ export function CompaniesManager({ auth }: Props) {
     void refresh()
   }, [refresh])
 
-  const handleAdd = async (e: FormEvent) => {
+  const handleFind = async (e: FormEvent) => {
     e.preventDefault()
-    const displayName = input.trim()
-    if (!displayName || submitting) return
-    setSubmitting(true)
-    setError(null)
-    setLastAddNote(null)
+    const names = parseNames(nameInput)
+    if (names.length === 0 || matching) return
+    setMatching(true)
+    setMatchError(null)
+    setMatches(null)
+    setSubscribedKeys(new Set())
     try {
-      const result = await createCompany(displayName, auth)
-      const added = result.companies.length
-      const searchNote = result.search_triggered ? 'scrape triggered' : 'scrape NOT triggered'
-      setLastAddNote(
-        added === 0
-          ? `No targets resolved for "${displayName}".`
-          : `Added ${added} target${added === 1 ? '' : 's'} for "${displayName}" (${searchNote}). Jobs will appear shortly.`
-      )
-      setInput('')
+      const results = await matchCompanies(names, auth)
+      setMatches(results)
+    } catch (err) {
+      setMatchError(err instanceof CompaniesApiError ? err.message : 'Failed to look up company')
+    } finally {
+      setMatching(false)
+    }
+  }
+
+  const handleSubscribe = async (m: CompanyMatch) => {
+    if (!m.matched || !m.ats || !m.slug || subscribingKey) return
+    const key = `${m.ats}:${m.slug}`
+    setSubscribingKey(key)
+    setMatchError(null)
+    try {
+      await lockCompany(m.ats, m.slug, m.company_name ?? m.query, auth)
+      setSubscribedKeys(prev => new Set(prev).add(key))
       await refresh()
     } catch (err) {
-      const msg = err instanceof CompaniesApiError ? err.message : 'Failed to add company'
-      setError(msg)
+      setMatchError(err instanceof CompaniesApiError ? err.message : 'Failed to subscribe')
     } finally {
-      setSubmitting(false)
+      setSubscribingKey(null)
     }
   }
 
@@ -101,8 +135,6 @@ export function CompaniesManager({ auth }: Props) {
     try {
       const results = await probeSlugs(slugs, undefined, auth)
       setProbeResults(results)
-      // Prefill each hit's editable display name with the reported company name
-      // (greenhouse) or the slug itself (ashby/lever, which expose no name).
       const names: Record<string, string> = {}
       for (const r of results) {
         for (const hit of r.hits) {
@@ -151,33 +183,95 @@ export function CompaniesManager({ auth }: Props) {
     <div className="job-platform__companies">
       <h2 className="job-platform__companies-title">Subscribed Companies</h2>
 
-      <form className="job-platform__companies-form" onSubmit={e => void handleAdd(e)}>
+      {/* Name-driven prefetch: type a company, we find the right board to confirm. */}
+      <form className="job-platform__companies-form" onSubmit={e => void handleFind(e)}>
         <input
           type="text"
-          placeholder="Company name (e.g. Stripe, Mistral)"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={submitting}
-          aria-label="Company display name"
+          placeholder="Company name (e.g. Scale AI, OpenAI, Ramp)"
+          value={nameInput}
+          onChange={e => setNameInput(e.target.value)}
+          disabled={matching}
+          aria-label="Company name"
         />
-        <button type="submit" disabled={submitting || input.trim().length === 0}>
-          {submitting ? 'Adding…' : 'Subscribe'}
+        <button type="submit" disabled={matching || parseNames(nameInput).length === 0}>
+          {matching ? 'Finding…' : 'Find'}
         </button>
       </form>
 
-      {lastAddNote && <p className="job-platform__companies-note">{lastAddNote}</p>}
+      {matchError && <p className="job-platform__companies-error">{matchError}</p>}
+
+      {matches && (
+        <div className="job-platform__match-results">
+          {matches.map(m => {
+            const key = m.ats && m.slug ? `${m.ats}:${m.slug}` : m.query
+            const subscribed = subscribedKeys.has(key)
+            const fav = faviconUrl(m.domain)
+            if (!m.matched) {
+              return (
+                <div
+                  key={m.query}
+                  className="job-platform__match-card job-platform__match-card--empty"
+                >
+                  No board found for <strong>{m.query}</strong> on greenhouse, lever, or ashby.
+                </div>
+              )
+            }
+            return (
+              <div key={key} className="job-platform__match-card">
+                <div className="job-platform__match-head">
+                  {fav && (
+                    <img
+                      className="job-platform__match-favicon"
+                      src={fav}
+                      alt=""
+                      width={20}
+                      height={20}
+                      onError={e => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                  <strong className="job-platform__match-name">{m.company_name}</strong>
+                  <span className="job-platform__probe-ats">{m.ats}</span>
+                  <span className="job-platform__match-meta">
+                    {m.slug} · {m.n_jobs} job{m.n_jobs === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {m.sample_titles.length > 0 && (
+                  <p className="job-platform__probe-titles">
+                    {m.sample_titles.slice(0, 5).join(' · ')}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="job-platform__match-confirm"
+                  onClick={() => void handleSubscribe(m)}
+                  disabled={subscribed || subscribingKey !== null}
+                >
+                  {subscribed
+                    ? 'Subscribed ✓'
+                    : subscribingKey === key
+                      ? 'Subscribing…'
+                      : 'Confirm & subscribe'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {error && <p className="job-platform__companies-error">{error}</p>}
 
-      {/* Verify-and-lock: probe explicit slugs, confirm the right board, lock it in. */}
+      {/* Advanced: probe explicit slugs when you already know them. */}
       <details className="job-platform__probe">
         <summary className="job-platform__probe-summary">
-          Not sure of the slug? Verify before subscribing
+          Know the exact slug? Probe it directly
         </summary>
 
         <form className="job-platform__companies-form" onSubmit={e => void handleProbe(e)}>
           <input
             type="text"
-            placeholder="Slugs to probe (e.g. anthropic, scale, ramp)"
+            placeholder="Slugs to probe (e.g. anthropic, scaleai, ramp)"
             value={slugsInput}
             onChange={e => setSlugsInput(e.target.value)}
             disabled={probing}
@@ -253,7 +347,7 @@ export function CompaniesManager({ auth }: Props) {
         <p className="job-platform__companies-empty">Loading…</p>
       ) : companies.length === 0 ? (
         <p className="job-platform__companies-empty">
-          No subscriptions yet. Add a company above to start receiving jobs.
+          No subscriptions yet. Find a company above to start receiving jobs.
         </p>
       ) : (
         <ul className="job-platform__companies-list">

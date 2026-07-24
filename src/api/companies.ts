@@ -41,6 +41,17 @@ export interface SlugProbeResult {
   hits: ProviderHit[]
 }
 
+export interface CompanyMatch {
+  query: string
+  matched: boolean
+  ats: string | null
+  slug: string | null
+  company_name: string | null
+  n_jobs: number
+  sample_titles: string[]
+  domain: string | null
+}
+
 export class CompaniesApiError extends Error {
   constructor(
     message: string,
@@ -101,6 +112,21 @@ export async function probeSlugs(
     body: JSON.stringify(providers ? { slugs, providers } : { slugs })
   })
   const data = await parseWrapped<{ results: SlugProbeResult[] }>(response)
+  return data.results
+}
+
+/**
+ * Name-driven prefetch: type company names, get the single best board each
+ * (most open jobs) to confirm before locking. Read-only.
+ */
+export async function matchCompanies(names: string[], auth?: Auth): Promise<CompanyMatch[]> {
+  const response = await fetch(`${BASE_URL}/companies/match`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify({ names })
+  })
+  const data = await parseWrapped<{ results: CompanyMatch[] }>(response)
   return data.results
 }
 
