@@ -27,6 +27,7 @@ export default [
 				URL: 'readonly',
 				URLSearchParams: 'readonly',
 				Headers: 'readonly',
+				TextEncoder: 'readonly',
 				AbortController: 'readonly',
 				AbortSignal: 'readonly',
 				crypto: 'readonly',

@@ -2,8 +2,6 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
 import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
-import { scoreJob } from '../scoring.js';
-import { scoreProfileAgainstAllJobs } from '../rescore.js';
 import { parseAtsSlug } from '../slugParse.js';
 
 interface RouteContext {
@@ -16,9 +14,8 @@ const app = new OpenAPIHono<RouteContext>();
 // /ingest is the scraper webhook target — hadoku-scrape's jobboards orchestrator
 // POSTs batches with its HADOKU_SERVICE_KEY (service tier). Same shape as the
 // monitoring-api/contact-api service-tier carve-outs for internal writes.
-// /rescore and /backfill-slugs stay admin/friend — operator tools, not webhooks.
+// /backfill-slugs stays admin/friend — an operator tool, not a webhook.
 app.use('/ingest', requireUserType(['admin', 'friend', 'service']));
-app.use('/ingest/rescore', requireUserType(['admin', 'friend']));
 app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend']));
 
 // Normalize workplace_type values from scraper to our canonical set
@@ -51,16 +48,6 @@ app.openapi(ingestRoute, async (c) => {
 	const { jobs, batch_number, is_final } = c.req.valid('json');
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
-
-	// Fetch all profiles once for scoring
-	const profileRows = await db.prepare('SELECT * FROM profiles').all<Record<string, unknown>>();
-	const profiles = profileRows.results.map((r) => ({
-		id: r.id as string,
-		keywords: JSON.parse(r.keywords as string) as string[],
-		role_types: JSON.parse(r.role_types as string) as string[],
-		remote_pref: r.remote_pref as string,
-		min_salary: r.min_salary as number | null,
-	}));
 
 	let accepted = 0;
 	let skipped = 0;
@@ -114,27 +101,6 @@ app.openapi(ingestRoute, async (c) => {
 			)
 			.run();
 
-		// Score against every profile
-		for (const profile of profiles) {
-			const { score, breakdown } = scoreJob(
-				{
-					title: job.title,
-					description: job.description,
-					workplace_type: workplaceType,
-					salary_min: salaryMin,
-				},
-				profile
-			);
-
-			await db
-				.prepare(
-					`INSERT OR REPLACE INTO job_profile_matches (job_id, profile_id, score, score_breakdown, matched_at)
-					 VALUES (?, ?, ?, ?, ?)`
-				)
-				.bind(job.id, profile.id, score, JSON.stringify(breakdown), now)
-				.run();
-		}
-
 		accepted++;
 	}
 
@@ -145,60 +111,6 @@ app.openapi(ingestRoute, async (c) => {
 		},
 		200
 	);
-});
-
-// Rescore all jobs against all profiles (e.g. after adding a new profile)
-const rescoreRoute = createRoute({
-	method: 'post',
-	path: '/ingest/rescore',
-	tags: ['Ingest'],
-	summary: 'Rescore all jobs against all profiles',
-	request: {
-		body: {
-			content: {
-				'application/json': {
-					schema: z.object({ profile_id: z.string().optional() }).openapi('RescoreRequest'),
-				},
-			},
-		},
-	},
-	responses: {
-		200: {
-			description: 'Rescore complete',
-			content: {
-				'application/json': {
-					schema: z
-						.object({ success: z.literal(true), data: z.object({ scored: z.number() }) })
-						.openapi('RescoreResponse'),
-				},
-			},
-		},
-	},
-});
-
-app.openapi(rescoreRoute, async (c) => {
-	const db = c.env.JOB_PLATFORM_DB;
-	const { profile_id } = c.req.valid('json');
-
-	const profileRows = profile_id
-		? await db
-				.prepare('SELECT * FROM profiles WHERE id = ?')
-				.bind(profile_id)
-				.all<Record<string, unknown>>()
-		: await db.prepare('SELECT * FROM profiles').all<Record<string, unknown>>();
-
-	let scored = 0;
-	for (const r of profileRows.results) {
-		scored += await scoreProfileAgainstAllJobs(db, {
-			id: r.id as string,
-			keywords: JSON.parse(r.keywords as string) as string[],
-			role_types: JSON.parse(r.role_types as string) as string[],
-			remote_pref: r.remote_pref as string,
-			min_salary: r.min_salary as number | null,
-		});
-	}
-
-	return c.json({ success: true as const, data: { scored } });
 });
 
 // ============================================================================

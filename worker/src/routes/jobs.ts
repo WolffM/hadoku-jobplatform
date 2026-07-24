@@ -9,6 +9,14 @@ import {
 } from '../schemas.js';
 import type { HadokuAuthContext } from '@wolffm/worker-utils';
 import { resolveUserId } from '../userId.js';
+import { scoreJob } from '../scoring.js';
+import { loadScorableProfile } from '../profileScore.js';
+import { logger } from '../logger.js';
+
+// Cap on candidates scored in-request for a profile feed. Profile feeds are
+// scoped to the profile's companies, so this is comfortably above any real
+// slice; beyond it we score the most-recent CAP rows and log the truncation.
+const SCORE_CANDIDATE_CAP = 3000;
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -122,8 +130,7 @@ app.openapi(
 			scraped_at: string;
 			ats: string | null;
 			slug: string | null;
-			score: number | null;
-			score_breakdown: string | null;
+			description: string;
 			row_state: string | null;
 		}
 
@@ -149,10 +156,6 @@ app.openapi(
 		const wheres: string[] = [];
 		const binds: (string | number)[] = [];
 
-		const scoredCols = profile_id
-			? 'm.score, m.score_breakdown'
-			: 'NULL as score, NULL as score_breakdown';
-
 		// LEFT JOIN job_states once when authed so we can both surface state on
 		// every row AND filter by it cheaply. js.user_id binds first if present
 		// because the join clause has to come before any state filter binds.
@@ -162,19 +165,12 @@ app.openapi(
 			binds.push(userId);
 		}
 
-		// A profile IS its slice: scope the feed to that profile's companies and
-		// rank by its precomputed scores. LEFT JOIN the scores so a just-added
-		// company's jobs still show (by recency) before the background rescore
-		// lands.
+		// A profile IS its slice: scope the feed to that profile's companies.
 		if (profile_id) {
 			joins.push(
 				'INNER JOIN profile_companies pc ON pc.ats = j.ats AND pc.slug = j.slug AND pc.profile_id = ?'
 			);
 			binds.push(profile_id);
-			joins.push('LEFT JOIN job_profile_matches m ON m.job_id = j.id AND m.profile_id = ?');
-			binds.push(profile_id);
-			wheres.push('COALESCE(m.score, 0) >= ?');
-			binds.push(min_score);
 		}
 
 		// State / hide_dismissed clauses reference the LEFT JOIN above, which
@@ -193,9 +189,98 @@ app.openapi(
 
 		const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
 		const joinClause = joins.join(' ');
-		const orderBy =
-			profile_id && sort === 'score' ? 'COALESCE(m.score, 0) DESC' : 'j.scraped_at DESC';
 
+		// ── Score-on-read path ────────────────────────────────────────────────
+		// A profile scores its slice live, in-request: pull the (company-scoped)
+		// candidate rows, score each against the profile's current criteria in
+		// JS, then filter/sort/paginate. No precomputed job_profile_matches, so
+		// scores always reflect the profile as it stands right now.
+		if (profile_id) {
+			const profile = await loadScorableProfile(db, profile_id);
+
+			const candSql = `
+				SELECT
+					j.id, j.title, j.company, j.location, j.workplace_type,
+					j.salary_min, j.salary_max, j.source_site, j.url,
+					j.posted_date, j.scraped_at, j.ats, j.slug, j.description,
+					${stateCols}
+				FROM jobs j
+				${joinClause}
+				${whereClause}
+				ORDER BY j.scraped_at DESC
+				LIMIT ${SCORE_CANDIDATE_CAP}`;
+
+			const candidates = await db
+				.prepare(candSql)
+				.bind(...binds)
+				.all<JobRow>();
+
+			if (candidates.results.length >= SCORE_CANDIDATE_CAP) {
+				logger.warn('score-on-read candidate cap hit', {
+					profile_id,
+					cap: SCORE_CANDIDATE_CAP,
+				});
+			}
+
+			const scored = candidates.results
+				.map((r) => {
+					const { score, breakdown } = scoreJob(
+						{
+							title: r.title,
+							description: r.description,
+							workplace_type: r.workplace_type,
+							salary_min: r.salary_min,
+						},
+						profile
+					);
+					return {
+						id: r.id,
+						title: r.title,
+						company: r.company,
+						location: r.location,
+						workplace_type: r.workplace_type,
+						salary_min: r.salary_min,
+						salary_max: r.salary_max,
+						source_site: r.source_site,
+						url: r.url,
+						posted_date: r.posted_date,
+						scraped_at: r.scraped_at,
+						ats: r.ats,
+						slug: r.slug,
+						score,
+						score_breakdown: breakdown,
+						state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+					};
+				})
+				.filter((j) => j.score >= min_score);
+
+			if (sort === 'score') {
+				scored.sort((a, b) => b.score - a.score || b.scraped_at.localeCompare(a.scraped_at));
+			} else {
+				scored.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at));
+			}
+
+			const total = scored.length;
+			const pageJobs = scored.slice(offset, offset + limit);
+
+			return c.json(
+				{
+					success: true as const,
+					data: {
+						jobs: pageJobs,
+						total,
+						page,
+						limit,
+						has_more: offset + pageJobs.length < total,
+					},
+				},
+				200
+			);
+		}
+
+		// ── Unscored path ─────────────────────────────────────────────────────
+		// No profile: list the corpus (optionally per-user filtered), paginated
+		// in SQL. Scores are absent, so every row reports a neutral 0.
 		const countSql = `SELECT COUNT(*) as total FROM jobs j ${joinClause} ${whereClause}`;
 		const countRow = await db
 			.prepare(countSql)
@@ -208,18 +293,17 @@ app.openapi(
 				j.id, j.title, j.company, j.location, j.workplace_type,
 				j.salary_min, j.salary_max, j.source_site, j.url,
 				j.posted_date, j.scraped_at, j.ats, j.slug,
-				${scoredCols},
 				${stateCols}
 			FROM jobs j
 			${joinClause}
 			${whereClause}
-			ORDER BY ${orderBy}
+			ORDER BY j.scraped_at DESC
 			LIMIT ? OFFSET ?`;
 
 		const rows = await db
 			.prepare(dataSql)
 			.bind(...binds, limit, offset)
-			.all<JobRow>();
+			.all<Omit<JobRow, 'description'>>();
 
 		const jobs = rows.results.map((r) => ({
 			id: r.id,
@@ -235,10 +319,8 @@ app.openapi(
 			scraped_at: r.scraped_at,
 			ats: r.ats,
 			slug: r.slug,
-			score: r.score ?? 0,
-			score_breakdown: r.score_breakdown
-				? (JSON.parse(r.score_breakdown) as typeof zeroBreakdown)
-				: zeroBreakdown,
+			score: 0,
+			score_breakdown: zeroBreakdown,
 			state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
 		}));
 
@@ -309,17 +391,18 @@ app.openapi(
 		};
 
 		if (profile_id) {
-			const match = await db
-				.prepare(
-					'SELECT score, score_breakdown FROM job_profile_matches WHERE job_id = ? AND profile_id = ?'
-				)
-				.bind(id, profile_id)
-				.first<{ score: number; score_breakdown: string }>();
-
-			if (match) {
-				score = match.score;
-				score_breakdown = JSON.parse(match.score_breakdown) as typeof score_breakdown;
-			}
+			const profile = await loadScorableProfile(db, profile_id);
+			const result = scoreJob(
+				{
+					title: row.title as string,
+					description: row.description as string,
+					workplace_type: row.workplace_type as string,
+					salary_min: row.salary_min as number | null,
+				},
+				profile
+			);
+			score = result.score;
+			score_breakdown = result.breakdown;
 		}
 
 		// Per-user state if authed.

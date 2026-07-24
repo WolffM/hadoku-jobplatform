@@ -15,7 +15,6 @@ import {
 	ErrorResponseSchema,
 } from '../schemas.js';
 import { DEFAULT_PROFILE, DEFAULT_PROFILE_COMPANIES } from '../defaultProfile.js';
-import { scoreProfileAgainstAllJobs, type ScorableProfile } from '../rescore.js';
 import { addTargetBySlug, triggerSearch, ScraperClientError } from '../clients/scraper.js';
 import { resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
@@ -60,15 +59,11 @@ async function hasDefaultTombstone(db: D1Database, userId: string): Promise<bool
  * Ensure the caller has their default profile as a real row (unless they've
  * deleted it). Materializes it — profile row + seed companies — the first time,
  * atomically (the INSERT is a no-op if a default already exists, so concurrent
- * mounts can't duplicate it), then rescores it in the background so its feed
- * isn't empty. The seed companies are already-registered global scrape targets,
- * so no scraper calls are needed here.
+ * mounts can't duplicate it). The seed companies are already-registered global
+ * scrape targets, so no scraper calls are needed here. Scores are computed on
+ * read (see jobs.ts), so there's nothing to precompute.
  */
-async function ensureDefaultProfile(
-	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
-	db: D1Database,
-	userId: string
-): Promise<void> {
+async function ensureDefaultProfile(db: D1Database, userId: string): Promise<void> {
 	if (await hasDefaultTombstone(db, userId)) return;
 
 	const id = crypto.randomUUID();
@@ -106,35 +101,6 @@ async function ensureDefaultProfile(
 			.bind(crypto.randomUUID(), id, co.ats, co.slug, co.display_name, now)
 	);
 	if (stmts.length) await db.batch(stmts);
-
-	rescoreInBackground(c, db, {
-		id,
-		keywords: DEFAULT_PROFILE.keywords,
-		role_types: DEFAULT_PROFILE.role_types,
-		remote_pref: DEFAULT_PROFILE.remote_pref,
-		min_salary: DEFAULT_PROFILE.min_salary,
-	});
-}
-
-function rescoreInBackground(
-	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
-	db: D1Database,
-	profile: ScorableProfile
-): void {
-	const work = scoreProfileAgainstAllJobs(db, profile).catch((err) =>
-		logger.error('profile rescore failed', {
-			profile_id: profile.id,
-			error: err instanceof Error ? err.message : String(err),
-		})
-	);
-	// Hono's executionCtx getter throws when the runtime doesn't provide one, so
-	// guard the access rather than rely on optional chaining. In the Worker it's
-	// always present, keeping the background rescore alive past the response.
-	try {
-		c.executionCtx?.waitUntil(work);
-	} catch {
-		void work;
-	}
 }
 
 async function ownedProfile(
@@ -168,7 +134,7 @@ app.openapi(
 	async (c) => {
 		const userId = await currentUserId(c);
 		const db = c.env.JOB_PLATFORM_DB;
-		await ensureDefaultProfile(c, db, userId);
+		await ensureDefaultProfile(db, userId);
 
 		const rows = await db
 			.prepare('SELECT * FROM profiles WHERE user_id = ? ORDER BY is_default DESC, created_at ASC')
@@ -224,16 +190,6 @@ app.openapi(
 				now
 			)
 			.run();
-
-		// Score the new (still companyless) profile so its feed populates as soon
-		// as companies are added.
-		rescoreInBackground(c, db, {
-			id,
-			keywords: body.keywords,
-			role_types: body.role_types,
-			remote_pref: body.remote_pref,
-			min_salary: body.min_salary,
-		});
 
 		const profile = { id, ...body, is_default: false, created_at: now };
 		return c.json({ success: true as const, data: { profile } }, 201);
@@ -296,15 +252,6 @@ app.openapi(
 			)
 			.run();
 
-		// Criteria changed — rescore this profile in the background.
-		rescoreInBackground(c, db, {
-			id,
-			keywords: merged.keywords,
-			role_types: merged.role_types,
-			remote_pref: merged.remote_pref,
-			min_salary: merged.min_salary,
-		});
-
 		const profile = {
 			id,
 			...merged,
@@ -353,7 +300,6 @@ app.openapi(
 		const now = new Date().toISOString();
 		await db.batch([
 			db.prepare('DELETE FROM profile_companies WHERE profile_id = ?').bind(id),
-			db.prepare('DELETE FROM job_profile_matches WHERE profile_id = ?').bind(id),
 			db.prepare('DELETE FROM profiles WHERE id = ? AND user_id = ?').bind(id, userId),
 		]);
 		// Deleting the default must persist — otherwise the next GET re-seeds it.
