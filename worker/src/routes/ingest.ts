@@ -3,6 +3,7 @@ import type { AppEnv } from '../types.js';
 import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { scoreJob } from '../scoring.js';
+import { scoreProfileAgainstAllJobs } from '../rescore.js';
 import { parseAtsSlug } from '../slugParse.js';
 
 interface RouteContext {
@@ -56,7 +57,6 @@ app.openapi(ingestRoute, async (c) => {
 	const profiles = profileRows.results.map((r) => ({
 		id: r.id as string,
 		keywords: JSON.parse(r.keywords as string) as string[],
-		target_companies: JSON.parse(r.target_companies as string) as string[],
 		role_types: JSON.parse(r.role_types as string) as string[],
 		remote_pref: r.remote_pref as string,
 		min_salary: r.min_salary as number | null,
@@ -120,7 +120,6 @@ app.openapi(ingestRoute, async (c) => {
 				{
 					title: job.title,
 					description: job.description,
-					company: job.company,
 					workplace_type: workplaceType,
 					salary_min: salaryMin,
 				},
@@ -180,48 +179,23 @@ const rescoreRoute = createRoute({
 app.openapi(rescoreRoute, async (c) => {
 	const db = c.env.JOB_PLATFORM_DB;
 	const { profile_id } = c.req.valid('json');
-	const now = new Date().toISOString();
 
-	const jobRows = await db
-		.prepare('SELECT id, title, description, company, workplace_type, salary_min FROM jobs')
-		.all<{
-			id: string;
-			title: string;
-			description: string;
-			company: string;
-			workplace_type: string;
-			salary_min: number | null;
-		}>();
-
-	const profileQuery = profile_id
-		? 'SELECT * FROM profiles WHERE id = ?'
-		: 'SELECT * FROM profiles';
 	const profileRows = profile_id
-		? await db.prepare(profileQuery).bind(profile_id).all<Record<string, unknown>>()
-		: await db.prepare(profileQuery).all<Record<string, unknown>>();
+		? await db
+				.prepare('SELECT * FROM profiles WHERE id = ?')
+				.bind(profile_id)
+				.all<Record<string, unknown>>()
+		: await db.prepare('SELECT * FROM profiles').all<Record<string, unknown>>();
 
 	let scored = 0;
-	for (const job of jobRows.results) {
-		for (const r of profileRows.results) {
-			const profile = {
-				id: r.id as string,
-				keywords: JSON.parse(r.keywords as string) as string[],
-				target_companies: JSON.parse(r.target_companies as string) as string[],
-				role_types: JSON.parse(r.role_types as string) as string[],
-				remote_pref: r.remote_pref as string,
-				min_salary: r.min_salary as number | null,
-			};
-
-			const { score, breakdown } = scoreJob(job, profile);
-			await db
-				.prepare(
-					`INSERT OR REPLACE INTO job_profile_matches (job_id, profile_id, score, score_breakdown, matched_at)
-					 VALUES (?, ?, ?, ?, ?)`
-				)
-				.bind(job.id, profile.id, score, JSON.stringify(breakdown), now)
-				.run();
-			scored++;
-		}
+	for (const r of profileRows.results) {
+		scored += await scoreProfileAgainstAllJobs(db, {
+			id: r.id as string,
+			keywords: JSON.parse(r.keywords as string) as string[],
+			role_types: JSON.parse(r.role_types as string) as string[],
+			remote_pref: r.remote_pref as string,
+			min_salary: r.min_salary as number | null,
+		});
 	}
 
 	return c.json({ success: true as const, data: { scored } });

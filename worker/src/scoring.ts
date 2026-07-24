@@ -1,7 +1,6 @@
 export interface ScoreBreakdown {
 	title_match: number;
 	keyword_match: number;
-	company_boost: number;
 	seniority_match: number;
 	remote_match: number;
 	salary_match: number;
@@ -42,15 +41,6 @@ function keywordMatch(description: string, keywords: string[]): number {
 	return Math.min(1.0, matched / Math.max(1, keywords.length * 0.4));
 }
 
-function companyBoost(company: string, targetCompanies: string[]): number {
-	if (!targetCompanies.length) return 0.5; // no preference
-	const lower = company.toLowerCase();
-	const hit = targetCompanies.some(
-		(tc) => lower.includes(tc.toLowerCase()) || tc.toLowerCase().includes(lower)
-	);
-	return hit ? 1.0 : 0.3;
-}
-
 function seniorityMatch(title: string, roleTypes: string[]): number {
 	if (!roleTypes.length) return 0.5;
 	const lower = title.toLowerCase();
@@ -85,13 +75,11 @@ export function scoreJob(
 	job: {
 		title: string;
 		description: string;
-		company: string;
 		workplace_type: string;
 		salary_min: number | null;
 	},
 	profile: {
 		keywords: string[];
-		target_companies: string[];
 		role_types: string[];
 		remote_pref: string;
 		min_salary: number | null;
@@ -100,19 +88,19 @@ export function scoreJob(
 	const breakdown: ScoreBreakdown = {
 		title_match: titleMatch(job.title, profile.keywords),
 		keyword_match: keywordMatch(job.description, profile.keywords),
-		company_boost: companyBoost(job.company, profile.target_companies),
 		seniority_match: seniorityMatch(job.title, profile.role_types),
 		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
 		salary_match: salaryMatch(job.salary_min, profile.min_salary),
 	};
 
+	// Company is now a hard filter (the profile's companies), not a score factor,
+	// so the old 0.15 company weight is redistributed across the rest.
 	const score =
-		breakdown.title_match * 0.25 +
-		breakdown.keyword_match * 0.35 +
-		breakdown.company_boost * 0.15 +
-		breakdown.seniority_match * 0.1 +
-		breakdown.remote_match * 0.1 +
-		breakdown.salary_match * 0.05;
+		breakdown.title_match * 0.3 +
+		breakdown.keyword_match * 0.4 +
+		breakdown.seniority_match * 0.12 +
+		breakdown.remote_match * 0.12 +
+		breakdown.salary_match * 0.06;
 
 	return { score: Math.round(score * 1000) / 1000, breakdown };
 }

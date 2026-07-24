@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import {
   listProfiles,
   createProfile,
@@ -183,36 +183,72 @@ interface ProfileFormProps {
   onError: (msg: string) => void
 }
 
-const joinCsv = (xs: string[]) => xs.join(', ')
-const splitCsv = (s: string) =>
-  s
-    .split(',')
-    .map(x => x.trim())
-    .filter(Boolean)
+// The seniority buckets the scoring engine understands. Free-text role names
+// don't score, so this is a fixed picker rather than a text box.
+const ROLE_OPTIONS = ['senior', 'staff', 'principal', 'lead', 'manager', 'director'] as const
 
 function ProfileForm({ auth, initial, submitLabel, onSaved, onCancel, onError }: ProfileFormProps) {
   const [name, setName] = useState(initial?.name ?? '')
-  const [keywords, setKeywords] = useState(initial ? joinCsv(initial.keywords) : '')
-  const [targetCompanies, setTargetCompanies] = useState(
-    initial ? joinCsv(initial.target_companies) : ''
+  const [keywords, setKeywords] = useState<string[]>(initial?.keywords ?? [])
+  const [kwInput, setKwInput] = useState('')
+  const [roleTypes, setRoleTypes] = useState<string[]>(
+    (initial?.role_types ?? []).filter(r => (ROLE_OPTIONS as readonly string[]).includes(r))
   )
-  const [roleTypes, setRoleTypes] = useState(initial ? joinCsv(initial.role_types) : '')
   const [remotePref, setRemotePref] = useState<RemotePref>(initial?.remote_pref ?? 'any')
   const [minSalary, setMinSalary] = useState(
     initial && initial.min_salary !== null ? String(initial.min_salary) : ''
   )
   const [submitting, setSubmitting] = useState(false)
 
+  const addKeywords = (raw: string) => {
+    const parts = raw
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (!parts.length) return
+    setKeywords(prev => {
+      const seen = new Set(prev.map(k => k.toLowerCase()))
+      const next = [...prev]
+      for (const p of parts) {
+        if (!seen.has(p.toLowerCase())) {
+          seen.add(p.toLowerCase())
+          next.push(p)
+        }
+      }
+      return next
+    })
+    setKwInput('')
+  }
+  const onKwKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addKeywords(kwInput)
+    } else if (e.key === 'Backspace' && !kwInput && keywords.length) {
+      setKeywords(prev => prev.slice(0, -1))
+    }
+  }
+  const toggleRole = (r: string) =>
+    setRoleTypes(prev => (prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]))
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim() || submitting) return
     setSubmitting(true)
     try {
+      // Fold any half-typed keyword into the list on submit.
+      const pending = kwInput.trim()
+        ? [
+            ...keywords,
+            ...kwInput
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean)
+          ]
+        : keywords
       const input: ProfileInput = {
         name: name.trim(),
-        keywords: splitCsv(keywords),
-        target_companies: splitCsv(targetCompanies),
-        role_types: splitCsv(roleTypes),
+        keywords: pending,
+        role_types: roleTypes,
         min_salary: minSalary ? Number(minSalary) : null,
         remote_pref: remotePref,
         // Preserve experience_levels (not exposed in this form) across edits.
@@ -241,33 +277,50 @@ function ProfileForm({ auth, initial, submitLabel, onSaved, onCancel, onError }:
           required
         />
       </label>
-      <label>
-        Keywords
-        <input
-          type="text"
-          value={keywords}
-          onChange={e => setKeywords(e.target.value)}
-          placeholder="python, llm, distributed systems"
-        />
-      </label>
-      <label>
-        Target companies
-        <input
-          type="text"
-          value={targetCompanies}
-          onChange={e => setTargetCompanies(e.target.value)}
-          placeholder="anthropic, openai, mistral"
-        />
-      </label>
-      <label>
-        Role types
-        <input
-          type="text"
-          value={roleTypes}
-          onChange={e => setRoleTypes(e.target.value)}
-          placeholder="senior, staff, principal"
-        />
-      </label>
+
+      <div className="jp-profile-form__field">
+        <span className="jp-profile-form__label">Keywords</span>
+        <div className="jp-chips">
+          {keywords.map(k => (
+            <span key={k} className="jp-chip">
+              {k}
+              <button
+                type="button"
+                onClick={() => setKeywords(prev => prev.filter(x => x !== k))}
+                aria-label={`Remove ${k}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            className="jp-chips__input"
+            value={kwInput}
+            onChange={e => setKwInput(e.target.value)}
+            onKeyDown={onKwKey}
+            onBlur={() => addKeywords(kwInput)}
+            placeholder={keywords.length ? 'Add…' : 'python, llm, distributed systems'}
+          />
+        </div>
+      </div>
+
+      <div className="jp-profile-form__field">
+        <span className="jp-profile-form__label">Role types</span>
+        <div className="jp-role-picker">
+          {ROLE_OPTIONS.map(r => (
+            <button
+              type="button"
+              key={r}
+              className={roleTypes.includes(r) ? 'jp-role-opt jp-role-opt--on' : 'jp-role-opt'}
+              onClick={() => toggleRole(r)}
+              aria-pressed={roleTypes.includes(r)}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <label>
         Remote preference
         <select value={remotePref} onChange={e => setRemotePref(e.target.value as RemotePref)}>

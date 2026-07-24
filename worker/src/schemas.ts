@@ -25,7 +25,6 @@ export const ProfileSchema = z
 		id: z.string(),
 		name: z.string(),
 		keywords: z.array(z.string()),
-		target_companies: z.array(z.string()),
 		role_types: z.array(z.string()),
 		min_salary: z.number().nullable(),
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
@@ -42,7 +41,6 @@ export const CreateProfileSchema = z
 	.object({
 		name: z.string().min(1),
 		keywords: z.array(z.string()).default([]),
-		target_companies: z.array(z.string()).default([]),
 		role_types: z.array(z.string()).default([]),
 		min_salary: z.number().nullable().default(null),
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']).default('any'),
@@ -70,7 +68,6 @@ export const ScoreBreakdownSchema = z
 	.object({
 		title_match: z.number(),
 		keyword_match: z.number(),
-		company_boost: z.number(),
 		seniority_match: z.number(),
 		remote_match: z.number(),
 		salary_match: z.number(),
@@ -241,28 +238,23 @@ export const IngestResponseSchema = S(
 // Companies (user company subscriptions)
 // ============================================================================
 
-export const UserCompanySchema = z
+export const ProfileCompanySchema = z
 	.object({
 		id: z.string(),
-		target_id: z.number().int(),
 		ats: z.string(),
 		slug: z.string(),
 		display_name: z.string(),
 		added_at: z.string(),
 	})
-	.openapi('UserCompany');
+	.openapi('ProfileCompany');
 
-export const CreateCompanySchema = z
+export const AddProfileCompanySchema = z
 	.object({
+		ats: z.string().min(1),
+		slug: z.string().min(1),
 		display_name: z.string().min(1),
-		use_llm: z.boolean().default(true),
-		// Verify-and-lock path: when both ats and slug are supplied, the target is
-		// registered directly (no name resolution), and display_name is treated as
-		// the operator-confirmed company name. Omit both for name resolution.
-		ats: z.string().optional(),
-		slug: z.string().optional(),
 	})
-	.openapi('CreateCompany');
+	.openapi('AddProfileCompany');
 
 export const ProbeCompanySchema = z
 	.object({
@@ -310,19 +302,16 @@ export const MatchCompanyResponseSchema = S(
 	z.object({ results: z.array(CompanyMatchSchema) })
 ).openapi('MatchCompanyResponse');
 
-export const CompaniesResponseSchema = S(
-	z.object({ companies: z.array(UserCompanySchema) })
-).openapi('CompaniesResponse');
+export const ProfileCompaniesResponseSchema = S(
+	z.object({ companies: z.array(ProfileCompanySchema) })
+).openapi('ProfileCompaniesResponse');
 
-export const CreateCompanyResponseSchema = S(
+export const AddProfileCompanyResponseSchema = S(
 	z.object({
-		companies: z.array(UserCompanySchema),
-		skipped: z.array(
-			z.object({ ats: z.string(), slug: z.string(), reason: z.string().optional() })
-		),
+		company: ProfileCompanySchema,
 		search_triggered: z.boolean(),
 	})
-).openapi('CreateCompanyResponse');
+).openapi('AddProfileCompanyResponse');
 
 export const DeleteCompanyResponseSchema = S(
 	z.object({ deleted: z.literal(true), id: z.string() })

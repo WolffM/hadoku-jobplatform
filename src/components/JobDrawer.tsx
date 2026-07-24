@@ -23,7 +23,6 @@ interface Props {
 const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
   title_match: 'Title',
   keyword_match: 'Keywords',
-  company_boost: 'Company',
   seniority_match: 'Seniority',
   remote_match: 'Remote',
   salary_match: 'Salary'
