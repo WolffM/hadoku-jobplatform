@@ -32,19 +32,26 @@ Queried the live `jobplatform` D1 with wrangler:
 
 ---
 
-## Proposed model
+## Model (LOCKED 2026-07-24)
 
-**Corpus (global scan), decoupled from profiles.** Scan a broad, regularly-refreshed base set of companies **plus** the union of everything anyone pins — so a keyword-only profile has real breadth to filter. Scanning is no longer owned by a single profile.
+**Profile inputs ARE scrape directives** — what you put in a profile is what gets scraped, and the profile then filters/ranks the results.
 
-**A profile = a saved filter preset. Every component optional:**
+- Each **company** on a profile → an ATS board target (greenhouse/lever/ashby), scraped on cron. Works today.
+- Each **keyword** on a profile → a search query run against **keyword-searchable providers**, scraped on cron.
 
-- **Companies** (optional): restrict to these; empty ⇒ the whole corpus.
-- **Keywords** (optional): match/rank; empty ⇒ no keyword constraint.
-- **Titles / role types** (optional): the seniority picker.
-- **Salary, remote** (optional).
-- An empty profile ⇒ everything, newest first.
+All results flow into one shared corpus (union of every profile's directives). A profile's feed = the corpus filtered/ranked by ITS companies + keywords. Every profile component is **optional**: companies empty ⇒ all corpus; keywords empty ⇒ no keyword constraint; empty profile ⇒ everything, newest first.
 
-Examples this enables: "all software-engineer jobs, any company" (keyword-only); "all Anthropic jobs, no filters" (company-only). Caveat: "all Microsoft jobs" needs a Workday scraper (not on greenhouse/lever/ashby) — separate track.
+Examples: "all software-engineer jobs, any company" = keyword-only; "all Anthropic jobs" = company-only.
+
+### Keyword sources (LOCKED)
+
+ATS APIs (greenhouse/lever/ashby) CANNOT be keyword-searched — only per-company boards. LinkedIn (our only search-based provider) is **dead since 2026-05-03** and is **parked** for now. New keyword-searchable providers, all verified live 2026-07-24:
+
+- **Phase 1 — keyless (ship first):** Remotive (`?search=`), The Muse (`category=/level=/location=`), RemoteOK (tag/JSON feed). No credentials, remote/tech-focused. (Feed ads/junk irrelevant — we ingest structured postings and re-rank ourselves.)
+- **Phase 2 — breadth (one free key):** Adzuna (`?what=&where=`, large corpus). Makes "all X jobs" genuinely broad.
+- **Parked:** LinkedIn (re-add later as just another provider); avoid direct Indeed/Google HTML scraping (bot-detection, ToS).
+
+Caveat: "all Microsoft jobs" needs a Workday scraper (not on any current provider) — separate track.
 
 ---
 
@@ -58,7 +65,7 @@ The precompute-everything approach is the thing that broke. Options:
 - **B. Keep precompute, fix reliability.** Chunk the rescore (paged reads, batched writes), make it retryable, trigger it on profile create/edit and via cron. More moving parts; scores go stale between rescans.
 - **C. SQLite FTS5 for keywords.** Index title/description; let SQLite rank keyword relevance in SQL over the whole corpus. Best for "keyword over everything"; more schema.
 
-Recommendation: **A** for correctness now, consider **C** later if keyword-over-everything is slow.
+**DECIDED: A (score-on-read).** Simplest correct fix, no rescore/staleness, always reflects current criteria. Consider C (FTS) later only if keyword-over-everything gets slow. Drop `job_profile_matches` + the `rescore.ts`/ingest-scoring machinery.
 
 ### WS2 — Optional filters + decoupled scanning
 
@@ -66,9 +73,9 @@ Recommendation: **A** for correctness now, consider **C** later if keyword-over-
 - Keywords/roles/salary/remote already degrade to neutral; make sure "none set" = no filter (not a 0 score).
 - **Base scan set**: introduce a curated global company list (admin-seeded) scanned on the daily cron regardless of profiles, so keyword-only profiles have a corpus. *(Decision: size / how curated — see below.)*
 
-### WS3 — Scanning breadth (depends on WS2 decision)
+### WS3 — Keyword-source scrapers (the breadth)
 
-If we want keyword-only profiles to be genuinely useful, grow the scanned corpus well beyond today's 9 targets — a curated few-hundred-company base list across greenhouse/lever/ashby, refreshed on the cron. This is the "scan regularly, filter by keyword" idea.
+Add keyword-search providers to the scraper orchestrator (same shape as the old LinkedIn branch: search term in → normalized `JobListing`s out → shared corpus). Phase 1: Remotive + The Muse + RemoteOK (keyless). Phase 2: Adzuna (free key). Profile keywords (union across profiles) become the search terms fed to these on the cron. This replaces the old "curated broad base company list" idea — keyword searches generate the breadth instead.
 
 ### WS4 — Unified full-screen profile editor
 
@@ -84,15 +91,21 @@ Every section's **preflight probe** answers "does this connect to something real
 
 ---
 
-## Open decisions
+## Decisions (LOCKED 2026-07-24)
 
-1. **Scoring approach** — A (score-on-read, recommended) / B (fix precompute) / C (FTS)?
-2. **Base scan set** — add a curated global company list so keyword-only profiles have breadth? If yes, roughly how big / who curates (admin-seeded vs auto-discover)?
-3. **Companies** — confirm they stay as an *optional per-profile filter* (not removed, not required).
-4. **Editor scope** — full replacement of the sidebar form + companies panel in one modal, or incremental?
+1. **Scoring** — score-on-read (A). Drop job_profile_matches.
+2. **Model** — profile inputs are scrape directives (company→board, keyword→search provider); corpus = union of all directives; profile filters/ranks it.
+3. **Keyword sources** — Remotive + The Muse + RemoteOK (keyless, phase 1) → Adzuna (free key, phase 2); LinkedIn parked.
+4. **Companies** — stay as an optional per-profile filter (not removed, not required).
+5. **Editor scope** — full replacement of the sidebar form + companies panel with one dimmed ~80% modal, each section with a preflight probe.
 
 ---
 
-## Sequencing (once decided)
+## Sequencing
 
-WS1 (scoring) is the highest-value fix and mostly independent → do first. WS2 (optional filters) is small and unblocks the model. WS4 (editor) is the big UI piece. WS3 (scan breadth) can trail. All ship via the usual jobplatform publish → hadoku_site deploy (migrations auto-apply).
+1. **WS1 — score-on-read** (fixes the 0.00 immediately, independent). 
+2. **WS2 — optional filters** (companies/keywords/etc. all optional; feed = corpus filtered by whatever's set).
+3. **WS3 — keyword-source scrapers** (Remotive/Muse/RemoteOK → Adzuna) so keyword profiles have real jobs.
+4. **WS4 — unified full-screen editor** with per-section preflight probes.
+
+All ship via the usual jobplatform publish → hadoku_site deploy (migrations auto-apply); WS3 is scraper-side (push main → CI → PM2).
