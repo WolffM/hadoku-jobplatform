@@ -5,7 +5,6 @@ const BASE_URL = '/jobplatform/api'
 export interface ScoreBreakdown {
   title_match: number
   keyword_match: number
-  company_boost: number
   seniority_match: number
   remote_match: number
   salary_match: number
@@ -59,7 +58,6 @@ export interface JobsListResponse {
 
 export interface ListJobsOptions {
   profile_id?: string
-  mine?: boolean
   state?: JobStateRead
   hide_dismissed?: boolean
   page?: number
@@ -96,7 +94,6 @@ async function parseWrapped<T>(response: Response): Promise<T> {
 export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<JobsListResponse> {
   const params = new URLSearchParams()
   if (opts.profile_id) params.set('profile_id', opts.profile_id)
-  if (opts.mine) params.set('mine', 'true')
   if (opts.state) params.set('state', opts.state)
   if (opts.hide_dismissed) params.set('hide_dismissed', 'true')
   if (opts.page) params.set('page', String(opts.page))

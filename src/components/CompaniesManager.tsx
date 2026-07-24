@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
-  listCompanies,
-  deleteCompany,
-  probeSlugs,
   matchCompanies,
-  lockCompany,
+  probeSlugs,
   CompaniesApiError,
-  type UserCompany,
-  type SlugProbeResult,
-  type CompanyMatch
+  type CompanyMatch,
+  type SlugProbeResult
 } from '../api/companies'
+import {
+  listProfileCompanies,
+  addProfileCompany,
+  removeProfileCompany,
+  ProfilesApiError,
+  type ProfileCompany
+} from '../api/profiles'
 import type { Auth } from '../api/auth'
 
 interface Props {
   auth: Auth
+  profileId: string | null
+  /** Bumped by the parent when companies change, so the job feed can refetch. */
+  onCompaniesChanged?: () => void
 }
 
-/** Split free text into distinct company names on commas/newlines (case kept). */
 function parseNames(raw: string): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -30,7 +35,6 @@ function parseNames(raw: string): string[] {
   return out
 }
 
-/** Split a free-text slug list on commas, whitespace, and newlines. */
 function parseSlugs(raw: string): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -50,45 +54,71 @@ function faviconUrl(domain: string | null): string | null {
     : null
 }
 
-export function CompaniesManager({ auth }: Props) {
-  const [companies, setCompanies] = useState<UserCompany[]>([])
-  const [loading, setLoading] = useState(true)
+export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props) {
+  const [companies, setCompanies] = useState<ProfileCompany[]>([])
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Name-driven prefetch (primary flow)
   const [nameInput, setNameInput] = useState('')
   const [matching, setMatching] = useState(false)
   const [matches, setMatches] = useState<CompanyMatch[] | null>(null)
   const [matchError, setMatchError] = useState<string | null>(null)
-  const [subscribingKey, setSubscribingKey] = useState<string | null>(null)
-  const [subscribedKeys, setSubscribedKeys] = useState<Set<string>>(new Set())
+  const [addingKey, setAddingKey] = useState<string | null>(null)
 
-  // Advanced: probe explicit slugs
   const [slugsInput, setSlugsInput] = useState('')
   const [probing, setProbing] = useState(false)
   const [probeResults, setProbeResults] = useState<SlugProbeResult[] | null>(null)
   const [probeError, setProbeError] = useState<string | null>(null)
   const [lockNames, setLockNames] = useState<Record<string, string>>({})
   const [lockingKey, setLockingKey] = useState<string | null>(null)
-  const [lockedKeys, setLockedKeys] = useState<Set<string>>(new Set())
 
   const refresh = useCallback(async () => {
+    if (!profileId) {
+      setCompanies([])
+      return
+    }
     setLoading(true)
     setError(null)
     try {
-      const rows = await listCompanies(auth)
-      setCompanies(rows)
+      setCompanies(await listProfileCompanies(profileId, auth))
     } catch (err) {
-      const msg = err instanceof CompaniesApiError ? err.message : 'Failed to load companies'
-      setError(msg)
+      setError(err instanceof ProfilesApiError ? err.message : 'Failed to load companies')
     } finally {
       setLoading(false)
     }
-  }, [auth])
+  }, [auth, profileId])
 
   useEffect(() => {
     void refresh()
+    setMatches(null)
+    setProbeResults(null)
   }, [refresh])
+
+  const subscribedKey = (ats: string, slug: string) => `${ats}:${slug}`
+  const subscribed = new Set(companies.map(c => subscribedKey(c.ats, c.slug)))
+
+  const add = async (ats: string, slug: string, displayName: string) => {
+    if (!profileId || addingKey || lockingKey) return
+    setError(null)
+    setMatchError(null)
+    setProbeError(null)
+    try {
+      await addProfileCompany(
+        profileId,
+        { ats, slug, display_name: displayName.trim() || slug },
+        auth
+      )
+      await refresh()
+      onCompaniesChanged?.()
+    } catch (err) {
+      const msg =
+        err instanceof CompaniesApiError || err instanceof ProfilesApiError
+          ? err.message
+          : 'Failed to add company'
+      setMatchError(msg)
+      throw err
+    }
+  }
 
   const handleFind = async (e: FormEvent) => {
     e.preventDefault()
@@ -97,10 +127,8 @@ export function CompaniesManager({ auth }: Props) {
     setMatching(true)
     setMatchError(null)
     setMatches(null)
-    setSubscribedKeys(new Set())
     try {
-      const results = await matchCompanies(names, auth)
-      setMatches(results)
+      setMatches(await matchCompanies(names, auth))
     } catch (err) {
       setMatchError(err instanceof CompaniesApiError ? err.message : 'Failed to look up company')
     } finally {
@@ -108,19 +136,16 @@ export function CompaniesManager({ auth }: Props) {
     }
   }
 
-  const handleSubscribe = async (m: CompanyMatch) => {
-    if (!m.matched || !m.ats || !m.slug || subscribingKey) return
-    const key = `${m.ats}:${m.slug}`
-    setSubscribingKey(key)
-    setMatchError(null)
+  const handleAdd = async (m: CompanyMatch) => {
+    if (!m.matched || !m.ats || !m.slug) return
+    const key = subscribedKey(m.ats, m.slug)
+    setAddingKey(key)
     try {
-      await lockCompany(m.ats, m.slug, m.company_name ?? m.query, auth)
-      setSubscribedKeys(prev => new Set(prev).add(key))
-      await refresh()
-    } catch (err) {
-      setMatchError(err instanceof CompaniesApiError ? err.message : 'Failed to subscribe')
+      await add(m.ats, m.slug, m.company_name ?? m.query)
+    } catch {
+      /* surfaced via matchError */
     } finally {
-      setSubscribingKey(null)
+      setAddingKey(null)
     }
   }
 
@@ -131,20 +156,15 @@ export function CompaniesManager({ auth }: Props) {
     setProbing(true)
     setProbeError(null)
     setProbeResults(null)
-    setLockedKeys(new Set())
     try {
       const results = await probeSlugs(slugs, undefined, auth)
       setProbeResults(results)
       const names: Record<string, string> = {}
-      for (const r of results) {
-        for (const hit of r.hits) {
-          names[`${r.slug}:${hit.ats}`] = hit.company_name ?? r.slug
-        }
-      }
+      for (const r of results)
+        for (const hit of r.hits) names[`${r.slug}:${hit.ats}`] = hit.company_name ?? r.slug
       setLockNames(names)
     } catch (err) {
-      const msg = err instanceof CompaniesApiError ? err.message : 'Failed to probe slugs'
-      setProbeError(msg)
+      setProbeError(err instanceof CompaniesApiError ? err.message : 'Failed to probe slugs')
     } finally {
       setProbing(false)
     }
@@ -152,42 +172,42 @@ export function CompaniesManager({ auth }: Props) {
 
   const handleLock = async (slug: string, ats: string) => {
     const key = `${slug}:${ats}`
-    const displayName = (lockNames[key] ?? slug).trim()
-    if (!displayName || lockingKey) return
     setLockingKey(key)
-    setProbeError(null)
     try {
-      await lockCompany(ats, slug, displayName, auth)
-      setLockedKeys(prev => new Set(prev).add(key))
-      await refresh()
-    } catch (err) {
-      const msg = err instanceof CompaniesApiError ? err.message : 'Failed to lock company'
-      setProbeError(msg)
+      await add(ats, slug, lockNames[key] ?? slug)
+    } catch {
+      setProbeError(matchError ?? 'Failed to add company')
     } finally {
       setLockingKey(null)
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleRemove = async (companyId: string) => {
+    if (!profileId) return
     setError(null)
     try {
-      await deleteCompany(id, auth)
+      await removeProfileCompany(profileId, companyId, auth)
       await refresh()
+      onCompaniesChanged?.()
     } catch (err) {
-      const msg = err instanceof CompaniesApiError ? err.message : 'Failed to remove company'
-      setError(msg)
+      setError(err instanceof ProfilesApiError ? err.message : 'Failed to remove company')
     }
+  }
+
+  if (!profileId) {
+    return (
+      <p className="job-platform__companies-empty">
+        Select or create a profile to choose the companies in its slice.
+      </p>
+    )
   }
 
   return (
     <div className="job-platform__companies">
-      <h2 className="job-platform__companies-title">Subscribed Companies</h2>
-
-      {/* Name-driven prefetch: type a company, we find the right board to confirm. */}
       <form className="job-platform__companies-form" onSubmit={e => void handleFind(e)}>
         <input
           type="text"
-          placeholder="Company name (e.g. Scale AI, OpenAI, Ramp)"
+          placeholder="Add a company by name (e.g. Scale AI, OpenAI, Ramp)"
           value={nameInput}
           onChange={e => setNameInput(e.target.value)}
           disabled={matching}
@@ -203,9 +223,10 @@ export function CompaniesManager({ auth }: Props) {
       {matches && (
         <div className="job-platform__match-results">
           {matches.map(m => {
-            const key = m.ats && m.slug ? `${m.ats}:${m.slug}` : m.query
-            const subscribed = subscribedKeys.has(key)
+            const key = m.ats && m.slug ? subscribedKey(m.ats, m.slug) : m.query
+            const already = m.ats && m.slug ? subscribed.has(key) : false
             const fav = faviconUrl(m.domain)
+            const zeroJobs = m.matched && m.n_jobs === 0
             if (!m.matched) {
               return (
                 <div
@@ -217,7 +238,6 @@ export function CompaniesManager({ auth }: Props) {
                 </div>
               )
             }
-            const zeroJobs = m.n_jobs === 0
             return (
               <div
                 key={key}
@@ -254,22 +274,22 @@ export function CompaniesManager({ auth }: Props) {
                 {zeroJobs && (
                   <p className="job-platform__match-warn">
                     ⚠ 0 open roles — can’t confirm this is the right company (the board may be stale
-                    or a different one on {m.ats}). Subscribe anyway if you’re sure.
+                    or a different one on {m.ats}). Add anyway if you’re sure.
                   </p>
                 )}
                 <button
                   type="button"
                   className="job-platform__match-confirm"
-                  onClick={() => void handleSubscribe(m)}
-                  disabled={subscribed || subscribingKey !== null}
+                  onClick={() => void handleAdd(m)}
+                  disabled={already || addingKey !== null}
                 >
-                  {subscribed
-                    ? 'Subscribed ✓'
-                    : subscribingKey === key
-                      ? 'Subscribing…'
+                  {already
+                    ? 'Added ✓'
+                    : addingKey === key
+                      ? 'Adding…'
                       : zeroJobs
-                        ? 'Subscribe anyway'
-                        : 'Confirm & subscribe'}
+                        ? 'Add anyway'
+                        : 'Confirm & add'}
                 </button>
               </div>
             )
@@ -277,14 +297,10 @@ export function CompaniesManager({ auth }: Props) {
         </div>
       )}
 
-      {error && <p className="job-platform__companies-error">{error}</p>}
-
-      {/* Advanced: probe explicit slugs when you already know them. */}
       <details className="job-platform__probe">
         <summary className="job-platform__probe-summary">
           Know the exact slug? Probe it directly
         </summary>
-
         <form className="job-platform__companies-form" onSubmit={e => void handleProbe(e)}>
           <input
             type="text"
@@ -298,9 +314,7 @@ export function CompaniesManager({ auth }: Props) {
             {probing ? 'Probing…' : 'Probe'}
           </button>
         </form>
-
         {probeError && <p className="job-platform__companies-error">{probeError}</p>}
-
         {probeResults && (
           <div className="job-platform__probe-results">
             {probeResults.map(r => (
@@ -315,7 +329,7 @@ export function CompaniesManager({ auth }: Props) {
                 ) : (
                   r.hits.map(hit => {
                     const key = `${r.slug}:${hit.ats}`
-                    const locked = lockedKeys.has(key)
+                    const already = subscribed.has(subscribedKey(hit.ats, r.slug))
                     return (
                       <div key={key} className="job-platform__probe-hit">
                         <div className="job-platform__probe-hit-head">
@@ -339,15 +353,15 @@ export function CompaniesManager({ auth }: Props) {
                             onChange={e =>
                               setLockNames(prev => ({ ...prev, [key]: e.target.value }))
                             }
-                            disabled={locked || lockingKey === key}
+                            disabled={already || lockingKey === key}
                             aria-label={`Display name for ${r.slug} on ${hit.ats}`}
                           />
                           <button
                             type="button"
                             onClick={() => void handleLock(r.slug, hit.ats)}
-                            disabled={locked || lockingKey !== null}
+                            disabled={already || lockingKey !== null}
                           >
-                            {locked ? 'Locked ✓' : lockingKey === key ? 'Locking…' : 'Lock in'}
+                            {already ? 'Added ✓' : lockingKey === key ? 'Adding…' : 'Add'}
                           </button>
                         </div>
                       </div>
@@ -364,7 +378,7 @@ export function CompaniesManager({ auth }: Props) {
         <p className="job-platform__companies-empty">Loading…</p>
       ) : companies.length === 0 ? (
         <p className="job-platform__companies-empty">
-          No subscriptions yet. Find a company above to start receiving jobs.
+          No companies yet. Add one above to fill this profile’s feed.
         </p>
       ) : (
         <ul className="job-platform__companies-list">
@@ -379,7 +393,7 @@ export function CompaniesManager({ auth }: Props) {
               <button
                 type="button"
                 className="job-platform__companies-item-remove"
-                onClick={() => void handleDelete(c.id)}
+                onClick={() => void handleRemove(c.id)}
                 aria-label={`Remove ${c.display_name}`}
               >
                 Remove
@@ -388,6 +402,8 @@ export function CompaniesManager({ auth }: Props) {
           ))}
         </ul>
       )}
+
+      {error && <p className="job-platform__companies-error">{error}</p>}
     </div>
   )
 }

@@ -6,24 +6,31 @@ export interface JobProfile {
   id: string
   name: string
   keywords: string[]
-  target_companies: string[]
   role_types: string[]
   min_salary: number | null
   remote_pref: RemotePref
   experience_levels: string[]
   created_at: string
-  /** True for the shared default profile (id 'default'). */
+  /** True for the shared default profile. */
   is_default: boolean
 }
 
 export interface ProfileInput {
   name: string
   keywords: string[]
-  target_companies: string[]
   role_types: string[]
   min_salary: number | null
   remote_pref: RemotePref
   experience_levels: string[]
+}
+
+/** A company that belongs to a profile's slice. */
+export interface ProfileCompany {
+  id: string
+  ats: string
+  slug: string
+  display_name: string
+  added_at: string
 }
 
 interface Wrapped<T> {
@@ -98,5 +105,46 @@ export async function deleteProfile(id: string, auth?: Auth): Promise<void> {
     headers: authHeaders(auth),
     credentials: 'include'
   })
+  await parseWrapped<{ deleted: true; id: string }>(response)
+}
+
+// ── a profile's companies ───────────────────────────────────────────────────
+
+export async function listProfileCompanies(
+  profileId: string,
+  auth?: Auth
+): Promise<ProfileCompany[]> {
+  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ companies: ProfileCompany[] }>(response)
+  return data.companies
+}
+
+export async function addProfileCompany(
+  profileId: string,
+  company: { ats: string; slug: string; display_name: string },
+  auth?: Auth
+): Promise<{ company: ProfileCompany; search_triggered: boolean }> {
+  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(company)
+  })
+  return parseWrapped<{ company: ProfileCompany; search_triggered: boolean }>(response)
+}
+
+export async function removeProfileCompany(
+  profileId: string,
+  companyId: string,
+  auth?: Auth
+): Promise<void> {
+  const response = await fetch(
+    `${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies/${encodeURIComponent(companyId)}`,
+    { method: 'DELETE', headers: authHeaders(auth), credentials: 'include' }
+  )
   await parseWrapped<{ deleted: true; id: string }>(response)
 }

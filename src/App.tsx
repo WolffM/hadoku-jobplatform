@@ -1,8 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react'
 import {
   HashRouter,
-  Link,
-  NavLink,
   Navigate,
   Outlet,
   Route,
@@ -75,22 +73,11 @@ export default function App(props: JobPlatformProps = {}) {
             }
           />
 
-          {/* Primary app navigation — lives in the app body, not the header
-              action bar (which is theme + settings only per the ecosystem
-              header contract). */}
-          <nav className="job-platform__nav">
-            <NavLink to="/" end>
-              Jobs
-            </NavLink>
-            <NavLink to="/companies">Companies</NavLink>
-          </nav>
-
           <Routes>
             <Route element={<Dashboard auth={auth} />}>
               <Route index element={null} />
               <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
             </Route>
-            <Route path="/companies" element={<CompaniesPage auth={auth} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -130,6 +117,14 @@ function Dashboard({ auth }: { auth: Auth }) {
     <div className="jp-dashboard">
       <ProfileSidebar auth={auth} selectedId={profileId} onSelect={setProfileId} />
       <section className="jp-main">
+        <details className="jp-companies-panel">
+          <summary>Companies in this profile</summary>
+          <CompaniesManager
+            auth={auth}
+            profileId={profileId}
+            onCompaniesChanged={onJobStateChanged}
+          />
+        </details>
         <JobsList
           auth={auth}
           profileId={profileId}
@@ -167,16 +162,5 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
       onClose={closeDrawer}
       onStateChange={() => ctx.onJobStateChanged()}
     />
-  )
-}
-
-function CompaniesPage({ auth }: { auth: Auth }) {
-  return (
-    <section className="job-platform__content">
-      <p className="jp-companies-intro">
-        <Link to="/">← Back to jobs</Link>
-      </p>
-      <CompaniesManager auth={auth} />
-    </section>
   )
 }

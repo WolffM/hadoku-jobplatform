@@ -50,10 +50,6 @@ app.openapi(
 					.string()
 					.optional()
 					.openapi({ description: 'Filter/score by profile. Omit to list all jobs unscored.' }),
-				mine: z.enum(['true', 'false']).optional().openapi({
-					description:
-						'If true, filter to jobs from companies the caller is subscribed to (via /companies). Requires admin/friend auth.',
-				}),
 				state: z.enum(['interested', 'dismissed', 'saved', 'applied', 'new']).optional().openapi({
 					description:
 						'Filter to a single triage state for the authed user. Requires admin/friend auth. "new" filters to jobs without any state row.',
@@ -93,7 +89,6 @@ app.openapi(
 	async (c) => {
 		const {
 			profile_id,
-			mine: mineRaw,
 			state: stateFilter,
 			hide_dismissed: hideDismissedRaw,
 			page,
@@ -101,7 +96,6 @@ app.openapi(
 			sort,
 			min_score,
 		} = c.req.valid('query');
-		const mine = mineRaw === 'true';
 		const hideDismissed = hideDismissedRaw === 'true';
 		const db = c.env.JOB_PLATFORM_DB;
 		const offset = (page - 1) * limit;
@@ -109,7 +103,6 @@ app.openapi(
 		const zeroBreakdown = {
 			title_match: 0,
 			keyword_match: 0,
-			company_boost: 0,
 			seniority_match: 0,
 			remote_match: 0,
 			salary_match: 0,
@@ -140,13 +133,13 @@ app.openapi(
 		// to hide) so the UI can default it on without forcing a pre-flight
 		// auth check.
 		const userId = await maybeUserId(c);
-		const needsAuth = mine || stateFilter !== undefined;
+		const needsAuth = stateFilter !== undefined;
 		if (needsAuth && !userId) {
 			return c.json(
 				{
 					success: false as const,
 					error: 'Unauthorized',
-					message: 'mine=true and state= require admin/friend auth',
+					message: 'state= requires admin/friend auth',
 				},
 				401
 			);
@@ -169,18 +162,19 @@ app.openapi(
 			binds.push(userId);
 		}
 
+		// A profile IS its slice: scope the feed to that profile's companies and
+		// rank by its precomputed scores. LEFT JOIN the scores so a just-added
+		// company's jobs still show (by recency) before the background rescore
+		// lands.
 		if (profile_id) {
-			joins.push('JOIN job_profile_matches m ON m.job_id = j.id');
-			wheres.push('m.profile_id = ?');
+			joins.push(
+				'INNER JOIN profile_companies pc ON pc.ats = j.ats AND pc.slug = j.slug AND pc.profile_id = ?'
+			);
 			binds.push(profile_id);
-			wheres.push('m.score >= ?');
+			joins.push('LEFT JOIN job_profile_matches m ON m.job_id = j.id AND m.profile_id = ?');
+			binds.push(profile_id);
+			wheres.push('COALESCE(m.score, 0) >= ?');
 			binds.push(min_score);
-		}
-
-		if (mine && userId) {
-			joins.push('INNER JOIN user_companies uc ON uc.ats = j.ats AND uc.slug = j.slug');
-			wheres.push('uc.user_id = ?');
-			binds.push(userId);
 		}
 
 		// State / hide_dismissed clauses reference the LEFT JOIN above, which
@@ -199,7 +193,8 @@ app.openapi(
 
 		const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
 		const joinClause = joins.join(' ');
-		const orderBy = profile_id && sort === 'score' ? 'm.score DESC' : 'j.scraped_at DESC';
+		const orderBy =
+			profile_id && sort === 'score' ? 'COALESCE(m.score, 0) DESC' : 'j.scraped_at DESC';
 
 		const countSql = `SELECT COUNT(*) as total FROM jobs j ${joinClause} ${whereClause}`;
 		const countRow = await db
@@ -308,7 +303,6 @@ app.openapi(
 		let score_breakdown = {
 			title_match: 0,
 			keyword_match: 0,
-			company_boost: 0,
 			seniority_match: 0,
 			remote_match: 0,
 			salary_match: 0,

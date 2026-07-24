@@ -30,7 +30,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
 
   const [sort, setSort] = useState<'score' | 'date'>('score')
   const [minScore, setMinScore] = useState(0)
-  const [mine, setMine] = useState(false)
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
   const [hideDismissed, setHideDismissed] = useState(true)
@@ -48,7 +47,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
       const res = await listJobs(
         {
           profile_id: profileId ?? undefined,
-          mine: mine || undefined,
           state: stateFilter || undefined,
           hide_dismissed: effectiveHideDismissed || undefined,
           page,
@@ -65,7 +63,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [auth, profileId, mine, stateFilter, effectiveHideDismissed, page, sort, minScore])
+  }, [auth, profileId, stateFilter, effectiveHideDismissed, page, sort, minScore])
 
   useEffect(() => {
     void load()
@@ -74,7 +72,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, mine, sort, minScore, stateFilter, effectiveHideDismissed])
+  }, [profileId, sort, minScore, stateFilter, effectiveHideDismissed])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs
@@ -153,16 +151,12 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
             Hide dismissed
           </label>
         )}
-        <label className="jp-jobs__filter">
-          <input type="checkbox" checked={mine} onChange={e => setMine(e.target.checked)} />
-          Mine only
-        </label>
       </div>
 
       {!profileId && (
         <p className="jp-muted">
-          No profile selected. Showing unscored list. Pick or create a profile to see scores and
-          enable score-based sorting + filtering.
+          No profile selected. Showing all jobs, unscored. Pick or create a profile to see its
+          companies’ jobs, scored and ranked.
         </p>
       )}
 
