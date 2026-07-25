@@ -15,7 +15,7 @@ import {
 	ErrorResponseSchema,
 } from '../schemas.js';
 import { DEFAULT_PROFILE, DEFAULT_PROFILE_COMPANIES } from '../defaultProfile.js';
-import { addTargetBySlug, triggerSearch, ScraperClientError } from '../clients/scraper.js';
+import { triggerSearch } from '../clients/scraper.js';
 import { resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
 
@@ -34,6 +34,26 @@ app.use('/profiles/*', requireUserType(['admin', 'friend']));
 // non-edge callers. See userId.ts.
 async function currentUserId(c: Parameters<typeof resolveUserId>[0]): Promise<string> {
 	return resolveUserId(c);
+}
+
+// Fire a scrape now (fire-and-forget) so a just-added directive — a company or
+// a keyword — is picked up promptly instead of waiting for the daily cron. The
+// scraper's /search is a 202; we don't block the response on its result. Guard
+// the executionCtx getter (Hono throws when the runtime doesn't provide one).
+function triggerSearchBg(
+	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
+	env: AppEnv
+): void {
+	const work = triggerSearch(env).catch((err) =>
+		logger.error('triggerSearch failed', {
+			error: err instanceof Error ? err.message : String(err),
+		})
+	);
+	try {
+		c.executionCtx?.waitUntil(work);
+	} catch {
+		void work;
+	}
 }
 
 interface ProfileFields {
@@ -191,6 +211,10 @@ app.openapi(
 			)
 			.run();
 
+		// New keywords are a scrape directive — kick a scrape so they populate
+		// without waiting for the daily cron.
+		if (body.keywords.length > 0) triggerSearchBg(c, c.env);
+
 		const profile = { id, ...body, is_default: false, created_at: now };
 		return c.json({ success: true as const, data: { profile } }, 201);
 	}
@@ -235,7 +259,8 @@ app.openapi(
 			);
 		}
 
-		const merged = mergeFields(extractFields(existing), body);
+		const base = extractFields(existing);
+		const merged = mergeFields(base, body);
 		await db
 			.prepare(
 				`UPDATE profiles SET name=?, keywords=?, role_types=?, min_salary=?, remote_pref=?, experience_levels=? WHERE id=? AND user_id=?`
@@ -251,6 +276,12 @@ app.openapi(
 				userId
 			)
 			.run();
+
+		// If the keyword set changed, those are new scrape directives — kick a
+		// scrape so they populate without waiting for the daily cron.
+		if (JSON.stringify(merged.keywords) !== JSON.stringify(base.keywords)) {
+			triggerSearchBg(c, c.env);
+		}
 
 		const profile = {
 			id,
@@ -406,27 +437,18 @@ app.openapi(
 			);
 		}
 
-		// Ensure the company is a live scrape target. Non-fatal on scraper error —
-		// the row still persists so the user's selection isn't lost.
-		let targetId: number | null = null;
-		try {
-			targetId = (await addTargetBySlug(c.env, ats, slug)).id;
-		} catch (err) {
-			logger.error('addTargetBySlug failed', {
-				ats,
-				slug,
-				error: err instanceof ScraperClientError ? `${err.message} (${err.status})` : String(err),
-			});
-		}
-
+		// No push to the scraper here — companies are a scrape directive now.
+		// The scraper pulls GET /directives (the union of every profile's
+		// companies + keywords) each run and registers them itself, so the
+		// selection just needs to persist; triggerSearch below makes it immediate.
 		const id = crypto.randomUUID();
 		const now = new Date().toISOString();
 		await db
 			.prepare(
 				`INSERT OR IGNORE INTO profile_companies (id, profile_id, ats, slug, display_name, target_id, added_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`
+				 VALUES (?, ?, ?, ?, ?, NULL, ?)`
 			)
-			.bind(id, profileId, ats, slug, display_name, targetId, now)
+			.bind(id, profileId, ats, slug, display_name, now)
 			.run();
 
 		const row = await db
