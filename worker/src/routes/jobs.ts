@@ -346,6 +346,85 @@ app.openapi(
 );
 
 // ============================================================================
+// GET /jobs/preflight — "does this connect to something real?"
+//
+// Powers the profile editor's per-field probes: given a keyword and/or a role
+// type, count how many corpus jobs it would match, so the user sees a live
+// signal ("312 matching jobs") before saving it into a profile. Read-only,
+// unauthenticated (same posture as GET /jobs).
+//
+// MUST be registered before GET /jobs/{id} — OpenAPIHono resolves in
+// registration order, so a later static route loses to the earlier param route
+// (/jobs/{id} would otherwise capture "preflight" as an id). Verified.
+// ============================================================================
+
+app.openapi(
+	createRoute({
+		method: 'get',
+		path: '/jobs/preflight',
+		tags: ['Jobs'],
+		summary: 'Count corpus jobs matching a keyword and/or role type (editor probe)',
+		request: {
+			query: z.object({
+				keyword: z
+					.string()
+					.optional()
+					.openapi({ description: 'Match in title or description (case-insensitive)' }),
+				role_type: z
+					.string()
+					.optional()
+					.openapi({ description: 'One of the seniority buckets; matched against title' }),
+			}),
+		},
+		responses: {
+			200: {
+				description: 'Match count',
+				content: {
+					'application/json': {
+						schema: z
+							.object({
+								success: z.literal(true),
+								data: z.object({ count: z.number() }),
+							})
+							.openapi('PreflightResponse'),
+					},
+				},
+			},
+		},
+	}),
+	async (c) => {
+		const { keyword, role_type } = c.req.valid('query');
+		const db = c.env.JOB_PLATFORM_DB;
+
+		const wheres: string[] = [];
+		const binds: string[] = [];
+
+		const kw = keyword?.trim();
+		if (kw) {
+			const like = `%${kw.toLowerCase()}%`;
+			wheres.push('(LOWER(title) LIKE ? OR LOWER(description) LIKE ?)');
+			binds.push(like, like);
+		}
+
+		const rt = role_type?.trim();
+		if (rt) {
+			const patterns = SENIORITY_KEYWORDS[rt.toUpperCase()] ?? [rt.toLowerCase()];
+			const ors = patterns.map(() => 'LOWER(title) LIKE ?');
+			wheres.push(`(${ors.join(' OR ')})`);
+			for (const p of patterns) binds.push(`%${p.toLowerCase()}%`);
+		}
+
+		const whereClause = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+		const row = await db
+			.prepare(`SELECT COUNT(*) as n FROM jobs ${whereClause}`)
+			.bind(...binds)
+			.first<{ n: number }>();
+
+		return c.json({ success: true as const, data: { count: row?.n ?? 0 } }, 200);
+	}
+);
+
+// ============================================================================
 // GET /jobs/:id
 // ============================================================================
 
@@ -730,80 +809,5 @@ app.post('/jobs/:id/cover-letter', async (c) => {
 	const data = await res.json();
 	return c.json({ success: true as const, data }, 200);
 });
-
-// ============================================================================
-// GET /jobs/preflight — "does this connect to something real?"
-//
-// Powers the profile editor's per-field probes: given a keyword and/or a role
-// type, count how many corpus jobs it would match, so the user sees a live
-// signal ("312 matching jobs") before saving it into a profile. Read-only,
-// unauthenticated (same posture as GET /jobs).
-// ============================================================================
-
-app.openapi(
-	createRoute({
-		method: 'get',
-		path: '/jobs/preflight',
-		tags: ['Jobs'],
-		summary: 'Count corpus jobs matching a keyword and/or role type (editor probe)',
-		request: {
-			query: z.object({
-				keyword: z
-					.string()
-					.optional()
-					.openapi({ description: 'Match in title or description (case-insensitive)' }),
-				role_type: z
-					.string()
-					.optional()
-					.openapi({ description: 'One of the seniority buckets; matched against title' }),
-			}),
-		},
-		responses: {
-			200: {
-				description: 'Match count',
-				content: {
-					'application/json': {
-						schema: z
-							.object({
-								success: z.literal(true),
-								data: z.object({ count: z.number() }),
-							})
-							.openapi('PreflightResponse'),
-					},
-				},
-			},
-		},
-	}),
-	async (c) => {
-		const { keyword, role_type } = c.req.valid('query');
-		const db = c.env.JOB_PLATFORM_DB;
-
-		const wheres: string[] = [];
-		const binds: string[] = [];
-
-		const kw = keyword?.trim();
-		if (kw) {
-			const like = `%${kw.toLowerCase()}%`;
-			wheres.push('(LOWER(title) LIKE ? OR LOWER(description) LIKE ?)');
-			binds.push(like, like);
-		}
-
-		const rt = role_type?.trim();
-		if (rt) {
-			const patterns = SENIORITY_KEYWORDS[rt.toUpperCase()] ?? [rt.toLowerCase()];
-			const ors = patterns.map(() => 'LOWER(title) LIKE ?');
-			wheres.push(`(${ors.join(' OR ')})`);
-			for (const p of patterns) binds.push(`%${p.toLowerCase()}%`);
-		}
-
-		const whereClause = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
-		const row = await db
-			.prepare(`SELECT COUNT(*) as n FROM jobs ${whereClause}`)
-			.bind(...binds)
-			.first<{ n: number }>();
-
-		return c.json({ success: true as const, data: { count: row?.n ?? 0 } }, 200);
-	}
-);
 
 export const jobRoutes = app;
