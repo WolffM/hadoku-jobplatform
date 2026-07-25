@@ -12,7 +12,7 @@ export interface ScoreResult {
 }
 
 // Keywords that signal seniority — matched against job title
-const SENIORITY_KEYWORDS: Record<string, string[]> = {
+export const SENIORITY_KEYWORDS: Record<string, string[]> = {
 	SENIOR: ['senior', 'sr.', 'sr '],
 	STAFF: ['staff'],
 	PRINCIPAL: ['principal'],

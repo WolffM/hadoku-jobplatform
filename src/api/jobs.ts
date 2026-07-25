@@ -110,6 +110,26 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   return parseWrapped<JobsListResponse>(response)
 }
 
+/**
+ * GET /jobs/preflight — how many corpus jobs match a keyword and/or role type.
+ * Powers the editor's per-field probes ("312 matching jobs"). Read-only.
+ */
+export async function preflightCount(
+  probe: { keyword?: string; role_type?: string },
+  auth?: Auth
+): Promise<number> {
+  const params = new URLSearchParams()
+  if (probe.keyword) params.set('keyword', probe.keyword)
+  if (probe.role_type) params.set('role_type', probe.role_type)
+  const response = await fetch(`${BASE_URL}/jobs/preflight?${params}`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ count: number }>(response)
+  return data.count
+}
+
 export async function getJob(
   id: string,
   profileId: string | undefined,

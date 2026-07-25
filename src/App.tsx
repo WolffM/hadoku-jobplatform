@@ -13,12 +13,15 @@ import {
 import { AppHeader, ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
 import { THEME_ICON_MAP } from '@wolffm/themes'
 import { useTheme } from './hooks/useTheme'
-import { CompaniesManager } from './components/CompaniesManager'
 import { ProfileSidebar } from './components/ProfileSidebar'
+import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
 import type { Auth } from './api/auth'
+import type { JobProfile } from './api/profiles'
 import type { JobPlatformProps } from './entry'
+
+type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
 interface DashboardOutletCtx {
   onJobStateChanged: () => void
@@ -111,20 +114,24 @@ function Dashboard({ auth }: { auth: Auth }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const onJobStateChanged = useCallback(() => setRefreshKey(k => k + 1), [])
 
+  // Full-screen profile editor (create/edit) + a reload token that re-fetches
+  // the sidebar list after a save.
+  const [editing, setEditing] = useState<EditorState | null>(null)
+  const [profilesReload, setProfilesReload] = useState(0)
+
   const ctx: DashboardOutletCtx = { onJobStateChanged }
 
   return (
     <div className="jp-dashboard">
-      <ProfileSidebar auth={auth} selectedId={profileId} onSelect={setProfileId} />
+      <ProfileSidebar
+        auth={auth}
+        selectedId={profileId}
+        onSelect={setProfileId}
+        onNew={() => setEditing({ mode: 'new' })}
+        onEdit={profile => setEditing({ mode: 'edit', profile })}
+        reloadKey={profilesReload}
+      />
       <section className="jp-main">
-        <details className="jp-companies-panel">
-          <summary>Companies in this profile</summary>
-          <CompaniesManager
-            auth={auth}
-            profileId={profileId}
-            onCompaniesChanged={onJobStateChanged}
-          />
-        </details>
         <JobsList
           auth={auth}
           profileId={profileId}
@@ -136,6 +143,20 @@ function Dashboard({ auth }: { auth: Auth }) {
         />
       </section>
       <Outlet context={ctx} />
+      {editing && (
+        <ProfileEditorModal
+          auth={auth}
+          initial={editing.mode === 'edit' ? editing.profile : null}
+          onClose={() => setEditing(null)}
+          onSaved={saved => {
+            setProfilesReload(k => k + 1)
+            setProfileId(saved.id)
+            // A saved profile's companies/criteria may change its feed.
+            onJobStateChanged()
+          }}
+          onCompaniesChanged={onJobStateChanged}
+        />
+      )}
     </div>
   )
 }
