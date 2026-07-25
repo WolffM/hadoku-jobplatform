@@ -18,7 +18,7 @@ const app = new OpenAPIHono<RouteContext>();
 // /directives is pulled by the scraper each run (service), also readable by
 // operators (admin/friend) for debugging.
 app.use('/ingest', requireUserType(['admin', 'friend', 'service']));
-app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend']));
+app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend', 'service']));
 app.use('/directives', requireUserType(['admin', 'friend', 'service']));
 
 // Normalize workplace_type values from scraper to our canonical set

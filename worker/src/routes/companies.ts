@@ -19,7 +19,7 @@ const app = new OpenAPIHono<RouteContext>();
 
 // Company lookups — read-only helpers behind the profile "add company" flow.
 // Actual subscriptions live per-profile under /profiles/:id/companies.
-app.use('/companies/*', requireUserType(['admin', 'friend']));
+app.use('/companies/*', requireUserType(['admin', 'friend', 'service']));
 
 // ============================================================================
 // POST /companies/match — type a company name, get the best board to confirm

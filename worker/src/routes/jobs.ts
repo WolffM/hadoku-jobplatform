@@ -36,7 +36,10 @@ async function maybeUserId(c: {
 	get: (k: 'authContext') => HadokuAuthContext;
 }): Promise<string | null> {
 	const auth = c.get('authContext');
-	if ((auth.userType === 'admin' || auth.userType === 'friend') && auth.credential) {
+	if (
+		(auth.userType === 'admin' || auth.userType === 'friend' || auth.userType === 'service') &&
+		auth.credential
+	) {
 		return resolveUserId(c);
 	}
 	return null;
@@ -548,7 +551,7 @@ async function gateAuthed(
 	next: () => Promise<void>
 ) {
 	const auth = c.get('authContext');
-	if (auth.userType !== 'admin' && auth.userType !== 'friend') {
+	if (auth.userType !== 'admin' && auth.userType !== 'friend' && auth.userType !== 'service') {
 		return c.json(
 			{ success: false as const, error: 'Forbidden', message: 'Authentication required' },
 			403
