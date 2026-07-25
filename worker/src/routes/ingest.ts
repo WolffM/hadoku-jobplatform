@@ -15,8 +15,11 @@ const app = new OpenAPIHono<RouteContext>();
 // POSTs batches with its HADOKU_SERVICE_KEY (service tier). Same shape as the
 // monitoring-api/contact-api service-tier carve-outs for internal writes.
 // /backfill-slugs stays admin/friend — an operator tool, not a webhook.
+// /directives is pulled by the scraper each run (service), also readable by
+// operators (admin/friend) for debugging.
 app.use('/ingest', requireUserType(['admin', 'friend', 'service']));
 app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend']));
+app.use('/directives', requireUserType(['admin', 'friend', 'service']));
 
 // Normalize workplace_type values from scraper to our canonical set
 function normalizeWorkplaceType(wt: string): string {
@@ -203,6 +206,86 @@ app.openapi(backfillRoute, async (c) => {
 			has_more: remaining > unmatched,
 		},
 	});
+});
+
+// ============================================================================
+// GET /directives — the union of every profile's scrape directives.
+//
+// The single source of truth for what the scraper should fetch. hadoku-scrape
+// pulls this at the start of each run: it scrapes every company board and runs
+// every keyword against its keyword-search providers (Remotive/RemoteOK/Muse).
+// Companies and keywords are unified here — both are just "things a profile
+// asked to be scraped" — so the scraper learns them the same way (pull), rather
+// than companies being pushed target-by-target.
+// ============================================================================
+
+const directivesRoute = createRoute({
+	method: 'get',
+	path: '/directives',
+	tags: ['Ingest'],
+	summary: 'Scrape directives — union of all profiles’ companies + keywords',
+	description:
+		'Pulled by hadoku-scrape each run. `companies` = distinct (ats, slug) across ' +
+		'every profile_companies row; `keywords` = the deduped (case-insensitive) union ' +
+		'of every profile’s keywords. The scraper scrapes each company board and runs ' +
+		'each keyword against its keyword-search providers.',
+	responses: {
+		200: {
+			description: 'Directive set',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								companies: z.array(z.object({ ats: z.string(), slug: z.string() })),
+								keywords: z.array(z.string()),
+							}),
+						})
+						.openapi('DirectivesResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(directivesRoute, async (c) => {
+	const db = c.env.JOB_PLATFORM_DB;
+
+	const companyRows = await db
+		.prepare('SELECT DISTINCT ats, slug FROM profile_companies ORDER BY ats, slug')
+		.all<{ ats: string; slug: string }>();
+
+	const profileRows = await db.prepare('SELECT keywords FROM profiles').all<{ keywords: string }>();
+
+	// Union keywords across all profiles, case-insensitively deduped but keeping
+	// the first-seen casing (what the scraper searches with).
+	const seen = new Set<string>();
+	const keywords: string[] = [];
+	for (const r of profileRows.results) {
+		let arr: string[] = [];
+		try {
+			arr = JSON.parse(r.keywords) as string[];
+		} catch {
+			arr = [];
+		}
+		for (const raw of arr) {
+			const kw = typeof raw === 'string' ? raw.trim() : '';
+			if (!kw) continue;
+			const key = kw.toLowerCase();
+			if (seen.has(key)) continue;
+			seen.add(key);
+			keywords.push(kw);
+		}
+	}
+
+	return c.json(
+		{
+			success: true as const,
+			data: { companies: companyRows.results, keywords },
+		},
+		200
+	);
 });
 
 export const ingestRoutes = app;
