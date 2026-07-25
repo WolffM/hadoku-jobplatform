@@ -105,7 +105,7 @@ Every section's **preflight probe** answers "does this connect to something real
 
 1. **WS1 — score-on-read** ✅ SHIPPED 2026-07-24 (worker 1.1.8, migration 0008). Feed scores compute in-request; `job_profile_matches` + rescore machinery dropped. Confirmed non-zero scores in prod.
 2. **WS2 — optional filters** ✅ SHIPPED 2026-07-24. `profile_companies` join is now conditional — a profile with no companies scores the whole corpus (capped, most-recent first); with companies it scopes to them. The profile form already made keywords/roles/salary/remote optional (only `name` required), so no UI change was needed.
-3. **WS3 — keyword-source scrapers** (Remotive/Muse/RemoteOK → Adzuna) so keyword profiles have real jobs.
-4. **WS4 — unified full-screen editor** with per-section preflight probes.
+3. **WS3 — keyword-source scrapers + unified profile-driven pull** ✅ SHIPPED 2026-07-24. jobplatform `GET /directives` (union of all profiles' companies + keywords); hadoku-scrape pulls it each run — new `keyword_sources.py` (Remotive/RemoteOK/The Muse) + `directives.py`, orchestrator reconciles companies via `ensure_target` and fans keywords across providers, falling back to the local registry if jobplatform is unreachable; cron `sources` (hadoku_site) now include the keyword providers. Unified: removed the per-company `addTargetBySlug` push (the scraper pulls companies now) and added a fire-and-forget scrape trigger on keyword create/change. **Not yet verified end-to-end**: that a scrape run ingests remotive/remoteok/themuse jobs (needs a cron run or in-browser trigger — CLI can't auth to the scraper).
+4. **WS4 — unified full-screen editor** with per-section preflight probes. NOT STARTED.
 
 All ship via the usual jobplatform publish → hadoku_site deploy (migrations auto-apply); WS3 is scraper-side (push main → CI → PM2).
