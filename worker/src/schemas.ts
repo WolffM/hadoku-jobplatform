@@ -218,7 +218,11 @@ export const IngestJobSchema = z.object({
 export const IngestPayloadSchema = z
 	.object({
 		jobs: z.array(IngestJobSchema),
-		source: z.enum(['greenhouse', 'lever', 'linkedin']),
+		// A free-form batch label (greenhouse/lever/ashby/linkedin/remotive/
+		// remoteok/themuse/…). NOT an enum — every provider the scraper adds
+		// would otherwise 400 the whole batch here (this silently dropped ashby
+		// and all keyword-source jobs). Per-job `source_site` is authoritative.
+		source: z.string(),
 		batch_number: z.number().int().positive(),
 		is_final: z.boolean(),
 		search_term: z.string().optional(),
