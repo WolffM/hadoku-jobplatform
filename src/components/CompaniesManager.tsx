@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import {
-  matchCompanies,
-  probeSlugs,
-  CompaniesApiError,
-  type CompanyMatch,
-  type SlugProbeResult
-} from '../api/companies'
+import { matchCompanies, CompaniesApiError, type CompanyMatch } from '../api/companies'
 import {
   listProfileCompanies,
   addProfileCompany,
@@ -35,19 +29,6 @@ function parseNames(raw: string): string[] {
   return out
 }
 
-function parseSlugs(raw: string): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const tok of raw.split(/[\s,]+/)) {
-    const s = tok.trim().toLowerCase()
-    if (s && !seen.has(s)) {
-      seen.add(s)
-      out.push(s)
-    }
-  }
-  return out
-}
-
 function faviconUrl(domain: string | null): string | null {
   return domain
     ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
@@ -64,13 +45,6 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
   const [matches, setMatches] = useState<CompanyMatch[] | null>(null)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [addingKey, setAddingKey] = useState<string | null>(null)
-
-  const [slugsInput, setSlugsInput] = useState('')
-  const [probing, setProbing] = useState(false)
-  const [probeResults, setProbeResults] = useState<SlugProbeResult[] | null>(null)
-  const [probeError, setProbeError] = useState<string | null>(null)
-  const [lockNames, setLockNames] = useState<Record<string, string>>({})
-  const [lockingKey, setLockingKey] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     if (!profileId) {
@@ -91,17 +65,15 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
   useEffect(() => {
     void refresh()
     setMatches(null)
-    setProbeResults(null)
   }, [refresh])
 
   const subscribedKey = (ats: string, slug: string) => `${ats}:${slug}`
   const subscribed = new Set(companies.map(c => subscribedKey(c.ats, c.slug)))
 
   const add = async (ats: string, slug: string, displayName: string) => {
-    if (!profileId || addingKey || lockingKey) return
+    if (!profileId || addingKey) return
     setError(null)
     setMatchError(null)
-    setProbeError(null)
     try {
       await addProfileCompany(
         profileId,
@@ -149,39 +121,6 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
     }
   }
 
-  const handleProbe = async (e: FormEvent) => {
-    e.preventDefault()
-    const slugs = parseSlugs(slugsInput)
-    if (slugs.length === 0 || probing) return
-    setProbing(true)
-    setProbeError(null)
-    setProbeResults(null)
-    try {
-      const results = await probeSlugs(slugs, undefined, auth)
-      setProbeResults(results)
-      const names: Record<string, string> = {}
-      for (const r of results)
-        for (const hit of r.hits) names[`${r.slug}:${hit.ats}`] = hit.company_name ?? r.slug
-      setLockNames(names)
-    } catch (err) {
-      setProbeError(err instanceof CompaniesApiError ? err.message : 'Failed to probe slugs')
-    } finally {
-      setProbing(false)
-    }
-  }
-
-  const handleLock = async (slug: string, ats: string) => {
-    const key = `${slug}:${ats}`
-    setLockingKey(key)
-    try {
-      await add(ats, slug, lockNames[key] ?? slug)
-    } catch {
-      setProbeError(matchError ?? 'Failed to add company')
-    } finally {
-      setLockingKey(null)
-    }
-  }
-
   const handleRemove = async (companyId: string) => {
     if (!profileId) return
     setError(null)
@@ -197,7 +136,7 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
   if (!profileId) {
     return (
       <p className="job-platform__companies-empty">
-        Select or create a profile to choose the companies in its slice.
+        Save the profile first, then add the companies it should track.
       </p>
     )
   }
@@ -297,88 +236,11 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
         </div>
       )}
 
-      <details className="job-platform__probe">
-        <summary className="job-platform__probe-summary">
-          Know the exact slug? Probe it directly
-        </summary>
-        <form className="job-platform__companies-form" onSubmit={e => void handleProbe(e)}>
-          <input
-            type="text"
-            placeholder="Slugs to probe (e.g. anthropic, scaleai, ramp)"
-            value={slugsInput}
-            onChange={e => setSlugsInput(e.target.value)}
-            disabled={probing}
-            aria-label="Slugs to probe"
-          />
-          <button type="submit" disabled={probing || parseSlugs(slugsInput).length === 0}>
-            {probing ? 'Probing…' : 'Probe'}
-          </button>
-        </form>
-        {probeError && <p className="job-platform__companies-error">{probeError}</p>}
-        {probeResults && (
-          <div className="job-platform__probe-results">
-            {probeResults.map(r => (
-              <div key={r.slug} className="job-platform__probe-slug">
-                <div className="job-platform__probe-slug-name">
-                  <code>{r.slug}</code>
-                </div>
-                {r.hits.length === 0 ? (
-                  <p className="job-platform__probe-none">
-                    No live board found on greenhouse, lever, or ashby.
-                  </p>
-                ) : (
-                  r.hits.map(hit => {
-                    const key = `${r.slug}:${hit.ats}`
-                    const already = subscribed.has(subscribedKey(hit.ats, r.slug))
-                    return (
-                      <div key={key} className="job-platform__probe-hit">
-                        <div className="job-platform__probe-hit-head">
-                          <span className="job-platform__probe-ats">{hit.ats}</span>
-                          <span className="job-platform__probe-count">
-                            {hit.n_jobs} job{hit.n_jobs === 1 ? '' : 's'}
-                          </span>
-                          {hit.company_name && (
-                            <span className="job-platform__probe-company">{hit.company_name}</span>
-                          )}
-                        </div>
-                        {hit.sample_titles.length > 0 && (
-                          <p className="job-platform__probe-titles">
-                            {hit.sample_titles.slice(0, 5).join(' · ')}
-                          </p>
-                        )}
-                        <div className="job-platform__probe-lock">
-                          <input
-                            type="text"
-                            value={lockNames[key] ?? r.slug}
-                            onChange={e =>
-                              setLockNames(prev => ({ ...prev, [key]: e.target.value }))
-                            }
-                            disabled={already || lockingKey === key}
-                            aria-label={`Display name for ${r.slug} on ${hit.ats}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => void handleLock(r.slug, hit.ats)}
-                            disabled={already || lockingKey !== null}
-                          >
-                            {already ? 'Added ✓' : lockingKey === key ? 'Adding…' : 'Add'}
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </details>
-
       {loading ? (
         <p className="job-platform__companies-empty">Loading…</p>
       ) : companies.length === 0 ? (
         <p className="job-platform__companies-empty">
-          No companies yet. Add one above to fill this profile’s feed.
+          No companies yet. This profile scores the whole corpus until you add some.
         </p>
       ) : (
         <ul className="job-platform__companies-list">
