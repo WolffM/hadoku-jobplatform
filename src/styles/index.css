@@ -258,42 +258,8 @@
 }
 
 /* ============================================================================
-   Companies panel (per-profile, in the dashboard)
+   Keyword chips + role-type picker (shared by the profile editor)
    ============================================================================ */
-
-.jp-companies-panel {
-  margin-bottom: var(--hdk-space-xl);
-  padding: var(--hdk-space-md) var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-bg-card);
-}
-
-.jp-companies-panel > summary {
-  cursor: pointer;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
-.jp-companies-panel[open] > summary {
-  margin-bottom: var(--hdk-space-lg);
-}
-
-/* ============================================================================
-   Keyword chips + role-type picker (profile form)
-   ============================================================================ */
-
-.jp-profile-form__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hdk-space-xs);
-}
-
-.jp-profile-form__label {
-  font-size: var(--hdk-text-sm);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-semibold);
-}
 
 .jp-chips {
   display: flex;
@@ -435,68 +401,8 @@
 }
 
 /* ============================================================================
-   Verify-and-lock: probe slugs before subscribing
+   Company match-card badges (ats pill + sample titles)
    ============================================================================ */
-
-.job-platform__probe {
-  margin: var(--hdk-space-lg) 0;
-  padding: var(--hdk-space-md) var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-bg-card);
-}
-
-.job-platform__probe-summary {
-  cursor: pointer;
-  color: var(--color-text-secondary);
-  font-size: var(--hdk-text-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.job-platform__probe[open] .job-platform__probe-summary {
-  margin-bottom: var(--hdk-space-lg);
-}
-
-.job-platform__probe-results {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hdk-space-lg);
-}
-
-.job-platform__probe-slug {
-  padding: var(--hdk-space-md) var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-}
-
-.job-platform__probe-slug-name {
-  margin-bottom: var(--hdk-space-sm);
-  font-size: var(--hdk-text-sm);
-  color: var(--color-text-secondary);
-}
-
-.job-platform__probe-none {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--hdk-text-sm);
-  font-style: italic;
-}
-
-.job-platform__probe-hit {
-  padding: var(--hdk-space-md) 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.job-platform__probe-hit:first-of-type {
-  border-top: none;
-}
-
-.job-platform__probe-hit-head {
-  display: flex;
-  align-items: center;
-  gap: var(--hdk-space-md);
-  flex-wrap: wrap;
-}
 
 .job-platform__probe-ats {
   padding: var(--hdk-space-xs) var(--hdk-space-md);
@@ -508,59 +414,10 @@
   text-transform: uppercase;
 }
 
-.job-platform__probe-count {
-  font-size: var(--hdk-text-sm);
-  color: var(--color-text-secondary);
-}
-
-.job-platform__probe-company {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
-}
-
 .job-platform__probe-titles {
   margin: var(--hdk-space-sm) 0;
   font-size: var(--hdk-text-xs);
   color: var(--color-text-secondary);
-}
-
-.job-platform__probe-lock {
-  display: flex;
-  gap: var(--hdk-space-md);
-  margin-top: var(--hdk-space-sm);
-}
-
-.job-platform__probe-lock input {
-  flex: 1;
-  padding: var(--hdk-space-sm) var(--hdk-space-md);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-bg);
-  color: var(--color-text);
-  font-size: var(--hdk-text-sm);
-}
-
-.job-platform__probe-lock input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--hdk-shadow-focus-sm);
-}
-
-.job-platform__probe-lock button {
-  padding: var(--hdk-space-sm) var(--hdk-space-lg);
-  border: none;
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-primary);
-  color: var(--color-on-primary);
-  font-size: var(--hdk-text-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.job-platform__probe-lock button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ============================================================================
@@ -724,96 +581,6 @@
   font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   vertical-align: middle;
-}
-
-/* ============================================================================
-   Profile create/edit form
-   ============================================================================ */
-
-.jp-profile-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hdk-space-md);
-  margin-bottom: var(--hdk-space-xl);
-  padding: var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-bg);
-}
-
-.jp-profile-form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--hdk-space-xs);
-  font-size: var(--hdk-text-sm);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.jp-profile-form input,
-.jp-profile-form select {
-  padding: var(--hdk-space-md) var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-bg-card);
-  color: var(--color-text);
-  font-size: var(--hdk-text-sm);
-  font-weight: var(--font-weight-normal);
-  font-family: inherit;
-}
-
-.jp-profile-form input:focus,
-.jp-profile-form select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--hdk-shadow-focus-sm);
-}
-
-.jp-profile-form button[type='submit'] {
-  margin-top: var(--hdk-space-sm);
-  padding: var(--hdk-space-md);
-  border: none;
-  border-radius: var(--hdk-radius-sm);
-  background-color: var(--color-primary);
-  color: var(--color-on-primary);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--hdk-text-sm);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.jp-profile-form button[type='submit']:hover:not(:disabled) {
-  background-color: var(--color-primary-dark);
-}
-
-.jp-profile-form button[type='submit']:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.jp-profile-form__actions {
-  display: flex;
-  gap: var(--hdk-space-md);
-  align-items: center;
-}
-
-.jp-profile-form__actions button[type='submit'] {
-  flex: 1;
-}
-
-.jp-profile-form__cancel {
-  margin-top: var(--hdk-space-sm);
-  padding: var(--hdk-space-md) var(--hdk-space-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--hdk-radius-sm);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--hdk-text-sm);
-  cursor: pointer;
-}
-
-.jp-profile-form__cancel:hover {
-  background-color: var(--color-bg-hover);
 }
 
 /* ============================================================================
