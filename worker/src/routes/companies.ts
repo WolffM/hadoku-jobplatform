@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
-import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import {
 	ProbeCompanySchema,
 	ProbeCompanyResponseSchema,
@@ -19,7 +19,7 @@ const app = new OpenAPIHono<RouteContext>();
 
 // Company lookups — read-only helpers behind the profile "add company" flow.
 // Actual subscriptions live per-profile under /profiles/:id/companies.
-app.use('/companies/*', requireUserType(['admin', 'friend', 'service']));
+app.use('/companies/*', requireMinTier('friend'));
 
 // ============================================================================
 // POST /companies/match — type a company name, get the best board to confirm

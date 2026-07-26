@@ -46,7 +46,7 @@ Monorepo with two pnpm workspace packages:
 
 ## Key Decisions
 
-- Ingest auth uses standard hadoku auth (`requireUserType` via `X-User-Key`), not a custom secret
+- Ingest auth uses standard hadoku auth (`requireMinTier('friend')` via `X-User-Key`), not a custom secret
 - Salary weight is 0.05 — data too sparse to rely on (~5% fill rate)
 - Scraper writes raw jobs to KV (`jobplatform:raw:{source}_{job_id}`) for archival/prune, but POSTs **full jobs inline** in the webhook body (not ID-only). Worker scores the inline payload against all profiles and stores matches in D1.
 - V1 company-subscription flow (shipped): `POST /companies` → scraper `/targets` → scraper scrapes → webhook fires → jobs land. Scraper owns the resolver/registry; jobplatform owns per-user subscriptions and scoring.

@@ -24,10 +24,16 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 ## Auth
 
 Mutation endpoints gate in-worker via `@wolffm/worker-utils` `createEdgeAuth()` +
-`requireUserType(...)`: most are `['admin','friend']`; `/ingest` and the V3
-`/jobs/:id/{resume,cover-letter}` also admit `'service'` (scraper posts / the
-resume-api service binding). The worker trusts the edge-stamped `X-Hadoku-Tier`
-only when `X-Edge-Auth` verifies — a direct origin hit degrades to `public`.
+`requireMinTier('friend')`. Tiers RANK — `public < friend < service < admin` —
+so a gate names only the LOWEST tier that should get in and everything above it
+is admitted automatically. The scraper's `/ingest` posts and the resume-api
+service binding reach these routes by outranking friend, not by being listed;
+there is no allowlist to keep in sync. In-handler checks use
+`tierAtLeast(auth, tier)` — never an `auth.userType === '...'` comparison, which
+is exact-match and would lock those higher tiers out.
+
+The worker trusts the edge-stamped `X-Hadoku-Tier` only when `X-Edge-Auth`
+verifies — a direct origin hit degrades to `public`.
 
 ## Environment Variables (set in host wrangler.toml)
 

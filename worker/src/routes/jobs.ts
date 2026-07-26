@@ -7,7 +7,7 @@ import {
 	SetJobStateSchema,
 	JobStateResponseSchema,
 } from '../schemas.js';
-import type { HadokuAuthContext } from '@wolffm/worker-utils';
+import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { resolveUserId } from '../userId.js';
 import { scoreJob, SENIORITY_KEYWORDS } from '../scoring.js';
 import { loadScorableProfile } from '../profileScore.js';
@@ -36,10 +36,7 @@ async function maybeUserId(c: {
 	get: (k: 'authContext') => HadokuAuthContext;
 }): Promise<string | null> {
 	const auth = c.get('authContext');
-	if (
-		(auth.userType === 'admin' || auth.userType === 'friend' || auth.userType === 'service') &&
-		auth.credential
-	) {
+	if (tierAtLeast(auth, 'friend') && auth.credential) {
 		return resolveUserId(c);
 	}
 	return null;
@@ -551,7 +548,7 @@ async function gateAuthed(
 	next: () => Promise<void>
 ) {
 	const auth = c.get('authContext');
-	if (auth.userType !== 'admin' && auth.userType !== 'friend' && auth.userType !== 'service') {
+	if (!tierAtLeast(auth, 'friend')) {
 		return c.json(
 			{ success: false as const, error: 'Forbidden', message: 'Authentication required' },
 			403
