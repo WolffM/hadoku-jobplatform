@@ -200,6 +200,26 @@ export async function generateCoverLetter(
 }
 
 /**
+ * POST /jobs/:id/packet-link — mint a shareable packet link from an
+ * already-generated résumé + cover letter. jobplatform mints a resume-api
+ * variant with the pre-rendered markdown (instant) and returns the public
+ * hadoku.me/resume?v={slug} URL.
+ */
+export async function mintPacketLink(
+  id: string,
+  body: { resume_markdown: string; cover_letter_markdown?: string; ttl_days?: number },
+  auth?: Auth
+): Promise<{ slug: string; url: string }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/packet-link`, {
+    method: 'POST',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(body)
+  })
+  return parseWrapped<{ slug: string; url: string }>(response)
+}
+
+/**
  * DELETE /jobs/:id/state — clear the caller's state for one job (returns to
  * implicit 'new'). Idempotent: safe to call when no state row exists.
  */
