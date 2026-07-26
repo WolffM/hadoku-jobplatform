@@ -4,6 +4,7 @@ import {
   setJobState,
   generateResume,
   generateCoverLetter,
+  mintPacketLink,
   JobsApiError,
   type JobDetail,
   type ScoreBreakdown,
@@ -64,6 +65,11 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
   const [generating, setGenerating] = useState(false)
   const [packet, setPacket] = useState<{ resume: string; coverLetter: string } | null>(null)
   const [packetError, setPacketError] = useState<string | null>(null)
+  // Shareable packet link (minted from the generated packet).
+  const [linking, setLinking] = useState(false)
+  const [packetLink, setPacketLink] = useState<string | null>(null)
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +79,9 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setCurrentState(null)
     setPacket(null)
     setPacketError(null)
+    setPacketLink(null)
+    setLinkError(null)
+    setCopied(false)
     getJob(jobId, profileId ?? undefined, auth)
       .then(result => {
         if (!cancelled) {
@@ -120,6 +129,10 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     if (generating) return
     setGenerating(true)
     setPacketError(null)
+    // A fresh packet invalidates any previously minted link.
+    setPacketLink(null)
+    setLinkError(null)
+    setCopied(false)
     try {
       const [resume, cover] = await Promise.all([
         generateResume(jobId, auth),
@@ -131,6 +144,35 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     } finally {
       setGenerating(false)
     }
+  }
+
+  const handleCreateLink = async () => {
+    if (!packet || linking) return
+    setLinking(true)
+    setLinkError(null)
+    try {
+      const { url } = await mintPacketLink(
+        jobId,
+        { resume_markdown: packet.resume, cover_letter_markdown: packet.coverLetter },
+        auth
+      )
+      setPacketLink(url)
+    } catch (err) {
+      setLinkError(err instanceof JobsApiError ? err.message : 'Failed to create link')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  const handleCopyLink = () => {
+    if (!packetLink) return
+    void navigator.clipboard?.writeText(packetLink).then(
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => setLinkError('Copy failed — select the link and copy manually')
+    )
   }
 
   // Auth state is unknown until first fetch resolves. After load, `state`
@@ -281,6 +323,41 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                       onFocus={e => e.currentTarget.select()}
                     />
                   </label>
+
+                  <div className="jp-drawer__packet-link">
+                    {packetLink ? (
+                      <>
+                        <input
+                          className="jp-drawer__packet-link-input"
+                          readOnly
+                          value={packetLink}
+                          onFocus={e => e.currentTarget.select()}
+                          aria-label="Shareable packet link"
+                        />
+                        <button type="button" className="jp-drawer__cta" onClick={handleCopyLink}>
+                          {copied ? 'Copied ✓' : 'Copy'}
+                        </button>
+                        <a
+                          className="jp-drawer__cta"
+                          href={packetLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open
+                        </a>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="jp-drawer__cta jp-drawer__cta--primary"
+                        onClick={() => void handleCreateLink()}
+                        disabled={linking}
+                      >
+                        {linking ? 'Creating link…' : 'Create shareable link'}
+                      </button>
+                    )}
+                  </div>
+                  {linkError && <p className="jp-error">{linkError}</p>}
                 </div>
               )}
             </section>

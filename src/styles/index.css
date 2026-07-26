@@ -1171,6 +1171,25 @@
   color: var(--color-text);
 }
 
+.jp-drawer__packet-link {
+  display: flex;
+  gap: var(--hdk-space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.jp-drawer__packet-link-input {
+  flex: 1;
+  min-width: 12rem;
+  padding: var(--hdk-space-sm);
+  font-family: monospace;
+  font-size: var(--hdk-text-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
 /* V2 triage actions. Active = current state. Each action pairs colour
    with the matching badge family so the drawer and cards read as one
    system. */

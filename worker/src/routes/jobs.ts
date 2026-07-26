@@ -810,4 +810,70 @@ app.post('/jobs/:id/cover-letter', async (c) => {
 	return c.json({ success: true as const, data }, 200);
 });
 
+// POST /jobs/:id/packet-link — mint a shareable résumé+cover-letter packet link.
+//
+// The client generates the résumé and cover letter first (the two routes above,
+// each fast under its own edge carve-out) and posts the finished markdown here.
+// We mint a resume-api variant with that PRE-RENDERED content — no LLM at mint,
+// so it returns instantly and never risks the edge timeout — and hand back the
+// public hadoku.me/resume?v={slug} link. resume-api's /variants admits our
+// service-tier binding call (requireMinTier('friend')).
+app.post('/jobs/:id/packet-link', gateAuthed);
+app.post('/jobs/:id/packet-link', async (c) => {
+	const id = c.req.param('id');
+	let opts: Record<string, unknown> = {};
+	try {
+		opts = await c.req.json();
+	} catch {
+		// fall through to the required-field check below
+	}
+	const resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
+	if (!resumeMarkdown) {
+		return c.json(
+			{ success: false as const, error: 'Bad request', message: 'resume_markdown is required' },
+			400
+		);
+	}
+	const coverLetterMarkdown =
+		typeof opts.cover_letter_markdown === 'string' ? opts.cover_letter_markdown : undefined;
+	const ttlDays = typeof opts.ttl_days === 'number' ? opts.ttl_days : 30;
+
+	const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
+	if (!job) {
+		return c.json(
+			{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
+			404
+		);
+	}
+
+	const res = await callResumeBinding(c.env, '/resume/api/variants', {
+		label: `${job.company} — ${job.title}`,
+		markdown: resumeMarkdown,
+		...(coverLetterMarkdown ? { cover_letter_markdown: coverLetterMarkdown } : {}),
+		company: job.company,
+		job_title: job.title,
+		ttl_days: ttlDays,
+	});
+	if (!res.ok) {
+		const detail = await res.text();
+		return c.json(
+			{
+				success: false as const,
+				error: 'Upstream error',
+				message: `resume-api ${res.status}: ${detail.slice(0, 300)}`,
+			},
+			502
+		);
+	}
+	const variant: { slug?: string } = await res.json();
+	if (!variant.slug) {
+		return c.json(
+			{ success: false as const, error: 'Upstream error', message: 'resume-api returned no slug' },
+			502
+		);
+	}
+	const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
+	return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);
+});
+
 export const jobRoutes = app;
