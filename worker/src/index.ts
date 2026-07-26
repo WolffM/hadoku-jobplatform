@@ -56,7 +56,7 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 	);
 
 	// Edge-auth — trusts the edge-stamped tier (centralized auth channel)
-	// instead of validating ADMIN_KEYS/FRIEND_KEYS. Drop-in for createHadokuAuth;
+	// instead of resolving keys in-worker. Drop-in for the removed createHadokuAuth;
 	// attaches the same authContext. Inbound (browser/friend + scrape's ingest
 	// webhook at hadoku.me/jobplatform/api/ingest) all arrives via the edge, so
 	// X-Edge-Auth is stamped. The /ingest route's own admin||friend check stays.
