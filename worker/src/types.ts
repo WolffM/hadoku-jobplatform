@@ -8,12 +8,6 @@ export interface AppEnv {
 	/** Edge provenance secret — createEdgeAuth verifies inbound X-Edge-Auth. */
 	EDGE_AUTH_SECRET?: string;
 
-	/** @deprecated no longer read inbound (createEdgeAuth replaced createHadokuAuth); pruned Step 5 */
-	ADMIN_KEYS?: string;
-
-	/** @deprecated no longer read inbound; pruned Step 5 */
-	FRIEND_KEYS?: string;
-
 	// ============================================================================
 	// Database
 	// ============================================================================
