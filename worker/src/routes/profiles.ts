@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../types.js';
-import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import {
 	CreateProfileSchema,
 	UpdateProfileSchema,
@@ -26,8 +26,8 @@ interface RouteContext {
 
 const app = new OpenAPIHono<RouteContext>();
 
-app.use('/profiles', requireUserType(['admin', 'friend', 'service']));
-app.use('/profiles/*', requireUserType(['admin', 'friend', 'service']));
+app.use('/profiles', requireMinTier('friend'));
+app.use('/profiles/*', requireMinTier('friend'));
 
 // Identity for D1 row scoping. Prefers the edge-injected X-User-Id (stable
 // across key rotation); falls back to the legacy credential hash only for

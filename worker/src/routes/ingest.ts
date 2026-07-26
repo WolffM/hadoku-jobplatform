@@ -1,6 +1,6 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
-import { requireUserType, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { parseAtsSlug } from '../slugParse.js';
 
@@ -11,15 +11,15 @@ interface RouteContext {
 
 const app = new OpenAPIHono<RouteContext>();
 
-// /ingest is the scraper webhook target — hadoku-scrape's jobboards orchestrator
-// POSTs batches with its HADOKU_SERVICE_KEY (service tier). Same shape as the
-// monitoring-api/contact-api service-tier carve-outs for internal writes.
-// /backfill-slugs stays admin/friend — an operator tool, not a webhook.
-// /directives is pulled by the scraper each run (service), also readable by
-// operators (admin/friend) for debugging.
-app.use('/ingest', requireUserType(['admin', 'friend', 'service']));
-app.use('/ingest/backfill-slugs', requireUserType(['admin', 'friend', 'service']));
-app.use('/directives', requireUserType(['admin', 'friend', 'service']));
+// All three gate at friend and up. Tiers rank (public < friend < service <
+// admin), so naming the LOWEST legitimate caller admits every tier above it:
+// /ingest is the scraper webhook target (hadoku-scrape POSTs batches with its
+// HADOKU_SERVICE_KEY — service tier, which outranks friend); /backfill-slugs is
+// an operator tool; /directives is pulled by the scraper each run and read by
+// operators for debugging. None of them needs to enumerate tiers.
+app.use('/ingest', requireMinTier('friend'));
+app.use('/ingest/backfill-slugs', requireMinTier('friend'));
+app.use('/directives', requireMinTier('friend'));
 
 // Normalize workplace_type values from scraper to our canonical set
 function normalizeWorkplaceType(wt: string): string {

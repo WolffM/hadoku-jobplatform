@@ -146,7 +146,7 @@ KV is written by the scraper for archival and `/prune` support. **The jobplatfor
 }
 ```
 
-Headers: `X-User-Key: {admin_or_friend_key}` (standard hadoku auth via `requireUserType(['admin', 'friend'])`).
+Headers: `X-User-Key: {admin_or_friend_key}` (standard hadoku auth via `requireMinTier('friend')`).
 
 Jobs are sent **inline**, not as `{job_ids[]}`. One webhook carries up to 25 full job records.
 
@@ -303,7 +303,7 @@ POST    /companies               ← subscribe by display name; calls scraper /t
 DELETE  /companies/:id           ← unsubscribe; proxies scraper DELETE /targets/{target_id}, idempotent on 404
 ```
 
-All three gated by `requireUserType(['admin','friend'])`. User identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1. Multi-target resolution: a single display name can resolve to multiple `(ats, slug)` targets (e.g. greenhouse + lever); each becomes its own `user_companies` row under the same user.
+All three gated by `requireMinTier('friend')`. User identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1. Multi-target resolution: a single display name can resolve to multiple `(ats, slug)` targets (e.g. greenhouse + lever); each becomes its own `user_companies` row under the same user.
 
 Outbound calls go through `worker/src/clients/scraper.ts`, which requires the `SCRAPER_API_KEY` binding (Bearer token; same value the scraper checks as its own `HADOKU_API_KEY`).
 
@@ -337,7 +337,7 @@ GET   /jobs/:id/state            ← read current state for the authed user
 GET   /jobs?state=X              ← filter list by state (combinable with profile_id, mine, min_score)
 ```
 
-All gated by `requireUserType(['admin','friend'])`. Per-user via the same `userIdFromCredential()` helper as `user_companies`. Default state on first ingest is `new`; user transitions to `interested / dismissed` from the card. From `interested`: `→ saved → applied → { offered | rejected }`.
+All gated by `requireMinTier('friend')`. Per-user via the same `userIdFromCredential()` helper as `user_companies`. Default state on first ingest is `new`; user transitions to `interested / dismissed` from the card. From `interested`: `→ saved → applied → { offered | rejected }`.
 
 Schema: new `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)`. See Data Model below.
 
@@ -471,14 +471,14 @@ Input shape matches jobplatform's `jobs` table exactly — no translation layer 
 
 > **Corrected 2026-07-14 (V3 implementation).** The claims below were true when
 > written, but resume-bot added in-worker auth on 2026-07-13
-> (`@wolffm/resume-bot@1.2.3`+): `createEdgeAuth()` + `requireUserType(...)`. So a
+> (`@wolffm/resume-bot@1.2.3`+): `createEdgeAuth()` + `requireMinTier(...)`. So a
 > service binding call is **not** trusted just because it's a binding — it hits
 > the same gate any request does and must present provenance. See the corrected
 > flow below.
 
 - Resume-bot worker code **now has in-worker auth**: `createEdgeAuth()` verifies
   `X-Edge-Auth` against `EDGE_AUTH_SECRET`; a request with no valid stamp degrades
-  to `public`. `requireUserType(...)` then gates the protected routes. As of
+  to `public`. `requireMinTier(...)` then gates the protected routes. As of
   `@wolffm/resume-bot@1.2.4`, `/tailored-resume` and `/cover-letter` accept
   `['admin','friend','service']`; `/system-prompt` and `/variants` stay
   `['admin','friend']`.
@@ -562,14 +562,14 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 
 ## Auth
 
-| Endpoint                   | Auth                                                                                  |
-| -------------------------- | ------------------------------------------------------------------------------------- |
-| `POST /ingest`                                         | `requireUserType(['admin','friend','service'])` (scraper posts as service)      |
-| `POST/PUT /profiles`, all `/companies`, `mine=true`    | `requireUserType(['admin','friend'])` in-worker                                  |
-| `PUT/DELETE /jobs/:id/state`, `POST /jobs/:id/{resume,cover-letter}` | `gateAuthed` (admin/friend) in-worker                              |
-| Read-only `GET /jobs`, `/jobs/:id` (unscoped)          | Public                                                                           |
+| Endpoint                                                             | Auth                                                                             |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `POST /ingest`                                                       | `requireMinTier('friend')` (the scraper posts as service, which outranks friend) |
+| `POST/PUT /profiles`, all `/companies`, `mine=true`                  | `requireMinTier('friend')` in-worker                                             |
+| `PUT/DELETE /jobs/:id/state`, `POST /jobs/:id/{resume,cover-letter}` | `gateAuthed` (admin/friend) in-worker                                            |
+| Read-only `GET /jobs`, `/jobs/:id` (unscoped)                        | Public                                                                           |
 
-All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `requireUserType()` — the worker trusts the edge-stamped `X-Hadoku-Tier` only when `X-Edge-Auth` verifies. (It is no longer true that "all other endpoints are open, gated only upstream".)
+All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `requireMinTier()` (tiers rank `public < friend < service < admin`; a gate names the lowest tier and admits everything above it) — the worker trusts the edge-stamped `X-Hadoku-Tier` only when `X-Edge-Auth` verifies. (It is no longer true that "all other endpoints are open, gated only upstream".)
 
 ---
 
