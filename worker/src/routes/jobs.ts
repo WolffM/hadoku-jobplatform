@@ -836,7 +836,10 @@ app.post('/jobs/:id/packet-link', async (c) => {
 	}
 	const coverLetterMarkdown =
 		typeof opts.cover_letter_markdown === 'string' ? opts.cover_letter_markdown : undefined;
-	const ttlDays = typeof opts.ttl_days === 'number' ? opts.ttl_days : 30;
+	// Default 365d — a variant is ~8.6KB in KV, so long retention is effectively
+	// free (KV caps at 25MB/value); a stale shared link outliving its usefulness
+	// is a better failure than one that 404s while someone's still considering it.
+	const ttlDays = typeof opts.ttl_days === 'number' ? opts.ttl_days : 365;
 
 	const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
 	if (!job) {
