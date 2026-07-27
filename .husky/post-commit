@@ -1,0 +1,5 @@
+#!/bin/sh
+# Level the version bump pre-commit already wrote to match the commit message
+# (feat! / BREAKING CHANGE -> major, feat -> minor). See the script header for
+# why this can only happen after the commit. BUMP=none skips it.
+node scripts/version-from-commit.mjs
