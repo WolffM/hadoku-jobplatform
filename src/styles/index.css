@@ -651,6 +651,30 @@
   box-shadow: var(--hdk-shadow-focus-sm);
 }
 
+.jp-jobs__salary {
+  width: 7rem;
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-normal);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s ease;
+}
+
+.jp-jobs__salary:hover {
+  border-color: var(--color-primary);
+}
+
+.jp-jobs__salary:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
 .jp-jobs__filter-value {
   display: inline-block;
   min-width: 2.5rem;

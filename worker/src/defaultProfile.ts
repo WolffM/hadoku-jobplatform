@@ -9,22 +9,26 @@
  * not retroactively change users who already have the row.
  */
 
+import type { RoleLevel } from './roleClassify.js';
+import type { ProfileTrack } from './profileScore.js';
+
 export interface DefaultProfileSeed {
 	name: string;
 	keywords: string[];
-	role_types: string[];
-	min_salary: number | null;
+	track: ProfileTrack;
+	levels: RoleLevel[];
 	remote_pref: 'remote' | 'hybrid' | 'onsite' | 'any';
-	experience_levels: string[];
 }
 
 export const DEFAULT_PROFILE: DefaultProfileSeed = {
 	name: 'Default',
 	keywords: ['software engineer', 'ai', 'ml', 'platform', 'backend', 'distributed systems'],
-	role_types: ['senior', 'staff', 'principal', 'manager'],
-	min_salary: null,
+	// 'either' out of the box: the old seed asked for senior/staff/principal AND
+	// manager, which under the new hard track filter would otherwise silently
+	// halve a new user's feed.
+	track: 'either',
+	levels: ['senior', 'staff', 'principal', 'manager'],
 	remote_pref: 'remote',
-	experience_levels: ['senior', 'staff', 'principal', 'lead'],
 };
 
 export interface DefaultCompany {

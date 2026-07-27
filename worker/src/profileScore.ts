@@ -1,19 +1,28 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { RoleLevel } from './roleClassify.js';
+
+/** What the profile wants on the IC-vs-manager axis. 'either' = no constraint. */
+export type ProfileTrack = 'ic' | 'manager' | 'either';
 
 // The subset of a profile the scorer needs. Loaded on demand for score-on-read;
 // there is no precomputed job_profile_matches table any more.
+//
+// `track` isn't a score factor — it's applied as a hard SQL filter on
+// jobs.role_track before anything is scored (see routes/jobs.ts), the same way
+// the profile's companies are. Asking for management roles and getting IC ones
+// ranked slightly lower is not what anyone means by that request.
 export interface ScorableProfile {
 	keywords: string[];
-	role_types: string[];
+	track: ProfileTrack;
+	levels: RoleLevel[];
 	remote_pref: string;
-	min_salary: number | null;
 }
 
 const NEUTRAL: ScorableProfile = {
 	keywords: [],
-	role_types: [],
+	track: 'either',
+	levels: [],
 	remote_pref: 'any',
-	min_salary: null,
 };
 
 /**
@@ -25,14 +34,14 @@ export async function loadScorableProfile(
 	profileId: string
 ): Promise<ScorableProfile> {
 	const r = await db
-		.prepare('SELECT keywords, role_types, remote_pref, min_salary FROM profiles WHERE id = ?')
+		.prepare('SELECT keywords, track, levels, remote_pref FROM profiles WHERE id = ?')
 		.bind(profileId)
 		.first<Record<string, unknown>>();
 	if (!r) return NEUTRAL;
 	return {
 		keywords: JSON.parse(r.keywords as string) as string[],
-		role_types: JSON.parse(r.role_types as string) as string[],
+		track: r.track as ProfileTrack,
+		levels: JSON.parse(r.levels as string) as RoleLevel[],
 		remote_pref: r.remote_pref as string,
-		min_salary: r.min_salary as number | null,
 	};
 }

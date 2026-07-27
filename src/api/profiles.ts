@@ -2,14 +2,46 @@ const BASE_URL = '/jobplatform/api'
 
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any'
 
+/**
+ * The two orthogonal axes of "what kind of role". `track` answers "does it have
+ * direct reports?" and is applied server-side as a hard filter; `levels` are
+ * rungs on that track's ladder and are scored by distance.
+ *
+ * They replaced a single flat `role_types` list that mixed the two — where
+ * 'senior' and 'manager' were alternatives to each other, so the only
+ * expressible query was "any of these words is in the title".
+ */
+export type ProfileTrack = 'ic' | 'manager' | 'either'
+
+export const IC_LEVELS = ['junior', 'mid', 'senior', 'staff', 'principal', 'fellow'] as const
+export const MANAGER_LEVELS = ['manager', 'senior_manager', 'director', 'vp', 'cxo'] as const
+
+export type IcLevel = (typeof IC_LEVELS)[number]
+export type ManagerLevel = (typeof MANAGER_LEVELS)[number]
+export type RoleLevel = IcLevel | ManagerLevel
+
+/** Ladder rungs are stored snake_case; these are what the user reads. */
+export const LEVEL_LABELS: Record<RoleLevel, string> = {
+  junior: 'Junior',
+  mid: 'Mid',
+  senior: 'Senior',
+  staff: 'Staff',
+  principal: 'Principal',
+  fellow: 'Distinguished / Fellow',
+  manager: 'Manager',
+  senior_manager: 'Senior Manager',
+  director: 'Director',
+  vp: 'VP / Head of',
+  cxo: 'C-level'
+}
+
 export interface JobProfile {
   id: string
   name: string
   keywords: string[]
-  role_types: string[]
-  min_salary: number | null
+  track: ProfileTrack
+  levels: RoleLevel[]
   remote_pref: RemotePref
-  experience_levels: string[]
   created_at: string
   /** True for the shared default profile. */
   is_default: boolean
@@ -18,10 +50,9 @@ export interface JobProfile {
 export interface ProfileInput {
   name: string
   keywords: string[]
-  role_types: string[]
-  min_salary: number | null
+  track: ProfileTrack
+  levels: RoleLevel[]
   remote_pref: RemotePref
-  experience_levels: string[]
 }
 
 /** A company that belongs to a profile's slice. */

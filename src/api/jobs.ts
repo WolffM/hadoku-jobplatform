@@ -1,14 +1,17 @@
 import { authHeaders, type Auth } from './auth'
+import type { ProfileTrack, RoleLevel } from './profiles'
 
 const BASE_URL = '/jobplatform/api'
 
 export interface ScoreBreakdown {
   title_match: number
   keyword_match: number
-  seniority_match: number
+  level_match: number
   remote_match: number
-  salary_match: number
 }
+
+/** As classified at ingest. 'unknown' only for a blank title. */
+export type RoleTrack = 'ic' | 'manager' | 'unknown'
 
 /**
  * V2 triage states. 'new' surfaces on read when the authed caller hasn't
@@ -31,6 +34,8 @@ export interface JobSummary {
   scraped_at: string
   ats: string | null
   slug: string | null
+  role_track: RoleTrack
+  role_level: RoleLevel | null
   score: number
   score_breakdown: ScoreBreakdown
   // null when caller is unauthenticated (no per-user join). 'new' when
@@ -62,9 +67,13 @@ export interface ListJobsOptions {
   hide_dismissed?: boolean
   page?: number
   limit?: number
-  sort?: 'score' | 'date'
+  sort?: JobSort
   min_score?: number
+  /** View filter only — never a profile criterion. Jobs with no listed salary survive it. */
+  min_salary?: number
 }
+
+export type JobSort = 'score' | 'date' | 'salary'
 
 interface Wrapped<T> {
   success: boolean
@@ -100,6 +109,7 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.sort) params.set('sort', opts.sort)
   if (opts.min_score !== undefined) params.set('min_score', String(opts.min_score))
+  if (opts.min_salary !== undefined) params.set('min_salary', String(opts.min_salary))
 
   const url = `${BASE_URL}/jobs${params.toString() ? `?${params}` : ''}`
   const response = await fetch(url, {
@@ -111,16 +121,19 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
 }
 
 /**
- * GET /jobs/preflight — how many corpus jobs match a keyword and/or role type.
- * Powers the editor's per-field probes ("312 matching jobs"). Read-only.
+ * GET /jobs/preflight — how many corpus jobs match a keyword, track and/or
+ * level. Powers the editor's per-field probes ("312 matching jobs"). The track
+ * and level probes read the same classified columns the feed filters on, so the
+ * count is exactly the population the selection would produce. Read-only.
  */
 export async function preflightCount(
-  probe: { keyword?: string; role_type?: string },
+  probe: { keyword?: string; track?: Exclude<ProfileTrack, 'either'>; level?: RoleLevel },
   auth?: Auth
 ): Promise<number> {
   const params = new URLSearchParams()
   if (probe.keyword) params.set('keyword', probe.keyword)
-  if (probe.role_type) params.set('role_type', probe.role_type)
+  if (probe.track) params.set('track', probe.track)
+  if (probe.level) params.set('level', probe.level)
   const response = await fetch(`${BASE_URL}/jobs/preflight?${params}`, {
     method: 'GET',
     headers: authHeaders(auth),

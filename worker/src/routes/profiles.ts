@@ -15,6 +15,8 @@ import {
 	ErrorResponseSchema,
 } from '../schemas.js';
 import { DEFAULT_PROFILE, DEFAULT_PROFILE_COMPANIES } from '../defaultProfile.js';
+import type { ProfileTrack } from '../profileScore.js';
+import type { RoleLevel } from '../roleClassify.js';
 import { triggerSearch } from '../clients/scraper.js';
 import { resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
@@ -59,10 +61,9 @@ function triggerSearchBg(
 interface ProfileFields {
 	name: string;
 	keywords: string[];
-	role_types: string[];
-	min_salary: number | null;
+	track: ProfileTrack;
+	levels: RoleLevel[];
 	remote_pref: 'remote' | 'hybrid' | 'onsite' | 'any';
-	experience_levels: string[];
 }
 
 // ── default-profile materialization ─────────────────────────────────────────
@@ -90,8 +91,8 @@ async function ensureDefaultProfile(db: D1Database, userId: string): Promise<voi
 	const now = new Date().toISOString();
 	const inserted = await db
 		.prepare(
-			`INSERT INTO profiles (id, user_id, name, keywords, target_companies, role_types, min_salary, remote_pref, experience_levels, created_at, is_default)
-			 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
+			`INSERT INTO profiles (id, user_id, name, keywords, target_companies, track, levels, remote_pref, created_at, is_default)
+			 SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
 			 WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE user_id = ? AND is_default = 1)`
 		)
 		.bind(
@@ -100,10 +101,9 @@ async function ensureDefaultProfile(db: D1Database, userId: string): Promise<voi
 			DEFAULT_PROFILE.name,
 			JSON.stringify(DEFAULT_PROFILE.keywords),
 			'[]', // target_companies: deprecated column, kept non-null
-			JSON.stringify(DEFAULT_PROFILE.role_types),
-			DEFAULT_PROFILE.min_salary,
+			DEFAULT_PROFILE.track,
+			JSON.stringify(DEFAULT_PROFILE.levels),
 			DEFAULT_PROFILE.remote_pref,
-			JSON.stringify(DEFAULT_PROFILE.experience_levels),
 			now,
 			userId
 		)
@@ -195,18 +195,17 @@ app.openapi(
 
 		await db
 			.prepare(
-				`INSERT INTO profiles (id, user_id, name, keywords, target_companies, role_types, min_salary, remote_pref, experience_levels, created_at)
-				 VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`
+				`INSERT INTO profiles (id, user_id, name, keywords, target_companies, track, levels, remote_pref, created_at)
+				 VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?)`
 			)
 			.bind(
 				id,
 				userId,
 				body.name,
 				JSON.stringify(body.keywords),
-				JSON.stringify(body.role_types),
-				body.min_salary,
+				body.track,
+				JSON.stringify(body.levels),
 				body.remote_pref,
-				JSON.stringify(body.experience_levels),
 				now
 			)
 			.run();
@@ -263,15 +262,14 @@ app.openapi(
 		const merged = mergeFields(base, body);
 		await db
 			.prepare(
-				`UPDATE profiles SET name=?, keywords=?, role_types=?, min_salary=?, remote_pref=?, experience_levels=? WHERE id=? AND user_id=?`
+				`UPDATE profiles SET name=?, keywords=?, track=?, levels=?, remote_pref=? WHERE id=? AND user_id=?`
 			)
 			.bind(
 				merged.name,
 				JSON.stringify(merged.keywords),
-				JSON.stringify(merged.role_types),
-				merged.min_salary,
+				merged.track,
+				JSON.stringify(merged.levels),
 				merged.remote_pref,
-				JSON.stringify(merged.experience_levels),
 				id,
 				userId
 			)
@@ -559,10 +557,9 @@ function extractFields(r: Record<string, unknown>): ProfileFields {
 	return {
 		name: r.name as string,
 		keywords: JSON.parse(r.keywords as string) as string[],
-		role_types: JSON.parse(r.role_types as string) as string[],
-		min_salary: r.min_salary as number | null,
+		track: r.track as ProfileTrack,
+		levels: JSON.parse(r.levels as string) as RoleLevel[],
 		remote_pref: r.remote_pref as ProfileFields['remote_pref'],
-		experience_levels: JSON.parse(r.experience_levels as string) as string[],
 	};
 }
 
@@ -570,10 +567,9 @@ function mergeFields(base: ProfileFields, body: Partial<ProfileFields>): Profile
 	return {
 		name: body.name ?? base.name,
 		keywords: body.keywords ?? base.keywords,
-		role_types: body.role_types ?? base.role_types,
-		min_salary: body.min_salary !== undefined ? body.min_salary : base.min_salary,
+		track: body.track ?? base.track,
+		levels: body.levels ?? base.levels,
 		remote_pref: body.remote_pref ?? base.remote_pref,
-		experience_levels: body.experience_levels ?? base.experience_levels,
 	};
 }
 

@@ -27,27 +27,45 @@ Monorepo with two pnpm workspace packages:
 
 ## Worker API (V1 live)
 
-| Method | Path                   | Auth                 | Purpose                                                                         |
-| ------ | ---------------------- | -------------------- | ------------------------------------------------------------------------------- |
-| POST   | /ingest                | admin/friend/service | Scraper webhook (posts as service) — receives jobs inline, scores, stores in D1 |
-| POST   | /ingest/rescore        | admin/friend         | Rescore all jobs against updated profiles                                       |
-| POST   | /ingest/backfill-slugs | admin/friend         | One-off: parse `(ats, slug)` from `job.url` for NULL rows                       |
-| GET    | /profiles              | open                 | List scoring profiles                                                           |
-| POST   | /profiles              | admin/friend         | Create profile                                                                  |
-| PUT    | /profiles/:id          | admin/friend         | Update profile                                                                  |
-| GET    | /jobs                  | open\*               | List scored jobs (profile_id, min_score, sort, mine=true)                       |
-| GET    | /jobs/:id              | open                 | Job detail + score breakdown                                                    |
-| GET    | /companies             | admin/friend         | List this user's subscribed companies                                           |
-| POST   | /companies             | admin/friend         | Subscribe; calls scraper /targets + fire-and-forget /search                     |
-| DELETE | /companies/:id         | admin/friend         | Unsubscribe; idempotent on scraper 404                                          |
-| GET    | /health                | open                 | Health check                                                                    |
+| Method | Path                   | Auth                 | Purpose                                                                              |
+| ------ | ---------------------- | -------------------- | ------------------------------------------------------------------------------------ |
+| POST   | /ingest                | admin/friend/service | Scraper webhook (posts as service) — receives jobs inline, scores, stores in D1      |
+| POST   | /ingest/rescore        | admin/friend         | Rescore all jobs against updated profiles                                            |
+| POST   | /ingest/backfill-slugs | admin/friend         | One-off: parse `(ats, slug)` from `job.url` for NULL rows                            |
+| POST   | /ingest/backfill-roles | admin/friend         | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all |
+| GET    | /profiles              | open                 | List scoring profiles                                                                |
+| POST   | /profiles              | admin/friend         | Create profile                                                                       |
+| PUT    | /profiles/:id          | admin/friend         | Update profile                                                                       |
+| GET    | /jobs                  | open\*               | List scored jobs (profile_id, min_score, sort, mine=true)                            |
+| GET    | /jobs/:id              | open                 | Job detail + score breakdown                                                         |
+| GET    | /companies             | admin/friend         | List this user's subscribed companies                                                |
+| POST   | /companies             | admin/friend         | Subscribe; calls scraper /targets + fire-and-forget /search                          |
+| DELETE | /companies/:id         | admin/friend         | Unsubscribe; idempotent on scraper 404                                               |
+| GET    | /health                | open                 | Health check                                                                         |
 
 \*`mine=true` requires admin/friend even though the rest of `GET /jobs` is open.
 
 ## Key Decisions
 
 - Ingest auth uses standard hadoku auth (`requireMinTier('friend')` via `X-User-Key`), not a custom secret
-- Salary weight is 0.05 — data too sparse to rely on (~5% fill rate)
+- Salary does not score at all. It's a **view filter + sort** on the feed
+  (`min_salary=` / `sort=salary`), never a profile criterion — `salary_min` is
+  NULL on most postings, so the old 0.05 factor returned a neutral 0.5 for
+  nearly everything. Jobs with no listed salary survive the filter; hiding them
+  would empty the feed rather than narrow it.
+- **Role = two orthogonal axes, not one list** (migration 0009). `track`
+  (`ic | manager | either`) answers "direct reports?" and is a HARD SQL filter
+  on `jobs.role_track`; `levels` are rungs on that track's ladder and score by
+  distance (exact 1.0 / one rung off 0.7 / else 0.2 / unclassified 0.5). They
+  replaced `role_types`, a flat OR-list that mixed the two so that `senior` and
+  `manager` were alternatives to each other. `min_salary` and the never-read
+  `experience_levels` were dropped in the same migration.
+- **No ATS publishes track or level** — not Greenhouse, Ashby, or Lever. Both
+  are inferred at ingest by `worker/src/roleClassify.ts` from the title (its
+  _head_, before the first comma — "Software Engineer, Ads Manager" is an IC)
+  falling back to a description probe for the ambiguous `lead` family only.
+  Regression cases: `worker/tests/roleClassify.test.ts`, `pnpm test` in
+  `worker/` (node:test, no framework dependency).
 - Scraper writes raw jobs to KV (`jobplatform:raw:{source}_{job_id}`) for archival/prune, but POSTs **full jobs inline** in the webhook body (not ID-only). Worker scores the inline payload against all profiles and stores matches in D1.
 - V1 company-subscription flow (shipped): `POST /companies` → scraper `/targets` → scraper scrapes → webhook fires → jobs land. Scraper owns the resolver/registry; jobplatform owns per-user subscriptions and scoring.
 - V1 `(ats, slug)` is derived at ingest time from `job.url` via `worker/src/slugParse.ts` and stored on the `jobs` table (migration 0003). Used by `mine=true` to join jobs against `user_companies`.

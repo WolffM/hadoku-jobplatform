@@ -1,26 +1,16 @@
+import { levelRank, levelTrack, type RoleLevel } from './roleClassify.js';
+
 export interface ScoreBreakdown {
 	title_match: number;
 	keyword_match: number;
-	seniority_match: number;
+	level_match: number;
 	remote_match: number;
-	salary_match: number;
 }
 
 export interface ScoreResult {
 	score: number;
 	breakdown: ScoreBreakdown;
 }
-
-// Keywords that signal seniority — matched against job title
-export const SENIORITY_KEYWORDS: Record<string, string[]> = {
-	SENIOR: ['senior', 'sr.', 'sr '],
-	STAFF: ['staff'],
-	PRINCIPAL: ['principal'],
-	LEAD: ['lead', 'tech lead', 'technical lead'],
-	MANAGER: ['manager', 'engineering manager', 'em '],
-	DIRECTOR: ['director'],
-	EXECUTIVE: ['vp ', 'vice president', 'cto', 'chief'],
-};
 
 function countKeywordMatches(text: string, keywords: string[]): number {
 	if (!keywords.length) return 0;
@@ -41,14 +31,36 @@ function keywordMatch(description: string, keywords: string[]): number {
 	return Math.min(1.0, matched / Math.max(1, keywords.length * 0.4));
 }
 
-function seniorityMatch(title: string, roleTypes: string[]): number {
-	if (!roleTypes.length) return 0.5;
-	const lower = title.toLowerCase();
-	const hit = roleTypes.some((rt) => {
-		const patterns = SENIORITY_KEYWORDS[rt.toUpperCase()] ?? [rt.toLowerCase()];
-		return patterns.some((p) => lower.includes(p));
-	});
-	return hit ? 1.0 : 0.4;
+/**
+ * How close is the job's rung to the rungs the profile asked for?
+ *
+ * The old seniorityMatch substring-matched the profile's role_types against the
+ * raw title and returned a flat 1.0/0.4 — so a Junior Engineer and a VP of
+ * Engineering were penalized identically when you asked for Staff, and a plain
+ * "Software Engineer" was penalized for having no modifier at all. This scores
+ * against the classified `role_level` instead, and grades the distance:
+ *
+ *   exact rung          1.0
+ *   one rung away       0.7   (Staff when you asked for Principal)
+ *   further / off-track 0.2
+ *   unclassified job    0.5   (no signal is not a miss)
+ */
+function levelMatch(jobLevel: RoleLevel | null, wanted: RoleLevel[]): number {
+	if (!wanted.length) return 0.5;
+	if (!jobLevel) return 0.5;
+
+	const jobRank = levelRank(jobLevel);
+	const jobTrack = levelTrack(jobLevel);
+
+	let best = 0.2;
+	for (const w of wanted) {
+		if (w === jobLevel) return 1.0;
+		// Rungs on different ladders aren't comparable — "director" is not one
+		// step from "principal", it's a different job.
+		if (levelTrack(w) !== jobTrack) continue;
+		if (Math.abs(levelRank(w) - jobRank) === 1) best = Math.max(best, 0.7);
+	}
+	return best;
 }
 
 function remoteMatch(workplaceType: string, remotePref: string): number {
@@ -63,44 +75,36 @@ function remoteMatch(workplaceType: string, remotePref: string): number {
 	return 0.5;
 }
 
-function salaryMatch(salaryMin: number | null, profileMinSalary: number | null): number {
-	if (salaryMin === null || profileMinSalary === null) return 0.5; // missing data, neutral
-	if (salaryMin >= profileMinSalary) return 1.0;
-	const floor = profileMinSalary * 0.75;
-	if (salaryMin <= floor) return 0.0;
-	return (salaryMin - floor) / (profileMinSalary - floor);
-}
-
 export function scoreJob(
 	job: {
 		title: string;
 		description: string;
 		workplace_type: string;
-		salary_min: number | null;
+		role_level: RoleLevel | null;
 	},
 	profile: {
 		keywords: string[];
-		role_types: string[];
+		levels: RoleLevel[];
 		remote_pref: string;
-		min_salary: number | null;
 	}
 ): ScoreResult {
 	const breakdown: ScoreBreakdown = {
 		title_match: titleMatch(job.title, profile.keywords),
 		keyword_match: keywordMatch(job.description, profile.keywords),
-		seniority_match: seniorityMatch(job.title, profile.role_types),
+		level_match: levelMatch(job.role_level, profile.levels),
 		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
-		salary_match: salaryMatch(job.salary_min, profile.min_salary),
 	};
 
-	// Company is now a hard filter (the profile's companies), not a score factor,
-	// so the old 0.15 company weight is redistributed across the rest.
+	// Two criteria are hard filters applied in SQL rather than score factors:
+	// the profile's companies, and its track (IC vs manager). Salary is a view
+	// filter now — its old 0.06 weight was mostly noise, since salary_min is
+	// NULL on most postings and the factor returned a neutral 0.5 for all of
+	// them.
 	const score =
 		breakdown.title_match * 0.3 +
 		breakdown.keyword_match * 0.4 +
-		breakdown.seniority_match * 0.12 +
-		breakdown.remote_match * 0.12 +
-		breakdown.salary_match * 0.06;
+		breakdown.level_match * 0.15 +
+		breakdown.remote_match * 0.15;
 
 	return { score: Math.round(score * 1000) / 1000, breakdown };
 }

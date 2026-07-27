@@ -3,6 +3,7 @@ import type { AppEnv } from '../types.js';
 import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { parseAtsSlug } from '../slugParse.js';
+import { classifyRole } from '../roleClassify.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -19,6 +20,7 @@ const app = new OpenAPIHono<RouteContext>();
 // operators for debugging. None of them needs to enumerate tiers.
 app.use('/ingest', requireMinTier('friend'));
 app.use('/ingest/backfill-slugs', requireMinTier('friend'));
+app.use('/ingest/backfill-roles', requireMinTier('friend'));
 app.use('/directives', requireMinTier('friend'));
 
 // Normalize workplace_type values from scraper to our canonical set
@@ -71,6 +73,9 @@ app.openapi(ingestRoute, async (c) => {
 		const salaryMin = job.salary?.min ?? null;
 		const salaryMax = job.salary?.max ?? null;
 		const { ats, slug } = parseAtsSlug(job.url);
+		// No ATS publishes a track or a level, so we infer both here — once, at
+		// write time — rather than re-deriving them from the title on every read.
+		const role = classifyRole(job.title, job.description);
 
 		await db
 			.prepare(
@@ -78,8 +83,9 @@ app.openapi(ingestRoute, async (c) => {
 					id, url, source_site, title, company, location,
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
-					scraper_used, raw, scraped_at, ats, slug
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					scraper_used, raw, scraped_at, ats, slug,
+					role_track, role_level
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				job.id,
@@ -100,7 +106,9 @@ app.openapi(ingestRoute, async (c) => {
 				JSON.stringify(job.raw),
 				now,
 				ats,
-				slug
+				slug,
+				role.track,
+				role.level
 			)
 			.run();
 
@@ -204,6 +212,109 @@ app.openapi(backfillRoute, async (c) => {
 			unmatched,
 			remaining,
 			has_more: remaining > unmatched,
+		},
+	});
+});
+
+// ============================================================================
+// POST /ingest/backfill-roles — classify (role_track, role_level) for rows
+// ingested before migration 0009. Idempotent, but only touches rows still at
+// the 'unknown' default, so re-running is cheap and re-classifying after a
+// classifier change needs an explicit `reclassify=true`.
+// ============================================================================
+
+const backfillRolesRoute = createRoute({
+	method: 'post',
+	path: '/ingest/backfill-roles',
+	tags: ['Ingest'],
+	summary: 'Populate jobs.role_track / jobs.role_level from title + description',
+	description:
+		'Bounded by `limit` (default 500) per call so a single invocation stays under ' +
+		'the edge-router timeout. Loop until `has_more` is false. Pass `reclassify=true` ' +
+		'to re-run over every row after a classifier change, not just unclassified ones.',
+	request: {
+		query: z.object({
+			limit: z.coerce
+				.number()
+				.int()
+				.min(1)
+				.max(2000)
+				.default(500)
+				.openapi({ description: 'Max rows to scan in this call' }),
+			reclassify: z.enum(['true', 'false']).default('false').openapi({
+				description: 'Re-classify every row, not just those still at role_track = unknown',
+			}),
+		}),
+	},
+	responses: {
+		200: {
+			description: 'Backfill batch complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								scanned: z.number(),
+								updated: z.number(),
+								unclassifiable: z.number(),
+								remaining: z.number(),
+								has_more: z.boolean(),
+							}),
+						})
+						.openapi('BackfillRolesResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(backfillRolesRoute, async (c) => {
+	const { limit, reclassify } = c.req.valid('query');
+	const db = c.env.JOB_PLATFORM_DB;
+	const all = reclassify === 'true';
+
+	// When reclassifying we walk the whole table; the "remaining" count below is
+	// then meaningless as a stop condition, so the caller pages by scanned count
+	// instead. Ordering by id keeps the walk stable across calls.
+	const rows = await db
+		.prepare(
+			all
+				? 'SELECT id, title, description FROM jobs ORDER BY id LIMIT ?'
+				: "SELECT id, title, description FROM jobs WHERE role_track = 'unknown' LIMIT ?"
+		)
+		.bind(limit)
+		.all<{ id: string; title: string; description: string }>();
+
+	let updated = 0;
+	let unclassifiable = 0;
+	const stmts = rows.results.map((row) => {
+		const role = classifyRole(row.title, row.description);
+		if (role.track === 'unknown') unclassifiable++;
+		else updated++;
+		return db
+			.prepare('UPDATE jobs SET role_track = ?, role_level = ? WHERE id = ?')
+			.bind(role.track, role.level, row.id);
+	});
+	if (stmts.length) await db.batch(stmts);
+
+	const remainingRow = await db
+		.prepare("SELECT COUNT(*) as n FROM jobs WHERE role_track = 'unknown'")
+		.first<{ n: number }>();
+	const remaining = remainingRow?.n ?? 0;
+
+	// A blank-titled row classifies straight back to 'unknown' and stays in the
+	// WHERE clause, so "remaining > 0" alone would loop forever. Those rows are
+	// counted as `unclassifiable` and excluded from the stop condition — same
+	// contract as /ingest/backfill-slugs' `unmatched`.
+	return c.json({
+		success: true as const,
+		data: {
+			scanned: rows.results.length,
+			updated,
+			unclassifiable,
+			remaining,
+			has_more: all ? rows.results.length === limit : remaining > unclassifiable,
 		},
 	});
 });
