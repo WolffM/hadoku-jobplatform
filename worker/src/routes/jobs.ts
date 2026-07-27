@@ -9,8 +9,9 @@ import {
 } from '../schemas.js';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { resolveUserId } from '../userId.js';
-import { scoreJob, SENIORITY_KEYWORDS } from '../scoring.js';
+import { scoreJob } from '../scoring.js';
 import { loadScorableProfile } from '../profileScore.js';
+import { ALL_LEVELS, type RoleLevel } from '../roleClassify.js';
 import { logger } from '../logger.js';
 
 // Cap on candidates scored in-request for a profile feed. Profile feeds are
@@ -24,6 +25,31 @@ interface RouteContext {
 }
 
 const app = new OpenAPIHono<RouteContext>();
+
+// D1 hands back plain TEXT for the classified columns. Narrow it here so a row
+// written before 0009 (or by a future classifier that learned a new rung)
+// degrades to null/'unknown' instead of leaking a bogus value into the response
+// and failing the OpenAPI enum.
+function asRoleLevel(v: string | null): RoleLevel | null {
+	return v !== null && (ALL_LEVELS as readonly string[]).includes(v) ? (v as RoleLevel) : null;
+}
+
+function asRoleTrack(v: string): 'ic' | 'manager' | 'unknown' {
+	return v === 'ic' || v === 'manager' ? v : 'unknown';
+}
+
+/** Highest ceiling first; postings with no stated salary sort to the bottom. */
+function bySalaryDesc(
+	a: { salary_max: number | null; scraped_at: string },
+	b: { salary_max: number | null; scraped_at: string }
+): number {
+	if (a.salary_max === null && b.salary_max === null) {
+		return b.scraped_at.localeCompare(a.scraped_at);
+	}
+	if (a.salary_max === null) return 1;
+	if (b.salary_max === null) return -1;
+	return b.salary_max - a.salary_max || b.scraped_at.localeCompare(a.scraped_at);
+}
 
 // Resolve the caller to a user id, or null when unauthenticated.
 //
@@ -74,13 +100,25 @@ app.openapi(
 					.max(100)
 					.default(25)
 					.openapi({ description: 'Results per page' }),
-				sort: z.enum(['score', 'date']).default('score').openapi({ description: 'Sort order' }),
+				sort: z
+					.enum(['score', 'date', 'salary'])
+					.default('score')
+					.openapi({ description: 'Sort order. salary sorts by salary_max desc, unlisted last.' }),
 				min_score: z.coerce
 					.number()
 					.min(0)
 					.max(1)
 					.default(0)
 					.openapi({ description: 'Minimum score filter' }),
+				min_salary: z.coerce
+					.number()
+					.min(0)
+					.optional()
+					.openapi({
+						description:
+							'View filter: drop jobs whose salary_max is below this. Jobs with no listed ' +
+							'salary are kept — most postings omit it, and hiding them would hide the corpus.',
+					}),
 			}),
 		},
 		responses: {
@@ -103,6 +141,7 @@ app.openapi(
 			limit,
 			sort,
 			min_score,
+			min_salary,
 		} = c.req.valid('query');
 		const hideDismissed = hideDismissedRaw === 'true';
 		const db = c.env.JOB_PLATFORM_DB;
@@ -111,9 +150,8 @@ app.openapi(
 		const zeroBreakdown = {
 			title_match: 0,
 			keyword_match: 0,
-			seniority_match: 0,
+			level_match: 0,
 			remote_match: 0,
-			salary_match: 0,
 		};
 
 		interface JobRow {
@@ -130,6 +168,8 @@ app.openapi(
 			scraped_at: string;
 			ats: string | null;
 			slug: string | null;
+			role_track: string;
+			role_level: string | null;
 			description: string;
 			row_state: string | null;
 		}
@@ -168,8 +208,9 @@ app.openapi(
 		// Companies are an OPTIONAL filter, not a required scope. When a profile
 		// has companies, restrict its feed to their jobs; when it has none, the
 		// feed is the whole corpus, ranked by the profile's other criteria
-		// (keywords / roles / salary / remote). An empty profile ⇒ everything,
-		// newest first.
+		// (keywords / levels / remote). An empty profile ⇒ everything, newest
+		// first.
+		let profile = null as Awaited<ReturnType<typeof loadScorableProfile>> | null;
 		if (profile_id) {
 			const companyCount = await db
 				.prepare('SELECT COUNT(*) as n FROM profile_companies WHERE profile_id = ?')
@@ -181,6 +222,24 @@ app.openapi(
 				);
 				binds.push(profile_id);
 			}
+
+			// Track is a HARD filter, not a score factor — "I want management
+			// roles" is a different question from "rank management roles higher",
+			// and the old seniority weight (0.12) could never express the former.
+			// 'either' expresses no constraint, so it adds no clause.
+			profile = await loadScorableProfile(db, profile_id);
+			if (profile.track !== 'either') {
+				wheres.push('j.role_track = ?');
+				binds.push(profile.track);
+			}
+		}
+
+		// Salary is a view filter now, never a scoring criterion. Jobs with no
+		// listed salary survive it: salary_max is NULL on the large majority of
+		// postings, so excluding them would empty the feed rather than narrow it.
+		if (min_salary !== undefined) {
+			wheres.push('(j.salary_max IS NULL OR j.salary_max >= ?)');
+			binds.push(min_salary);
 		}
 
 		// State / hide_dismissed clauses reference the LEFT JOIN above, which
@@ -206,14 +265,13 @@ app.openapi(
 		// most-recent first up to the cap), score each against the profile's
 		// current criteria in JS, then filter/sort/paginate. No precomputed
 		// job_profile_matches, so scores always reflect the profile right now.
-		if (profile_id) {
-			const profile = await loadScorableProfile(db, profile_id);
-
+		if (profile_id && profile) {
 			const candSql = `
 				SELECT
 					j.id, j.title, j.company, j.location, j.workplace_type,
 					j.salary_min, j.salary_max, j.source_site, j.url,
-					j.posted_date, j.scraped_at, j.ats, j.slug, j.description,
+					j.posted_date, j.scraped_at, j.ats, j.slug,
+					j.role_track, j.role_level, j.description,
 					${stateCols}
 				FROM jobs j
 				${joinClause}
@@ -235,12 +293,13 @@ app.openapi(
 
 			const scored = candidates.results
 				.map((r) => {
+					const roleLevel = asRoleLevel(r.role_level);
 					const { score, breakdown } = scoreJob(
 						{
 							title: r.title,
 							description: r.description,
 							workplace_type: r.workplace_type,
-							salary_min: r.salary_min,
+							role_level: roleLevel,
 						},
 						profile
 					);
@@ -258,6 +317,8 @@ app.openapi(
 						scraped_at: r.scraped_at,
 						ats: r.ats,
 						slug: r.slug,
+						role_track: asRoleTrack(r.role_track),
+						role_level: roleLevel,
 						score,
 						score_breakdown: breakdown,
 						state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
@@ -267,6 +328,8 @@ app.openapi(
 
 			if (sort === 'score') {
 				scored.sort((a, b) => b.score - a.score || b.scraped_at.localeCompare(a.scraped_at));
+			} else if (sort === 'salary') {
+				scored.sort(bySalaryDesc);
 			} else {
 				scored.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at));
 			}
@@ -299,16 +362,25 @@ app.openapi(
 			.first<{ total: number }>();
 		const total = countRow?.total ?? 0;
 
+		// Unlisted salaries sort last rather than first — NULL collates low in
+		// SQLite, so without the leading IS NULL term "sort by salary" would open
+		// on the postings that don't state one.
+		const orderBy =
+			sort === 'salary'
+				? 'ORDER BY (j.salary_max IS NULL), j.salary_max DESC, j.scraped_at DESC'
+				: 'ORDER BY j.scraped_at DESC';
+
 		const dataSql = `
 			SELECT
 				j.id, j.title, j.company, j.location, j.workplace_type,
 				j.salary_min, j.salary_max, j.source_site, j.url,
 				j.posted_date, j.scraped_at, j.ats, j.slug,
+				j.role_track, j.role_level,
 				${stateCols}
 			FROM jobs j
 			${joinClause}
 			${whereClause}
-			ORDER BY j.scraped_at DESC
+			${orderBy}
 			LIMIT ? OFFSET ?`;
 
 		const rows = await db
@@ -330,6 +402,8 @@ app.openapi(
 			scraped_at: r.scraped_at,
 			ats: r.ats,
 			slug: r.slug,
+			role_track: asRoleTrack(r.role_track),
+			role_level: asRoleLevel(r.role_level),
 			score: 0,
 			score_breakdown: zeroBreakdown,
 			state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
@@ -363,17 +437,21 @@ app.openapi(
 		method: 'get',
 		path: '/jobs/preflight',
 		tags: ['Jobs'],
-		summary: 'Count corpus jobs matching a keyword and/or role type (editor probe)',
+		summary: 'Count corpus jobs matching a keyword, track and/or level (editor probe)',
 		request: {
 			query: z.object({
 				keyword: z
 					.string()
 					.optional()
 					.openapi({ description: 'Match in title or description (case-insensitive)' }),
-				role_type: z
+				track: z
+					.enum(['ic', 'manager'])
+					.optional()
+					.openapi({ description: 'Count only jobs classified onto this track' }),
+				level: z
 					.string()
 					.optional()
-					.openapi({ description: 'One of the seniority buckets; matched against title' }),
+					.openapi({ description: 'Count only jobs classified at this rung' }),
 			}),
 		},
 		responses: {
@@ -393,7 +471,7 @@ app.openapi(
 		},
 	}),
 	async (c) => {
-		const { keyword, role_type } = c.req.valid('query');
+		const { keyword, track, level } = c.req.valid('query');
 		const db = c.env.JOB_PLATFORM_DB;
 
 		const wheres: string[] = [];
@@ -406,12 +484,19 @@ app.openapi(
 			binds.push(like, like);
 		}
 
-		const rt = role_type?.trim();
-		if (rt) {
-			const patterns = SENIORITY_KEYWORDS[rt.toUpperCase()] ?? [rt.toLowerCase()];
-			const ors = patterns.map(() => 'LOWER(title) LIKE ?');
-			wheres.push(`(${ors.join(' OR ')})`);
-			for (const p of patterns) binds.push(`%${p.toLowerCase()}%`);
+		// Both probes read the columns the classifier already wrote, so the
+		// editor's count is exactly the population the same selection would
+		// filter to — no second, differently-spelled matcher to drift out of sync
+		// with the scorer.
+		if (track) {
+			wheres.push('role_track = ?');
+			binds.push(track);
+		}
+
+		const lvl = asRoleLevel(level?.trim() ?? null);
+		if (lvl) {
+			wheres.push('role_level = ?');
+			binds.push(lvl);
 		}
 
 		const whereClause = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
@@ -475,10 +560,11 @@ app.openapi(
 		let score_breakdown = {
 			title_match: 0,
 			keyword_match: 0,
-			seniority_match: 0,
+			level_match: 0,
 			remote_match: 0,
-			salary_match: 0,
 		};
+
+		const roleLevel = asRoleLevel((row.role_level as string | null) ?? null);
 
 		if (profile_id) {
 			const profile = await loadScorableProfile(db, profile_id);
@@ -487,7 +573,7 @@ app.openapi(
 					title: row.title as string,
 					description: row.description as string,
 					workplace_type: row.workplace_type as string,
-					salary_min: row.salary_min as number | null,
+					role_level: roleLevel,
 				},
 				profile
 			);
@@ -524,6 +610,8 @@ app.openapi(
 			scraped_at: row.scraped_at as string,
 			ats: (row.ats as string | null) ?? null,
 			slug: (row.slug as string | null) ?? null,
+			role_track: asRoleTrack((row.role_track as string | null) ?? 'unknown'),
+			role_level: roleLevel,
 			description: row.description as string,
 			application_url: row.application_url as string | null,
 			department: row.department as string | null,

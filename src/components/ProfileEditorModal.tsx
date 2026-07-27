@@ -10,9 +10,14 @@ import {
   createProfile,
   updateProfile,
   ProfilesApiError,
+  IC_LEVELS,
+  MANAGER_LEVELS,
+  LEVEL_LABELS,
   type JobProfile,
   type ProfileInput,
-  type RemotePref
+  type ProfileTrack,
+  type RemotePref,
+  type RoleLevel
 } from '../api/profiles'
 import { preflightCount } from '../api/jobs'
 import type { Auth } from '../api/auth'
@@ -29,9 +34,19 @@ interface Props {
   onCompaniesChanged?: () => void
 }
 
-// The seniority buckets the scoring engine understands. Free-text role names
-// don't score, so this is a fixed picker rather than a text box.
-const ROLE_OPTIONS = ['senior', 'staff', 'principal', 'lead', 'manager', 'director'] as const
+const TRACK_OPTIONS: { value: ProfileTrack; label: string; hint: string }[] = [
+  { value: 'either', label: 'Either', hint: 'No constraint — both tracks in the feed' },
+  { value: 'ic', label: 'IC', hint: 'No direct reports' },
+  { value: 'manager', label: 'Manager', hint: 'Has direct reports' }
+]
+
+// Which ladder's rungs to offer. 'either' shows both — you can want Staff OR
+// Director, you just can't want a rung that belongs to neither ladder.
+function levelsForTrack(track: ProfileTrack): readonly RoleLevel[] {
+  if (track === 'ic') return IC_LEVELS
+  if (track === 'manager') return MANAGER_LEVELS
+  return [...IC_LEVELS, ...MANAGER_LEVELS]
+}
 
 // A live corpus count for one probe input, or a loading/absent sentinel.
 type Count = number | 'loading' | null
@@ -53,19 +68,16 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
   const [name, setName] = useState(initial?.name ?? '')
   const [keywords, setKeywords] = useState<string[]>(initial?.keywords ?? [])
   const [kwInput, setKwInput] = useState('')
-  const [roleTypes, setRoleTypes] = useState<string[]>(
-    (initial?.role_types ?? []).filter(r => (ROLE_OPTIONS as readonly string[]).includes(r))
-  )
+  const [track, setTrack] = useState<ProfileTrack>(initial?.track ?? 'either')
+  const [levels, setLevels] = useState<RoleLevel[]>(initial?.levels ?? [])
   const [remotePref, setRemotePref] = useState<RemotePref>(initial?.remote_pref ?? 'any')
-  const [minSalary, setMinSalary] = useState(
-    initial && initial.min_salary !== null ? String(initial.min_salary) : ''
-  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [justSaved, setJustSaved] = useState(false)
 
   const [kwCounts, setKwCounts] = useState<Record<string, Count>>({})
-  const [roleCounts, setRoleCounts] = useState<Record<string, Count>>({})
+  const [levelCounts, setLevelCounts] = useState<Record<string, Count>>({})
+  const [trackCount, setTrackCount] = useState<Count>(null)
 
   // Probe a keyword / role against the live corpus and stash the count.
   const probeKeyword = useCallback(
@@ -80,27 +92,44 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
     },
     [auth]
   )
-  const probeRole = useCallback(
-    async (rt: string) => {
-      setRoleCounts(prev => ({ ...prev, [rt]: 'loading' }))
+  const probeLevel = useCallback(
+    async (lvl: RoleLevel) => {
+      setLevelCounts(prev => ({ ...prev, [lvl]: 'loading' }))
       try {
-        const n = await preflightCount({ role_type: rt }, auth)
-        setRoleCounts(prev => ({ ...prev, [rt]: n }))
+        const n = await preflightCount({ level: lvl }, auth)
+        setLevelCounts(prev => ({ ...prev, [lvl]: n }))
       } catch {
-        setRoleCounts(prev => ({ ...prev, [rt]: null }))
+        setLevelCounts(prev => ({ ...prev, [lvl]: null }))
       }
     },
     [auth]
   )
 
-  // Probe any keywords/roles the profile already has, once on open.
+  // Probe any keywords/levels the profile already has, once on open.
   const probedOnce = useRef(false)
   useEffect(() => {
     if (probedOnce.current) return
     probedOnce.current = true
     for (const kw of keywords) void probeKeyword(kw)
-    for (const rt of roleTypes) void probeRole(rt)
-  }, [keywords, roleTypes, probeKeyword, probeRole])
+    for (const lvl of levels) void probeLevel(lvl)
+  }, [keywords, levels, probeKeyword, probeLevel])
+
+  // Track is a hard filter, so its count is the ceiling on the whole feed —
+  // worth showing live as the choice changes, unlike the per-level counts.
+  useEffect(() => {
+    if (track === 'either') {
+      setTrackCount(null)
+      return
+    }
+    let stale = false
+    setTrackCount('loading')
+    preflightCount({ track }, auth)
+      .then(n => !stale && setTrackCount(n))
+      .catch(() => !stale && setTrackCount(null))
+    return () => {
+      stale = true
+    }
+  }, [track, auth])
 
   // Close on Escape.
   useEffect(() => {
@@ -140,12 +169,21 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
     }
   }
   const removeKeyword = (kw: string) => setKeywords(prev => prev.filter(x => x !== kw))
-  const toggleRole = (r: string) =>
-    setRoleTypes(prev => {
-      if (prev.includes(r)) return prev.filter(x => x !== r)
-      if (roleCounts[r] === undefined) void probeRole(r)
-      return [...prev, r]
+
+  const toggleLevel = (lvl: RoleLevel) =>
+    setLevels(prev => {
+      if (prev.includes(lvl)) return prev.filter(x => x !== lvl)
+      if (levelCounts[lvl] === undefined) void probeLevel(lvl)
+      return [...prev, lvl]
     })
+
+  // Narrowing the track drops any selected rungs from the other ladder — they'd
+  // be unreachable behind the hard filter and would silently score nothing.
+  const changeTrack = (next: ProfileTrack) => {
+    setTrack(next)
+    const allowed = levelsForTrack(next)
+    setLevels(prev => prev.filter(l => (allowed as readonly string[]).includes(l)))
+  }
 
   const buildInput = (): ProfileInput => {
     const pending = kwInput.trim()
@@ -160,10 +198,9 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
     return {
       name: name.trim(),
       keywords: pending,
-      role_types: roleTypes,
-      min_salary: minSalary ? Number(minSalary) : null,
-      remote_pref: remotePref,
-      experience_levels: initial?.experience_levels ?? []
+      track,
+      levels,
+      remote_pref: remotePref
     }
   }
 
@@ -260,56 +297,76 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
           </section>
 
           <section className="jp-editor__section">
-            <span className="jp-editor__field-label">Role types</span>
-            <div className="jp-role-picker">
-              {ROLE_OPTIONS.map(r => {
-                const on = roleTypes.includes(r)
+            <div className="jp-editor__section-head">
+              <span className="jp-editor__field-label">Track</span>
+              <span className="jp-editor__hint">
+                Does the role have direct reports? A hard filter — jobs on the other track don’t
+                appear in this profile’s feed at all.
+              </span>
+            </div>
+            <div className="jp-role-picker" role="radiogroup" aria-label="Track">
+              {TRACK_OPTIONS.map(opt => {
+                const on = track === opt.value
                 return (
                   <button
                     type="button"
-                    key={r}
+                    key={opt.value}
+                    role="radio"
+                    aria-checked={on}
+                    title={opt.hint}
                     className={on ? 'jp-role-opt jp-role-opt--on' : 'jp-role-opt'}
-                    onClick={() => toggleRole(r)}
-                    aria-pressed={on}
+                    onClick={() => changeTrack(opt.value)}
                   >
-                    {r}
-                    {on && <CountBadge count={roleCounts[r] ?? null} />}
+                    {opt.label}
+                    {on && opt.value !== 'either' && <CountBadge count={trackCount} />}
                   </button>
                 )
               })}
             </div>
           </section>
 
-          <section className="jp-editor__section jp-editor__section--split">
-            <div>
-              <label className="jp-editor__field-label" htmlFor="jp-editor-remote">
-                Remote preference
-              </label>
-              <select
-                id="jp-editor-remote"
-                className="jp-editor__text"
-                value={remotePref}
-                onChange={e => setRemotePref(e.target.value as RemotePref)}
-              >
-                <option value="any">Any</option>
-                <option value="remote">Remote</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="onsite">Onsite</option>
-              </select>
+          <section className="jp-editor__section">
+            <div className="jp-editor__section-head">
+              <span className="jp-editor__field-label">Levels</span>
+              <span className="jp-editor__hint">
+                Rungs on the ladder. Scored by distance — one rung off still counts, two doesn’t.
+                Pick none to ignore level entirely.
+              </span>
             </div>
-            <div>
-              <label className="jp-editor__field-label" htmlFor="jp-editor-salary">
-                Min salary
-              </label>
-              <input
-                id="jp-editor-salary"
-                type="number"
-                className="jp-editor__text"
-                value={minSalary}
-                onChange={e => setMinSalary(e.target.value)}
-                placeholder="(optional)"
-              />
+            <div className="jp-role-picker">
+              {levelsForTrack(track).map(lvl => {
+                const on = levels.includes(lvl)
+                return (
+                  <button
+                    type="button"
+                    key={lvl}
+                    className={on ? 'jp-role-opt jp-role-opt--on' : 'jp-role-opt'}
+                    onClick={() => toggleLevel(lvl)}
+                    aria-pressed={on}
+                  >
+                    {LEVEL_LABELS[lvl]}
+                    {on && <CountBadge count={levelCounts[lvl] ?? null} />}
+                  </button>
+                )
+              })}
             </div>
+          </section>
+
+          <section className="jp-editor__section">
+            <label className="jp-editor__field-label" htmlFor="jp-editor-remote">
+              Remote preference
+            </label>
+            <select
+              id="jp-editor-remote"
+              className="jp-editor__text"
+              value={remotePref}
+              onChange={e => setRemotePref(e.target.value as RemotePref)}
+            >
+              <option value="any">Any</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+              <option value="onsite">Onsite</option>
+            </select>
           </section>
 
           <section className="jp-editor__section">

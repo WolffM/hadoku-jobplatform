@@ -193,13 +193,56 @@ interface JobProfile {
   name: string // e.g. "Senior SWE — AI/ML"
   keywords: string[] // Match against title + description
   target_companies: string[] // Boosted score if matched
-  role_types: string[] // SENIOR | STAFF | PRINCIPAL | LEAD | etc.
-  min_salary: number | null // Informational only — salary data is sparse
+  track: 'ic' | 'manager' | 'either' // Direct reports or not — a HARD filter
+  levels: RoleLevel[] // Rungs on that track's ladder — scored by distance
   remote_pref: 'remote' | 'hybrid' | 'onsite' | 'any'
-  experience_level: string[] // MID_SENIOR | DIRECTOR | etc.
   created_at: string
 }
 ```
+
+**`track` / `levels` replaced `role_types` (migration 0009).** The old field was a
+flat OR-list mixing two orthogonal axes — `senior`, `staff`, `principal`, `lead`,
+`manager`, `director` — matched as substrings against the raw title. Because
+`senior` and `manager` were alternatives to each other, the only expressible
+query was "one of these words appears somewhere in the title", and a Senior
+Engineering Manager scored identically to a Senior Engineer.
+
+- `track` answers "does this role have direct reports?" and is applied as a hard
+  SQL filter on `jobs.role_track`, the same way the profile's companies are.
+  Ranking a management role slightly lower is not what "I want IC roles" means.
+- `levels` are rungs — IC: `junior | mid | senior | staff | principal | fellow`;
+  manager: `manager | senior_manager | director | vp | cxo` — and score by
+  distance (exact 1.0, one rung off 0.7, otherwise 0.2, unclassified 0.5).
+
+`min_salary` and `experience_levels` were dropped in the same migration.
+Salary is a **view filter and sort** on the feed, never a profile criterion; the
+old 0.05 weight was noise because `salary_min` is NULL on most postings and the
+factor returned a neutral 0.5 for all of them. `experience_levels` was
+round-tripped through every read and write since 0001 and never read by the
+scorer — its seed value was a verbatim copy of `role_types`.
+
+### Role classification
+
+No ATS publishes a track or a level. Greenhouse exposes departments/offices/
+metadata, Ashby `department`/`team`/`employmentType`, Lever `categories.team` +
+`commitment` — none carry a level field or a management flag. Both axes are
+therefore **inferred at ingest** by `worker/src/roleClassify.ts` and stored on
+the `jobs` row, so the feed can filter and sort on them in SQL rather than
+re-deriving them from the title on every read.
+
+The classifier reads the _head_ of the title (before the first comma or dash),
+since titles are overwhelmingly `«role», «team/region»` and the tail routinely
+carries words that mean something else there — "Software Engineer, Ads Manager"
+is an IC. Titles that name a management word but describe an IC (Technical
+Program Manager, Account Director) are excluded explicitly. Only the genuinely
+ambiguous `lead` family falls through to a description probe for phrases like
+"direct reports" or "manage a team of"; "Tech Lead" is IC by convention and
+skips it, because a wrong track makes a job invisible.
+
+`POST /ingest/backfill-roles` classifies rows ingested before 0009, and
+`?reclassify=true` re-runs the whole table after a classifier change.
+Regression cases live in `worker/tests/roleClassify.test.ts` (`pnpm test`) and
+were derived from running the classifier over 800 live corpus titles.
 
 ### Jobs
 
@@ -235,12 +278,10 @@ interface ProfileMatch {
   profile_id: string
   score: number // 0.0 – 1.0
   score_breakdown: {
-    title_match: number // weight 0.25
-    keyword_match: number // weight 0.35 (salary absent → redistribute here)
-    company_boost: number // weight 0.15
-    salary_match: number // weight 0.05 (low weight — data too sparse)
-    remote_match: number // weight 0.10
-    seniority_match: number // weight 0.10
+    title_match: number // weight 0.30
+    keyword_match: number // weight 0.40
+    level_match: number // weight 0.15
+    remote_match: number // weight 0.15
   }
   matched_at: string
 }
@@ -418,19 +459,21 @@ Config per-profile: `alert_min_score`, `alert_channel` (`email` | `push` | `none
 
 ## Scoring Algorithm
 
-Runs at ingest time (on webhook receipt). Each incoming job is scored against every profile.
+Runs on read, per request (see `worker/src/routes/jobs.ts`) — the precomputed
+`job_profile_matches` table was dropped in migration 0008, so scores always
+reflect the profile as it is right now.
 
-Salary weight deliberately low (0.05) because data is sparse — over-penalizing jobs with no salary data would filter out most listings.
+Three criteria are **hard filters in SQL**, not score factors, because "only
+show me X" is a different request from "rank X higher": the profile's companies,
+its `track`, and (as a view control) the feed's `min_salary`.
 
 ```typescript
 function scoreJobAgainstProfile(job: JobPosting, profile: JobProfile): number {
   const signals = {
-    title_match: matchTitleKeywords(job.title, profile.keywords), // 0.25
-    keyword_match: matchDescriptionKeywords(job.description, profile.keywords), // 0.35
-    company_boost: matchTargetCompanies(job.company, profile.target_companies), // 0.15
-    seniority_match: matchSeniority(job.experience_level, profile.role_types), // 0.10
-    remote_match: matchRemote(job.remote_type, profile.remote_pref), // 0.10
-    salary_match: matchSalary(job.salary_min, profile.min_salary) // 0.05
+    title_match: matchTitleKeywords(job.title, profile.keywords), // 0.30
+    keyword_match: matchDescriptionKeywords(job.description, profile.keywords), // 0.40
+    level_match: matchLevel(job.role_level, profile.levels), // 0.15
+    remote_match: matchRemote(job.remote_type, profile.remote_pref) // 0.15
   }
   return weightedSum(signals) // 0.0 – 1.0
 }

@@ -1,5 +1,6 @@
 import { z } from '@hono/zod-openapi';
 import { DetailedErrorResponseSchema, createSuccessResponseSchema } from '@wolffm/worker-utils';
+import { IC_LEVELS, MANAGER_LEVELS } from './roleClassify.js';
 
 export const ErrorResponseSchema = DetailedErrorResponseSchema;
 const S = createSuccessResponseSchema;
@@ -20,15 +21,20 @@ export const HealthResponseSchema = z
 // Profiles
 // ============================================================================
 
+// The two orthogonal axes of "what kind of role am I looking for". `track` is a
+// hard filter on jobs.role_track; `levels` is a graded score factor. See
+// worker/src/roleClassify.ts for how a posting gets classified onto them.
+export const ProfileTrackSchema = z.enum(['ic', 'manager', 'either']).openapi('ProfileTrack');
+export const RoleLevelSchema = z.enum([...IC_LEVELS, ...MANAGER_LEVELS]).openapi('RoleLevel');
+
 export const ProfileSchema = z
 	.object({
 		id: z.string(),
 		name: z.string(),
 		keywords: z.array(z.string()),
-		role_types: z.array(z.string()),
-		min_salary: z.number().nullable(),
+		track: ProfileTrackSchema,
+		levels: z.array(RoleLevelSchema),
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
-		experience_levels: z.array(z.string()),
 		created_at: z.string(),
 		// True for the shared default profile (id 'default') — whether the caller
 		// is seeing the code seed or their own edited copy. Regular profiles omit
@@ -41,10 +47,9 @@ export const CreateProfileSchema = z
 	.object({
 		name: z.string().min(1),
 		keywords: z.array(z.string()).default([]),
-		role_types: z.array(z.string()).default([]),
-		min_salary: z.number().nullable().default(null),
+		track: ProfileTrackSchema.default('either'),
+		levels: z.array(RoleLevelSchema).default([]),
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']).default('any'),
-		experience_levels: z.array(z.string()).default([]),
 	})
 	.openapi('CreateProfile');
 
@@ -68,11 +73,13 @@ export const ScoreBreakdownSchema = z
 	.object({
 		title_match: z.number(),
 		keyword_match: z.number(),
-		seniority_match: z.number(),
+		level_match: z.number(),
 		remote_match: z.number(),
-		salary_match: z.number(),
 	})
 	.openapi('ScoreBreakdown');
+
+/** As classified at ingest. 'unknown' only for a blank title. */
+export const RoleTrackSchema = z.enum(['ic', 'manager', 'unknown']).openapi('RoleTrack');
 
 // Triage states (V2). 'new' is implicit — the absence of a job_states row.
 // Code reads/writes only 'interested' | 'dismissed' | 'saved' | 'applied'.
@@ -103,6 +110,8 @@ export const JobSummarySchema = z
 		scraped_at: z.string(),
 		ats: z.string().nullable(),
 		slug: z.string().nullable(),
+		role_track: RoleTrackSchema,
+		role_level: RoleLevelSchema.nullable(),
 		score: z.number(),
 		score_breakdown: ScoreBreakdownSchema,
 		// 'new' when no row in job_states for the caller, or null when

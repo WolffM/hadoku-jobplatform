@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { listJobs, JobsApiError, type JobSummary, type JobStateRead } from '../api/jobs'
+import {
+  listJobs,
+  JobsApiError,
+  type JobSummary,
+  type JobStateRead,
+  type JobSort
+} from '../api/jobs'
 import type { Auth } from '../api/auth'
 import { JobCard } from './JobCard'
 
@@ -28,8 +34,11 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [sort, setSort] = useState<'score' | 'date'>('score')
+  const [sort, setSort] = useState<JobSort>('score')
   const [minScore, setMinScore] = useState(0)
+  // Salary is a view control, not a profile criterion — it narrows what you're
+  // looking at right now without changing how anything scores.
+  const [minSalary, setMinSalary] = useState('')
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
   const [hideDismissed, setHideDismissed] = useState(true)
@@ -39,6 +48,16 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   // hide_dismissed only matters when no specific state filter is active.
   // When the user picks state='dismissed' explicitly, we want them to see them.
   const effectiveHideDismissed = hideDismissed && stateFilter === ''
+
+  // Without a profile nothing is scored, so "score" isn't an option the select
+  // offers — fall back to date rather than rendering a blank selection.
+  const effectiveSort: JobSort = !profileId && sort === 'score' ? 'date' : sort
+
+  // Blank / unparseable means "no salary floor" rather than 0 — passing 0 would
+  // read as an explicit filter and drop nothing, but it muddies the query.
+  const minSalaryNum = minSalary.trim() ? Number(minSalary) : NaN
+  const effectiveMinSalary =
+    Number.isFinite(minSalaryNum) && minSalaryNum > 0 ? minSalaryNum : undefined
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -51,8 +70,9 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
           hide_dismissed: effectiveHideDismissed || undefined,
           page,
           limit,
-          sort,
-          min_score: minScore
+          sort: effectiveSort,
+          min_score: minScore,
+          min_salary: effectiveMinSalary
         },
         auth
       )
@@ -63,7 +83,17 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [auth, profileId, stateFilter, effectiveHideDismissed, page, sort, minScore])
+  }, [
+    auth,
+    profileId,
+    stateFilter,
+    effectiveHideDismissed,
+    page,
+    limit,
+    effectiveSort,
+    minScore,
+    effectiveMinSalary
+  ])
 
   useEffect(() => {
     void load()
@@ -72,7 +102,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, sort, minScore, stateFilter, effectiveHideDismissed])
+  }, [profileId, effectiveSort, minScore, effectiveMinSalary, stateFilter, effectiveHideDismissed])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs
@@ -102,29 +132,40 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
           onChange={e => setSearch(e.target.value)}
           className="jp-jobs__search"
         />
+        <label className="jp-jobs__filter">
+          Sort
+          <select value={effectiveSort} onChange={e => setSort(e.target.value as JobSort)}>
+            {profileId && <option value="score">Score</option>}
+            <option value="date">Date</option>
+            <option value="salary">Salary</option>
+          </select>
+        </label>
+        <label className="jp-jobs__filter">
+          Min salary
+          <input
+            type="number"
+            className="jp-jobs__salary"
+            min={0}
+            step={10000}
+            value={minSalary}
+            onChange={e => setMinSalary(e.target.value)}
+            placeholder="any"
+          />
+        </label>
         {profileId && (
-          <>
-            <label className="jp-jobs__filter">
-              Sort
-              <select value={sort} onChange={e => setSort(e.target.value as 'score' | 'date')}>
-                <option value="score">Score</option>
-                <option value="date">Date</option>
-              </select>
-            </label>
-            <label className="jp-jobs__filter">
-              Min score
-              <input
-                type="range"
-                className="jp-slider"
-                min={0}
-                max={1}
-                step={0.05}
-                value={minScore}
-                onChange={e => setMinScore(Number(e.target.value))}
-              />
-              <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
-            </label>
-          </>
+          <label className="jp-jobs__filter">
+            Min score
+            <input
+              type="range"
+              className="jp-slider"
+              min={0}
+              max={1}
+              step={0.05}
+              value={minScore}
+              onChange={e => setMinScore(Number(e.target.value))}
+            />
+            <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
+          </label>
         )}
         {seemsAuthed && (
           <label className="jp-jobs__filter">

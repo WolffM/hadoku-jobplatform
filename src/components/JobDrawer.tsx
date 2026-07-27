@@ -21,12 +21,14 @@ interface Props {
   onStateChange?: (jobId: string, newState: JobStateRead) => void
 }
 
+// Track and companies are hard filters, not score factors, so they never appear
+// here — a job that reached the drawer already passed them. Salary is a view
+// filter and doesn't score at all.
 const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
   title_match: 'Title',
   keyword_match: 'Keywords',
-  seniority_match: 'Seniority',
-  remote_match: 'Remote',
-  salary_match: 'Salary'
+  level_match: 'Level',
+  remote_match: 'Remote'
 }
 
 const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[] = [

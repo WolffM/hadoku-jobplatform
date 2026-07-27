@@ -1,0 +1,16 @@
+// Tests run on node (node:test, native type stripping), not in the Workers
+// runtime, so they need node's types — kept out of the main project so worker
+// source can't accidentally reach for a node global that doesn't exist at the
+// edge.
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"types": ["node"],
+		"allowImportingTsExtensions": true
+	},
+	// Tests only. Pulling all of src/ in here would typecheck the Workers-runtime
+	// modules against node's lib too, and node's fetch/Response types conflict
+	// with @cloudflare/workers-types. Modules a test imports are still checked,
+	// transitively.
+	"include": ["tests/**/*"]
+}
