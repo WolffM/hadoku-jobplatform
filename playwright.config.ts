@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
  * hadoku.me for both `/jobplatform/api` and `/session`. No mocks: tests
  * exercise the actual edge-router auth, real D1 jobs, and the live MFE bundle.
  *
- * Auth: `process.env.ADMIN_KEY` is provided by the outer `dev-vault.mjs`
+ * Auth: `process.env.FRIEND_KEY` is provided by the outer `dev-vault.mjs`
  * wrapper (see `package.json#scripts.test:e2e`). Tests that need an authed
  * session pass it as `?apiKey=` to the dev harness, which exchanges it for a
  * sessionId via `/session/create` — same code path as production mf-loader

@@ -1,7 +1,6 @@
 {
-  "//": "Loaded by ../hadoku_site/scripts/secrets/dev-vault.mjs at pnpm dev time. ADMIN_KEY shared with vibedispatch (same secret).",
-  "ADMIN_KEY": "VIBEDISPATCH_ADMIN_KEY",
-  "FRIEND_KEY": "JOBPLATFORM_FRIEND_KEY",
+  "//": "Loaded by ../hadoku_site/scripts/secrets/dev-vault.mjs at pnpm dev time. FRIEND_KEY is the e2e test credential (registry name jobplatform-e2e, tier friend).",
+  "FRIEND_KEY": "KEY_FRIEND_JOBPLATFORM_E2E",
   "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN",
   "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
   "HADOKU_SITE_TOKEN": "HADOKU_SITE_TOKEN"

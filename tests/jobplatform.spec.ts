@@ -4,18 +4,35 @@ import type { Page } from '@playwright/test'
 /**
  * Real E2E against `pnpm dev` (which proxies to hadoku.me). No mocks.
  *
- * `process.env.ADMIN_KEY` is injected by dev-vault.mjs in the outer test:e2e
- * script. Skip the authed tests cleanly if the env isn't set so a developer
- * who runs `playwright test` without the wrapper still gets useful smoke
- * coverage.
+ * `process.env.FRIEND_KEY` is injected by dev-vault.mjs in the outer test:e2e
+ * script (vault item `KEY_FRIEND_JOBPLATFORM_E2E`, registry name
+ * `jobplatform-e2e`, tier friend). Skip the authed tests cleanly if the env
+ * isn't set so a developer who runs `playwright test` without the wrapper
+ * still gets useful smoke coverage — but hard-fail if the wrapper *did* run
+ * and only this binding is missing, so a broken key can't produce a
+ * green-but-empty suite.
  */
 
-const ADMIN_KEY = process.env.ADMIN_KEY ?? ''
-const authedDescribe = ADMIN_KEY ? test.describe : test.describe.skip
+const FRIEND_KEY = process.env.FRIEND_KEY ?? ''
+
+if (!FRIEND_KEY && process.env.HADOKU_DEV_VAULT_ACTIVE) {
+  throw new Error(
+    'FRIEND_KEY is empty but dev-vault ran — the .devvault.json binding for ' +
+      'FRIEND_KEY is broken. Run ' +
+      '`node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`.'
+  )
+}
+if (!FRIEND_KEY) {
+  console.warn(
+    '[e2e] FRIEND_KEY unset — skipping authed suite. Run `pnpm test:e2e` for full coverage.'
+  )
+}
+
+const authedDescribe = FRIEND_KEY ? test.describe : test.describe.skip
 
 async function gotoAuthed(page: Page, hashPath = '/') {
   // Encode the hash path so query stays separate from hash
-  await page.goto(`/?apiKey=${encodeURIComponent(ADMIN_KEY)}#${hashPath}`)
+  await page.goto(`/?apiKey=${encodeURIComponent(FRIEND_KEY)}#${hashPath}`)
   // Wait for the dev harness's /session/create roundtrip + the /jobs API
   await page.waitForResponse(r => r.url().includes('/session/create') && r.ok(), {
     timeout: 15_000
@@ -26,8 +43,10 @@ test.describe('smoke', () => {
   test('app mounts and renders the header', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Job Platform', level: 1 })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Jobs' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Companies' })).toBeVisible()
+    // Nav moved out of the header in d9bc0f2; the dashboard is the only route.
+    // Sidebar + feed are what the shell actually renders.
+    await expect(page.getByRole('heading', { name: 'Profiles', level: 2 })).toBeVisible()
+    await expect(page.getByPlaceholder(/Search title/i)).toBeVisible()
   })
 
   test('public visitor sees the unscored-list hint', async ({ page }) => {
@@ -93,7 +112,7 @@ authedDescribe('authed flows', () => {
     expect(resp.ok).toBe(true)
     const body = resp.body as { valid: boolean; userType: string; sessionId: string }
     expect(body.valid).toBe(true)
-    expect(body.userType).toBe('admin')
+    expect(body.userType).toBe('friend')
     expect(body.sessionId).toMatch(/^[a-f0-9]{32}$/)
   })
 })
@@ -113,15 +132,33 @@ test.describe('job detail drawer', () => {
     await expect(drawer.getByRole('link', { name: /Apply on/ })).toBeVisible()
   })
 
-  test('LinkedIn description preserves \\n linebreaks (regression)', async ({ page, request }) => {
-    // Find a LinkedIn job that actually has a description, by hitting the API
-    // through the same vite proxy the page uses.
+  test('plain-text description preserves \\n linebreaks (regression)', async ({
+    page,
+    request
+  }) => {
+    // JobDrawer picks its render branch from the description *content*
+    // (`isHtml` regex), not the ATS — so find a job whose description has no
+    // block markup. Probing detail is required: the list rows omit description.
+    // (Don't key this on ats==='linkedin' — LinkedIn is no longer a source.)
     const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=100')
-    const data = (await list.json()) as { data: { jobs: Array<{ id: string; ats: string }> } }
-    const linkedinJob = data.data.jobs.find(j => j.ats === 'linkedin')
-    expect(linkedinJob, 'should find at least one linkedin job').toBeDefined()
+    const data = (await list.json()) as { data: { jobs: Array<{ id: string }> } }
 
-    await page.goto(`/#/jobs/${encodeURIComponent(linkedinJob!.id)}`)
+    let plainJobId: string | undefined
+    for (const job of data.data.jobs.slice(0, 25)) {
+      const detail = await request.get(
+        `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(job.id)}`
+      )
+      const desc =
+        ((await detail.json()) as { data: { job: { description?: string } } }).data.job
+          .description ?? ''
+      if (desc && !/<(p|br|div|li|ul|ol|h[1-6])\b/i.test(desc)) {
+        plainJobId = job.id
+        break
+      }
+    }
+    expect(plainJobId, 'should find at least one plain-text description').toBeDefined()
+
+    await page.goto(`/#/jobs/${encodeURIComponent(plainJobId!)}`)
     const drawer = page.getByRole('dialog')
     await expect(drawer).toBeVisible({ timeout: 10_000 })
 
@@ -147,19 +184,30 @@ test.describe('job detail drawer', () => {
   })
 })
 
+// The standalone /companies route is gone — companies became a per-profile
+// slice inside ProfileEditorModal (20c3087, f6dbd88). What's left to route is
+// the dashboard and the job drawer overlay.
 test.describe('routing', () => {
-  test('Companies link navigates to /companies', async ({ page }) => {
+  test('clicking a card deep-links to /jobs/:id and closing returns to the dashboard', async ({
+    page
+  }) => {
     await page.goto('/')
-    await page.getByRole('link', { name: 'Companies' }).click()
-    await expect(page).toHaveURL(/#\/companies$/)
-    // The companies page wraps CompaniesManager which has this title.
-    await expect(page.getByRole('heading', { name: 'Subscribed Companies' })).toBeVisible()
+    const firstCard = page.locator('.jp-jobcard').first()
+    await expect(firstCard).toBeVisible({ timeout: 30_000 })
+    await firstCard.click()
+
+    await expect(page).toHaveURL(/#\/jobs\/[^/]+/)
+    await expect(page.getByRole('dialog')).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page).toHaveURL(/#\/(\?|$)/)
   })
 
-  test('Back link returns to dashboard', async ({ page }) => {
-    await page.goto('/#/companies')
-    await page.getByRole('link', { name: '← Back to jobs' }).click()
-    await expect(page).toHaveURL(/#\/$|\/$/)
+  test('unknown route redirects to the dashboard', async ({ page }) => {
+    await page.goto('/#/nope/not-a-route')
+    await expect(page).toHaveURL(/#\/$/)
+    await expect(page.getByRole('heading', { name: 'Profiles', level: 2 })).toBeVisible()
   })
 })
 
@@ -188,7 +236,7 @@ test.describe('filters', () => {
 
 authedDescribe('triage state (V2)', () => {
   // The dev harness exchanges ?apiKey= for a sessionId on every page load,
-  // and the worker resolves sessionId → admin key → user_id. Same user_id
+  // and the worker resolves sessionId → friend key → user_id. Same user_id
   // each run, so cleanup is reliable.
   async function clearState(
     request: import('@playwright/test').APIRequestContext,
@@ -207,10 +255,26 @@ authedDescribe('triage state (V2)', () => {
     request: import('@playwright/test').APIRequestContext
   ): Promise<string> {
     const r = await request.post('http://localhost:5173/session/create', {
-      headers: { 'X-User-Key': ADMIN_KEY }
+      headers: { 'X-User-Key': FRIEND_KEY }
     })
     const body = (await r.json()) as { sessionId: string }
     return body.sessionId
+  }
+
+  // ProfileSidebar auto-selects profiles[0] as soon as the list loads, so the
+  // feed the browser renders is ALWAYS profile-scoped. A job picked from the
+  // unscoped /jobs feed may not exist in that profile's corpus at all — mark
+  // it and it silently never shows up in the filtered list. Scope the pick to
+  // the same profile the UI will land on.
+  async function firstProfileId(
+    request: import('@playwright/test').APIRequestContext
+  ): Promise<string> {
+    const r = await request.get('http://localhost:5173/jobplatform/api/profiles', {
+      headers: { 'X-User-Key': FRIEND_KEY }
+    })
+    const body = (await r.json()) as { data: { profiles: Array<{ id: string }> } }
+    expect(body.data.profiles.length, 'need at least one profile').toBeGreaterThan(0)
+    return body.data.profiles[0].id
   }
 
   test('drawer shows the triage section with 4 state buttons when authed', async ({
@@ -234,11 +298,14 @@ authedDescribe('triage state (V2)', () => {
     request
   }) => {
     const sessionId = await freshSessionId(request)
+    const profileId = await firstProfileId(request)
 
-    // Pick a job that doesn't currently have state — first card on page 1.
-    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=10', {
-      headers: { 'X-Session-Id': sessionId }
-    })
+    // Pick a job that doesn't currently have state — first card on page 1 of
+    // the profile-scoped feed, which is what the browser will render.
+    const list = await request.get(
+      `http://localhost:5173/jobplatform/api/jobs?limit=10&profile_id=${encodeURIComponent(profileId)}`,
+      { headers: { 'X-Session-Id': sessionId } }
+    )
     const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string; state: string }> } })
       .data.jobs
     const target = jobs.find(j => j.state === 'new') ?? jobs[0]
@@ -248,7 +315,9 @@ authedDescribe('triage state (V2)', () => {
     await clearState(request, target.id, sessionId)
 
     try {
-      await gotoAuthed(page, `/jobs/${target.id}`)
+      // Pin the profile explicitly rather than leaning on the sidebar's
+      // auto-select, so the feed and the pick above stay in the same corpus.
+      await gotoAuthed(page, `/jobs/${target.id}?profile=${encodeURIComponent(profileId)}`)
       const drawer = page.getByRole('dialog')
       await expect(drawer).toBeVisible({ timeout: 10_000 })
 
@@ -289,12 +358,12 @@ authedDescribe('triage state (V2)', () => {
           r.ok()
       )
 
-      const interestedCards = page.locator('.jp-jobcard')
-      await expect(interestedCards.first()).toBeVisible({ timeout: 10_000 })
+      // Assert on the locator, not a one-shot count(): the response landing
+      // does not mean React has re-rendered, and count() never retries.
       const interestedBadges = page
         .getByTestId('card-state-badge')
         .filter({ hasText: 'interested' })
-      expect(await interestedBadges.count()).toBeGreaterThan(0)
+      await expect(interestedBadges.first()).toBeVisible({ timeout: 10_000 })
     } finally {
       // Always clear state to keep prod tidy
       await clearState(request, target.id, sessionId)
