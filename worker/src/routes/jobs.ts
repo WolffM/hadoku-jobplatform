@@ -700,13 +700,20 @@ app.openapi(
 		}
 
 		const now = new Date().toISOString();
+		// COALESCE(excluded.variant_slug, variant_slug): a later state change that
+		// carries no slug (e.g. moving applied → saved) must not wipe the record of
+		// what was already sent. A fresh slug overwrites; a null leaves it be.
+		const variantSlug = body.variant_slug ?? null;
 		await db
 			.prepare(
-				`INSERT INTO job_states (job_id, user_id, state, notes, updated_at)
-				 VALUES (?, ?, ?, NULL, ?)
-				 ON CONFLICT (job_id, user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at`
+				`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
+				 VALUES (?, ?, ?, NULL, ?, ?)
+				 ON CONFLICT (job_id, user_id) DO UPDATE SET
+				   state = excluded.state,
+				   updated_at = excluded.updated_at,
+				   variant_slug = COALESCE(excluded.variant_slug, job_states.variant_slug)`
 			)
-			.bind(id, userId, body.state, now)
+			.bind(id, userId, body.state, now, variantSlug)
 			.run();
 
 		return c.json(
@@ -965,6 +972,59 @@ app.post('/jobs/:id/packet-link', async (c) => {
 	}
 	const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
 	return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);
+});
+
+// POST /jobs/:id/application-extras — the non-résumé half of the apply kit.
+//
+// The client generates the tailored résumé first (POST /jobs/:id/resume) and
+// posts its markdown here; we proxy title/company/description + that résumé to
+// resume-api over the service binding, which returns intro email, why-hook,
+// screening answers, salary line, LinkedIn note, talking points and the
+// standard-fields block. Its own edge carve-out, like the other tailoring calls.
+app.post('/jobs/:id/application-extras', gateAuthed);
+app.post('/jobs/:id/application-extras', async (c) => {
+	const id = c.req.param('id');
+	let opts: Record<string, unknown> = {};
+	try {
+		opts = await c.req.json();
+	} catch {
+		// fall through to the required-field check below
+	}
+	const resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
+	if (!resumeMarkdown) {
+		return c.json(
+			{ success: false as const, error: 'Bad request', message: 'resume_markdown is required' },
+			400
+		);
+	}
+
+	const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
+	if (!job) {
+		return c.json(
+			{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
+			404
+		);
+	}
+
+	const res = await callResumeBinding(c.env, '/resume/api/application-extras', {
+		job_title: job.title,
+		company: job.company,
+		description: job.description,
+		resume_markdown: resumeMarkdown,
+	});
+	if (!res.ok) {
+		const detail = await res.text();
+		return c.json(
+			{
+				success: false as const,
+				error: 'Upstream error',
+				message: `resume-api ${res.status}: ${detail.slice(0, 300)}`,
+			},
+			502
+		);
+	}
+	const data = await res.json();
+	return c.json({ success: true as const, data }, 200);
 });
 
 export const jobRoutes = app;

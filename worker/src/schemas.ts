@@ -134,6 +134,10 @@ export const JobDetailSchema = JobSummarySchema.extend({
 export const SetJobStateSchema = z
 	.object({
 		state: JobStateSchema,
+		// Optional: the resume-api variant slug of the packet sent with this
+		// application. Recorded (typically on "applied") so the state row remembers
+		// what went out. Ignored for states where it makes no sense.
+		variant_slug: z.string().optional(),
 	})
 	.openapi('SetJobState');
 
