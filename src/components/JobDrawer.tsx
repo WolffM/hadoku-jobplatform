@@ -1,15 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   getJob,
   setJobState,
   generateResume,
   generateCoverLetter,
+  generateApplicationExtras,
   mintPacketLink,
   JobsApiError,
   type JobDetail,
   type ScoreBreakdown,
   type JobStateRead,
-  type JobStateWrite
+  type JobStateWrite,
+  type ApplicationExtras
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
 
@@ -56,6 +58,54 @@ function Description({ text }: { text: string }) {
   return <div className="jp-drawer__description jp-drawer__description--plain">{text}</div>
 }
 
+// One copy-able field of the kit: a labelled read-only textarea + a Copy button.
+// Each owns its "Copied ✓" flash so copying one field doesn't flash the rest.
+function CopyBlock({
+  label,
+  value,
+  rows = 4,
+  hint
+}: {
+  label: string
+  value: string
+  rows?: number
+  hint?: string
+}) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current)
+    },
+    []
+  )
+  const copy = () => {
+    void navigator.clipboard?.writeText(value).then(() => {
+      setCopied(true)
+      if (timer.current) clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <div className="jp-drawer__kit-field">
+      <div className="jp-drawer__kit-field-head">
+        <span className="jp-drawer__kit-field-label">{label}</span>
+        {hint && <span className="jp-muted jp-drawer__kit-field-hint">{hint}</span>}
+        <button type="button" className="jp-drawer__kit-copy" onClick={copy}>
+          {copied ? 'Copied ✓' : 'Copy'}
+        </button>
+      </div>
+      <textarea
+        className="jp-drawer__packet-text"
+        readOnly
+        rows={rows}
+        value={value}
+        onFocus={e => e.currentTarget.select()}
+      />
+    </div>
+  )
+}
+
 export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Props) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -63,13 +113,17 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
   // Optimistic local state so the buttons update without a full refetch.
   const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
   const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
-  // V3 application packet (tailored resume + cover letter), generated on demand.
-  const [generating, setGenerating] = useState(false)
+  // The apply kit, built by "Prepare application" in two waves: résumé + cover
+  // letter first, then the extras (which need the résumé as input).
+  const [preparing, setPreparing] = useState(false)
   const [packet, setPacket] = useState<{ resume: string; coverLetter: string } | null>(null)
   const [packetError, setPacketError] = useState<string | null>(null)
+  const [extras, setExtras] = useState<ApplicationExtras | null>(null)
+  const [extrasError, setExtrasError] = useState<string | null>(null)
   // Shareable packet link (minted from the generated packet).
   const [linking, setLinking] = useState(false)
   const [packetLink, setPacketLink] = useState<string | null>(null)
+  const [packetSlug, setPacketSlug] = useState<string | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -81,7 +135,10 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setCurrentState(null)
     setPacket(null)
     setPacketError(null)
+    setExtras(null)
+    setExtrasError(null)
     setPacketLink(null)
+    setPacketSlug(null)
     setLinkError(null)
     setCopied(false)
     getJob(jobId, profileId ?? undefined, auth)
@@ -117,7 +174,9 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setPendingState(next)
     setError(null)
     try {
-      const res = await setJobState(jobId, next, auth)
+      // Marking applied with a prepared packet records which link went out.
+      const slug = next === 'applied' ? (packetSlug ?? undefined) : undefined
+      const res = await setJobState(jobId, next, auth, slug)
       setCurrentState(res.state)
       onStateChange?.(jobId, res.state)
     } catch (err) {
@@ -127,24 +186,43 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     }
   }
 
-  const handleGenerate = async () => {
-    if (generating) return
-    setGenerating(true)
+  const handlePrepare = async () => {
+    if (preparing) return
+    setPreparing(true)
     setPacketError(null)
-    // A fresh packet invalidates any previously minted link.
+    setExtrasError(null)
+    // A fresh preparation invalidates any previously minted link + extras.
+    setExtras(null)
     setPacketLink(null)
+    setPacketSlug(null)
     setLinkError(null)
     setCopied(false)
     try {
+      // Wave 1: résumé + cover letter in parallel.
       const [resume, cover] = await Promise.all([
         generateResume(jobId, auth),
         generateCoverLetter(jobId, auth)
       ])
       setPacket({ resume: resume.resume_markdown, coverLetter: cover.cover_letter_markdown })
+
+      // Wave 2: the extras, grounded in the tailored résumé. Sequenced after
+      // wave 1 both because it needs the résumé markdown and to keep three LLM
+      // calls from stacking against Groq's per-minute token budget. A failure
+      // here still leaves the résumé + cover letter usable.
+      try {
+        const kit = await generateApplicationExtras(
+          jobId,
+          { resume_markdown: resume.resume_markdown },
+          auth
+        )
+        setExtras(kit)
+      } catch (err) {
+        setExtrasError(err instanceof JobsApiError ? err.message : 'Failed to generate extras')
+      }
     } catch (err) {
       setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate packet')
     } finally {
-      setGenerating(false)
+      setPreparing(false)
     }
   }
 
@@ -153,12 +231,13 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setLinking(true)
     setLinkError(null)
     try {
-      const { url } = await mintPacketLink(
+      const { url, slug } = await mintPacketLink(
         jobId,
         { resume_markdown: packet.resume, cover_letter_markdown: packet.coverLetter },
         auth
       )
       setPacketLink(url)
+      setPacketSlug(slug)
     } catch (err) {
       setLinkError(err instanceof JobsApiError ? err.message : 'Failed to create link')
     } finally {
@@ -295,36 +374,23 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                 <button
                   type="button"
                   className="jp-drawer__cta"
-                  onClick={() => void handleGenerate()}
-                  disabled={!stateButtonsEnabled || generating}
-                  data-testid="generate-packet"
+                  onClick={() => void handlePrepare()}
+                  disabled={!stateButtonsEnabled || preparing}
+                  data-testid="prepare-application"
                 >
-                  {generating ? 'Generating…' : packet ? 'Regenerate packet' : 'Generate packet'}
+                  {preparing
+                    ? 'Preparing…'
+                    : packet
+                      ? 'Regenerate application'
+                      : 'Prepare application'}
                 </button>
               </div>
               {packetError && <p className="jp-error">{packetError}</p>}
+
               {packet && (
                 <div className="jp-drawer__packet">
-                  <label className="jp-drawer__packet-label">
-                    Tailored resume
-                    <textarea
-                      className="jp-drawer__packet-text"
-                      readOnly
-                      rows={12}
-                      value={packet.resume}
-                      onFocus={e => e.currentTarget.select()}
-                    />
-                  </label>
-                  <label className="jp-drawer__packet-label">
-                    Cover letter
-                    <textarea
-                      className="jp-drawer__packet-text"
-                      readOnly
-                      rows={12}
-                      value={packet.coverLetter}
-                      onFocus={e => e.currentTarget.select()}
-                    />
-                  </label>
+                  <CopyBlock label="Tailored résumé" value={packet.resume} rows={12} />
+                  <CopyBlock label="Cover letter" value={packet.coverLetter} rows={12} />
 
                   <div className="jp-drawer__packet-link">
                     {packetLink ? (
@@ -360,6 +426,39 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                     )}
                   </div>
                   {linkError && <p className="jp-error">{linkError}</p>}
+
+                  {preparing && !extras && (
+                    <p className="jp-muted">Preparing the rest of the kit…</p>
+                  )}
+                  {extrasError && <p className="jp-error">{extrasError}</p>}
+
+                  {extras && (
+                    <div className="jp-drawer__kit">
+                      <CopyBlock label="Intro email" value={extras.intro_email} rows={8} />
+                      <CopyBlock label="Why this role" value={extras.why_hook} rows={3} />
+                      {extras.screening_answers.map((sa, i) => (
+                        <CopyBlock key={i} label={sa.q} value={sa.a} rows={4} />
+                      ))}
+                      <CopyBlock label="Expected compensation" value={extras.salary_line} rows={2} />
+                      <CopyBlock
+                        label="LinkedIn note"
+                        value={extras.linkedin_note}
+                        rows={3}
+                        hint={`${extras.linkedin_note.length}/300`}
+                      />
+                      <CopyBlock
+                        label="Phone-screen talking points"
+                        value={extras.talking_points.map(t => `• ${t}`).join('\n')}
+                        rows={Math.max(3, extras.talking_points.length)}
+                      />
+                      <CopyBlock
+                        label="Standard fields"
+                        value={extras.standard_fields}
+                        rows={8}
+                        hint="name · contact · work auth"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </section>
