@@ -245,6 +245,8 @@ export interface ScreeningAnswer {
  * tailored résumé and cover letter.
  */
 export interface ApplicationExtras {
+  /** Cover letter, produced in the same call as the rest of the kit. */
+  cover_letter_markdown: string
   intro_email: string
   why_hook: string
   screening_answers: ScreeningAnswer[]
