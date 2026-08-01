@@ -198,31 +198,36 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setLinkError(null)
     setCopied(false)
     try {
-      // Serialize the LLM calls — résumé, then cover letter, then extras.
-      // Résumé generation is itself two Groq calls (block selection + rewrite);
-      // firing it in parallel with the cover letter stacked ~4 calls against
-      // Groq's per-minute token cap, so the trailing calls waited past the edge's
-      // ~120s timeout and failed. Running them one at a time lets each fire after
-      // the previous call's tokens age out of the 60s window, so every request
-      // stays inside its own carve-out. Slower on a cold job, but reliable.
+      // Two sequenced Groq requests. The résumé (itself block-selection +
+      // rewrite) is the token-heavy one, so it runs alone first; then a single
+      // application-extras call returns the cover letter AND the rest of the kit
+      // together. Firing the cover letter and extras as separate back-to-back
+      // calls used to stack past Groq's per-minute token cap so the trailing one
+      // (extras) 500'd — leaving a cold packet with a résumé + cover but no kit.
       const resume = await generateResume(jobId, auth)
-      const cover = await generateCoverLetter(jobId, auth)
-      setPacket({ resume: resume.resume_markdown, coverLetter: cover.cover_letter_markdown })
+      // Surface the résumé the moment it lands; the cover letter + kit fill in.
+      setPacket({ resume: resume.resume_markdown, coverLetter: '' })
 
-      // The extras are grounded in the tailored résumé (and need its markdown),
-      // so they run last. A failure here still leaves the résumé + cover usable.
       try {
         const kit = await generateApplicationExtras(
           jobId,
           { resume_markdown: resume.resume_markdown },
           auth
         )
+        // The cover letter now comes back with the kit; fall back to a separate
+        // fetch only if it didn't (older resume-api, or the model dropped it).
+        const coverLetter =
+          kit.cover_letter_markdown ||
+          (await generateCoverLetter(jobId, auth)).cover_letter_markdown
+        setPacket({ resume: resume.resume_markdown, coverLetter })
         setExtras(kit)
       } catch (err) {
-        setExtrasError(err instanceof JobsApiError ? err.message : 'Failed to generate extras')
+        setExtrasError(
+          err instanceof JobsApiError ? err.message : 'Failed to generate the application kit'
+        )
       }
     } catch (err) {
-      setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate packet')
+      setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate résumé')
     } finally {
       setPreparing(false)
     }
@@ -392,7 +397,9 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
               {packet && (
                 <div className="jp-drawer__packet">
                   <CopyBlock label="Tailored résumé" value={packet.resume} rows={12} />
-                  <CopyBlock label="Cover letter" value={packet.coverLetter} rows={12} />
+                  {packet.coverLetter && (
+                    <CopyBlock label="Cover letter" value={packet.coverLetter} rows={12} />
+                  )}
 
                   <div className="jp-drawer__packet-link">
                     {packetLink ? (
@@ -421,7 +428,7 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                         type="button"
                         className="jp-drawer__cta jp-drawer__cta--primary"
                         onClick={() => void handleCreateLink()}
-                        disabled={linking}
+                        disabled={linking || !packet.coverLetter}
                       >
                         {linking ? 'Creating link…' : 'Create shareable link'}
                       </button>
