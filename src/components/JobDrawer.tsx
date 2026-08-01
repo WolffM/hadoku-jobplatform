@@ -198,17 +198,19 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setLinkError(null)
     setCopied(false)
     try {
-      // Wave 1: résumé + cover letter in parallel.
-      const [resume, cover] = await Promise.all([
-        generateResume(jobId, auth),
-        generateCoverLetter(jobId, auth)
-      ])
+      // Serialize the LLM calls — résumé, then cover letter, then extras.
+      // Résumé generation is itself two Groq calls (block selection + rewrite);
+      // firing it in parallel with the cover letter stacked ~4 calls against
+      // Groq's per-minute token cap, so the trailing calls waited past the edge's
+      // ~120s timeout and failed. Running them one at a time lets each fire after
+      // the previous call's tokens age out of the 60s window, so every request
+      // stays inside its own carve-out. Slower on a cold job, but reliable.
+      const resume = await generateResume(jobId, auth)
+      const cover = await generateCoverLetter(jobId, auth)
       setPacket({ resume: resume.resume_markdown, coverLetter: cover.cover_letter_markdown })
 
-      // Wave 2: the extras, grounded in the tailored résumé. Sequenced after
-      // wave 1 both because it needs the résumé markdown and to keep three LLM
-      // calls from stacking against Groq's per-minute token budget. A failure
-      // here still leaves the résumé + cover letter usable.
+      // The extras are grounded in the tailored résumé (and need its markdown),
+      // so they run last. A failure here still leaves the résumé + cover usable.
       try {
         const kit = await generateApplicationExtras(
           jobId,
