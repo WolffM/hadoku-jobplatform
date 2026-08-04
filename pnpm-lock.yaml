@@ -46,8 +46,8 @@ importers:
         specifier: ^2.2.3
         version: 2.2.3(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^3.0.9
-        version: 3.0.9(@wolffm/task-ui-components@2.2.3(react@19.2.4))(react@19.2.4)
+        specifier: ^3.0.10
+        version: 3.0.10(@wolffm/task-ui-components@2.2.3(react@19.2.4))(react@19.2.4)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -883,8 +883,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/themes@3.0.9':
-    resolution: {integrity: sha512-4kA+KqB+pYCnpcpLUwzrYFqAmiufsXd8wAU1szmv0/V/MDtZeM5RhoCeAjb63dBtY83zXW5OI9AQY3EfJVieZg==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/3.0.9/df7a068aecef45b231241c8122cf050355d8a3c5}
+  '@wolffm/themes@3.0.10':
+    resolution: {integrity: sha512-qQKRERZYUzTdpojST427wleAhhDkhUE3Jfo8RKE5E8N7ByhnITF+OdYe2uwDcup4NyS0ncY7YwlkElSfChCXRQ==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/3.0.10/6af6e71cfd19dc03299b4cbd2a6abdcc5903c8ea}
     peerDependencies:
       '@wolffm/task-ui-components': '*'
       react: ^18.0.0 || ^19.0.0
@@ -3103,7 +3103,7 @@ snapshots:
     dependencies:
       react: 19.2.4
 
-  '@wolffm/themes@3.0.9(@wolffm/task-ui-components@2.2.3(react@19.2.4))(react@19.2.4)':
+  '@wolffm/themes@3.0.10(@wolffm/task-ui-components@2.2.3(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@wolffm/task-ui-components': 2.2.3(react@19.2.4)
       react: 19.2.4
