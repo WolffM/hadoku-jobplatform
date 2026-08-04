@@ -101,7 +101,7 @@
 }
 
 .job-platform__nav a.active {
-  color: var(--color-primary);
+  color: var(--color-text);
   border-bottom-color: var(--color-primary);
 }
 
@@ -474,7 +474,7 @@
   border: 1px solid var(--color-primary);
   border-radius: var(--hdk-radius-sm);
   background-color: transparent;
-  color: var(--color-primary);
+  color: var(--color-text);
   font-size: var(--hdk-text-sm);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
@@ -548,7 +548,7 @@
 }
 
 .jp-sidebar__item-remove:hover {
-  color: var(--color-danger);
+  color: var(--color-text);
 }
 
 .jp-sidebar__item-actions {
@@ -568,7 +568,7 @@
 }
 
 .jp-sidebar__item-edit:hover {
-  color: var(--color-primary);
+  color: var(--color-text);
 }
 
 .jp-sidebar__badge {
@@ -773,7 +773,6 @@
 
 .jp-jobs__pagination button:hover:not(:disabled) {
   border-color: var(--color-primary);
-  color: var(--color-primary);
 }
 
 .jp-jobs__pagination button:disabled {
@@ -931,7 +930,7 @@
 }
 
 .jp-jobcard__salary {
-  color: var(--color-success-dark);
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
   font-weight: var(--font-weight-semibold);
 }
@@ -1050,7 +1049,7 @@
 }
 
 .jp-drawer__score-total strong {
-  color: var(--color-primary);
+  color: var(--color-text);
   font-size: var(--hdk-text-md);
 }
 
@@ -1119,7 +1118,8 @@
 }
 
 .jp-drawer__description a {
-  color: var(--color-primary);
+  color: var(--color-text);
+  text-decoration: underline;
 }
 
 .jp-drawer__actions {
@@ -1145,7 +1145,6 @@
 
 .jp-drawer__cta:hover:not(:disabled) {
   border-color: var(--color-primary);
-  color: var(--color-primary);
 }
 
 .jp-drawer__cta--primary {
@@ -1331,13 +1330,13 @@
 }
 
 .jp-companies-intro a {
-  color: var(--color-primary);
-  text-decoration: none;
+  color: var(--color-text);
+  text-decoration: underline;
   font-weight: var(--font-weight-semibold);
 }
 
 .jp-companies-intro a:hover {
-  text-decoration: underline;
+  text-decoration-thickness: 2px;
 }
 
 /* ============================================================================
@@ -1464,21 +1463,25 @@
   border-radius: var(--hdk-radius-sm);
   font-size: var(--hdk-text-xs);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-success);
+  background-color: var(--color-success-bg);
+  color: var(--color-on-success-bg);
 }
 
 .jp-editor__count--zero {
-  color: var(--color-warning);
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
 }
 
 .jp-editor__count--loading {
+  background-color: transparent;
   color: var(--color-text-tertiary);
 }
 
 .jp-editor__error {
   margin: 0;
   padding: 0 var(--hdk-space-xl);
-  color: var(--color-danger);
+  border-left: 3px solid var(--color-danger);
+  color: var(--color-text);
   font-size: var(--hdk-text-sm);
 }
 
@@ -1494,7 +1497,7 @@
 .jp-editor__saved {
   margin-right: auto;
   font-size: var(--hdk-text-sm);
-  color: var(--color-success);
+  color: var(--color-text-secondary);
 }
 
 .jp-editor__cancel {
