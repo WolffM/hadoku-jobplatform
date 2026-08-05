@@ -448,7 +448,11 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
                       {extras.screening_answers.map((sa, i) => (
                         <CopyBlock key={i} label={sa.q} value={sa.a} rows={4} />
                       ))}
-                      <CopyBlock label="Expected compensation" value={extras.salary_line} rows={2} />
+                      <CopyBlock
+                        label="Expected compensation"
+                        value={extras.salary_line}
+                        rows={2}
+                      />
                       <CopyBlock
                         label="LinkedIn note"
                         value={extras.linkedin_note}

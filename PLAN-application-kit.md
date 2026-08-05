@@ -16,6 +16,7 @@ Already built (reuse): **tailored résumé**, **cover letter**, **shareable pack
 link** (`hadoku.me/resume?v=slug`).
 
 New (one LLM call → a structured bundle):
+
 - **Intro / outreach email** — short note to a recruiter or hiring manager
 - **"Why this company/role" hook** — 2-3 sentences (reused in email + form fields)
 - **Screening-question answers** — the standard set pre-drafted: why you / why us /
@@ -25,6 +26,7 @@ New (one LLM call → a structured bundle):
 - **Talking points** — 3-5 bullets for the recruiter phone screen
 
 Constant (fill once, not regenerated):
+
 - **Standard-fields block** — name, email, phone, LinkedIn, GitHub, location,
   work authorization, relocation/remote stance — copy-paste for the boring form fields
 
@@ -45,15 +47,15 @@ timeout risk).
 1. **resume-bot — one new endpoint** `POST /resume/api/application-extras`
    (`worker/src/application-extras.ts`, wired in `index.ts`, gated
    `requireMinTier('friend')`). Input `{job_title, company, description,
-   resume_markdown}`. One LLM call → JSON `{intro_email, why_hook,
-   screening_answers:[{q,a}], salary_line, linkedin_note, talking_points:[]}`.
+resume_markdown}`. One LLM call → JSON `{intro_email, why_hook,
+screening_answers:[{q,a}], salary_line, linkedin_note, talking_points:[]}`.
    Reads the contact profile (below) for salary/auth/location context. Cache 24h
    keyed by job (like tailored-resume/cover-letter).
 
 2. **Contact profile** — `resume:profile:contact` in CONTENT_KV (namespace
    `963eeaa358d44c88a7e4047303e20997`), a JSON blob the owner fills once:
    `{name, email, phone, linkedin, github, location, work_auth, relocation,
-   salary_line}`. Seed via wrangler KV put (dev-vault token). The résumé header
+salary_line}`. Seed via wrangler KV put (dev-vault token). The résumé header
    block already carries name/email/phone/linkedin; this adds the rest and powers
    the standard-fields block + salary/sponsorship answers.
 

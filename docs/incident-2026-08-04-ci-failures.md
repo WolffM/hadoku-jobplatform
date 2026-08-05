@@ -15,8 +15,8 @@ runs** from 2026-08-03 23:34 to 2026-08-04 18:30 UTC.
 
 - The last failed run (30938894553, Aug 4 18:30) died in the lint gate:
   `@wolffm/themes` `check-usage.mjs` reported **14 problems** in
-  `src/styles/index.css`, all the (then-new) rule *"Fill colour used as bare
-  text on a page/card surface"* (`--color-primary`, `--color-danger`,
+  `src/styles/index.css`, all the (then-new) rule _"Fill colour used as bare
+  text on a page/card surface"_ (`--color-primary`, `--color-danger`,
   `--color-success`, `--color-warning`, `--color-success-dark` used as text
   colours).
 - So the tightened check in a freshly published `@wolffm/themes` blocked this
@@ -24,7 +24,7 @@ runs** from 2026-08-03 23:34 to 2026-08-04 18:30 UTC.
   were fixed — the gate worked as designed, but it froze the update pipeline
   for ~19 hours with no alert.
 - 2026-08-04 20:59, `34b730ad` — `fix(a11y): stop using fill colours as bare
-  text` — fixed the CSS; auto-updates landed green from 21:46 onward
+text` — fixed the CSS; auto-updates landed green from 21:46 onward
   (`4e70afaf`, `a6c8e4b7`, `130b5a49`).
 - **Not verified from outside**: whether the earlier failures in the streak
   (Aug 3 23:34 → Aug 4 12:34) failed on this same check or on something else.
