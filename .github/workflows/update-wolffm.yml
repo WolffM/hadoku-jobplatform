@@ -74,7 +74,11 @@ jobs:
                   // workspace: and * are not version claims — nothing to compare.
                   const r=String(range);
                   if (r.startsWith("workspace:") || r==="*") continue;
-                  const key=name+"@"+m; if (seen.has(key)) continue; seen.add(key);
+                  // Key by FIELD too, not just name+manifest: a package can sit in
+                  // BOTH dependencies and devDependencies of one file with DIFFERENT
+                  // ranges, and deduping by name alone checked whichever came first
+                  // and silently skipped the stale one.
+                  const key=name+"@"+m+"#"+field; if (seen.has(key)) continue; seen.add(key);
                   let latest; try {
                     latest=execSync(`npm view ${name} version --registry=https://npm.pkg.github.com`,{stdio:["ignore","pipe","ignore"]}).toString().trim();
                   } catch { continue; }
