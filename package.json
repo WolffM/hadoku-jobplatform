@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "packageManager": "pnpm@11.5.0",
@@ -59,8 +59,8 @@
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
     "@wolffm/logger": "^1.1.0",
-    "@wolffm/task-ui-components": "^3.0.0",
-    "@wolffm/themes": "^4.0.2",
+    "@wolffm/task-ui-components": "^3.1.0",
+    "@wolffm/themes": "^4.1.0",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
