@@ -63,7 +63,7 @@ jobs:
         run: |
           node -e '
             const {execSync}=require("child_process"), fs=require("fs");
-            const seen=new Set(); const stale=[];
+            const seen=new Set(); const stale=[]; const unchecked=[];
             const manifests=execSync("git ls-files \"*package.json\"").toString().trim().split("\n");
             for (const m of manifests) {
               if (!m || m.includes("node_modules")) continue;
@@ -81,13 +81,27 @@ jobs:
                   const key=name+"@"+m+"#"+field; if (seen.has(key)) continue; seen.add(key);
                   let latest; try {
                     latest=execSync(`npm view ${name} version --registry=https://npm.pkg.github.com`,{stdio:["ignore","pipe","ignore"]}).toString().trim();
-                  } catch { continue; }
+                  } catch {
+                    // NOT `continue`. An unreachable registry is indistinguishable
+                    // from "at latest" if it is skipped, so a 401 here used to make
+                    // the whole step report success while checking nothing — which
+                    // is exactly what it happened to do wherever the .npmrc was not
+                    // in this step working directory.
+                    unchecked.push(`${name} in ${m}: could not read the registry`);
+                    continue;
+                  }
                   const declared=(r.match(/(\d+\.\d+\.\d+)/)||[])[1];
                   if (declared && latest && declared!==latest) {
                     stale.push(`${name} in ${m}: declares ${r}, latest is ${latest}`);
                   }
                 }
               }
+            }
+            if (unchecked.length) {
+              for (const u of unchecked) console.log(`::error::${u}`);
+              console.error(`\n${unchecked.length} @wolffm package(s) could not be checked at all.`);
+              console.error("Usually the .npmrc is not in this step working directory.");
+              process.exit(1);
             }
             if (stale.length) {
               for (const s of stale) console.log(`::error::${s}`);
