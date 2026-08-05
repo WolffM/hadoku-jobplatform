@@ -4,6 +4,9 @@
 > only from GitHub Actions logs and commit history — it never ran anything in
 > this checkout. Treat every claim below as a **hypothesis to verify against
 > this repo's own evidence** before acting on it. Verify first, then fix.
+>
+> **Status 2026-08-05: verified and closed.** In-repo verification confirmed
+> the hypothesis for all 11 runs — see "Verification" and "Resolution" below.
 
 ## What the daily CI digest showed
 
@@ -57,3 +60,40 @@ noticed and swept the CSS.
 
 If your investigation contradicts anything above, trust your evidence, not
 this document — and correct this file so the record is right.
+
+## Verification (2026-08-05, run from this repo)
+
+- **All 11 failed runs died on the identical check.** Pulled `--log-failed`
+  for every run in the streak (30862709845 through 30938894553, Aug 3 23:34 →
+  Aug 4 18:30 UTC). Each one shows the same signature: `stylelint` passes,
+  then `check-usage: FAILED — 14 problem(s)`, all _"Fill colour used as bare
+  text on a page/card surface"_, exit code 1. No other failure cause anywhere
+  in the streak. (Run 30869521167 also hit a transient npm `ETIMEDOUT` that
+  retried successfully — not a cause.)
+- **One correction to the outside hypothesis**: the workflow has no explicit
+  lint step. The gate fired from the **husky pre-commit hook**
+  (`.husky/pre-commit` runs `pnpm run lint:css`) during the workflow's
+  "Commit and push if changed" step — `worker/package.json`'s `prepare`
+  script sets `core.hooksPath .husky` during install, so the hook is live in
+  CI. That's why a _dependency update commit_ was blocked by a CSS check: the
+  freshly-installed `@wolffm/themes` supplied the tightened `check-usage.mjs`,
+  and the hook ran it against pre-existing violations.
+- **`pnpm run lint:css` is clean on current main** (verified at `bcda7c8`):
+  `check-usage: OK — every token reference resolves (41 tokens known).`
+
+## Resolution
+
+- **Policy decision — auto-update stays fail-closed.** When an upstream gate
+  tightens, updates stay frozen until this repo complies. Rationale:
+  always-latest is already the stated policy (`bcda7c8` makes "not at latest"
+  a hard failure), the update commit pushes straight to main and triggers a
+  publish, so landing a non-compliant update on a side branch would just move
+  an unmissable red cron to an easily-missed unattended PR. The actual defect
+  was the _silence_, not the freeze.
+- **Fix — a red run now files a GitHub issue within minutes**
+  (`update-wolffm.yml`: "Open/refresh alert issue on failure"). Repeat
+  failures comment on the same issue; the first green run closes it. This
+  keeps the ~19h blind window from recurring without paging for a child-app
+  linter — consistent with monitoring-api's split (ci-check pages only for
+  service-down workflows; child-app CI red belongs in the digest, and now
+  also in an emailed issue).

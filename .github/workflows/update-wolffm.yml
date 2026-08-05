@@ -14,6 +14,7 @@ concurrency:
 permissions:
   contents: write
   packages: read
+  issues: write
 
 jobs:
   update:
@@ -117,3 +118,33 @@ jobs:
           done
           echo "❌ Push failed after retries"
           exit 1
+
+      # A red run here means the update pipeline is FROZEN — no @wolffm package
+      # (themes, worker-utils, security fixes) lands until someone acts. The
+      # 2026-08-03/04 incident (docs/incident-2026-08-04-ci-failures.md) sat
+      # red for ~19h because the only signal was the next morning's CI digest.
+      # An issue notifies the owner within minutes and self-closes on recovery.
+      - name: Open/refresh alert issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Auto-update @wolffm packages is red"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still red: $run_url"
+          else
+            gh issue create --title "$title" --body "$(printf 'The auto-update workflow is failing, so @wolffm package updates are frozen until this is fixed.\n\nFirst red run: %s\n\nThis issue closes itself when a run goes green. Playbook: docs/incident-2026-08-04-ci-failures.md' "$run_url")"
+          fi
+
+      - name: Close alert issue on recovery
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Auto-update @wolffm packages is red"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          existing=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number // empty')
+          [ -z "$existing" ] && exit 0
+          gh issue close "$existing" --comment "Recovered: $run_url"
