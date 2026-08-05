@@ -1,0 +1,146 @@
+name: CI
+
+# This repo had NO pull-request CI: publish.yml and update-wolffm.yml run on
+# push to main, so nothing has ever verified a pull request here. Its only gate
+# was .husky/pre-commit, which `prepare: husky` builds from a gitignored
+# .husky/_ that does not exist on a CI runner — so it never ran there either,
+# and a git worktree never has it locally.
+#
+# The commands are the ones already in package.json. Nothing invented.
+#
+# DELIBERATELY UNFILTERED on pull_request. A required check that never runs
+# never reports, and auto-merge waits only on required checks — so a `paths:`
+# filter is a gate that is ABSENT on some PRs (they merge unverified) and FATAL
+# on others (they wait forever). Scoping lives in the scope steps below, which
+# always report.
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  typecheck:
+    name: typecheck
+    runs-on: [self-hosted, hadoku-builder]
+    timeout-minutes: 15
+    steps:
+      # fetch-depth: 0 — the scope step diffs against the PR base, and a
+      # shallow clone has no common ancestor to diff with.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Does this diff need typechecking?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed="$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")"
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "→ nothing typecheckable touched."
+          fi
+
+      # setup-node BEFORE corepack: `corepack enable` symlinks its shims next
+      # to the active node, and without setup-node that is the host's /usr/bin,
+      # which the runner user cannot write.
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@wolffm'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      # corepack, not pnpm/action-setup — the self-installer intermittently
+      # dies on this runner with `ENOENT ... uv_cwd`.
+      - name: Enable pnpm
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.0 --activate
+
+      - name: Install
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Typecheck
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm run typecheck
+
+  lint:
+    name: lint
+    runs-on: [self-hosted, hadoku-builder]
+    timeout-minutes: 15
+    steps:
+      # fetch-depth: 0 — the scope step diffs against the PR base, and a
+      # shallow clone has no common ancestor to diff with.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Does this diff need linting?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed="$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")"
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "→ nothing lintable touched."
+          fi
+
+      # setup-node BEFORE corepack: `corepack enable` symlinks its shims next
+      # to the active node, and without setup-node that is the host's /usr/bin,
+      # which the runner user cannot write.
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: '22'
+          registry-url: https://npm.pkg.github.com
+          scope: '@wolffm'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      # corepack, not pnpm/action-setup — the self-installer intermittently
+      # dies on this runner with `ENOENT ... uv_cwd`.
+      - name: Enable pnpm
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.5.0 --activate
+
+      - name: Install
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: ESLint
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm run lint
+      - name: Stylelint + theme-token gate
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm run lint:css
