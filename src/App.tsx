@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react'
+import React, { useCallback, useRef, useState, type RefObject } from 'react'
 import {
   HashRouter,
   Navigate,
@@ -10,9 +10,8 @@ import {
   useParams,
   useSearchParams
 } from 'react-router-dom'
-import { AppHeader, ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
-import { THEME_ICON_MAP } from '@wolffm/themes'
-import { useTheme } from './hooks/useTheme'
+import { AppHeader, LoadingSkeleton, useHadokuTheme } from '@wolffm/task-ui-components'
+import { HadokuThemeRoot } from '@wolffm/themes'
 import { ProfileSidebar } from './components/ProfileSidebar'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
@@ -27,8 +26,23 @@ interface DashboardOutletCtx {
   onJobStateChanged: () => void
 }
 
+/**
+ * Provider boundary. Theme state belongs to the platform (@wolffm/themes),
+ * not to this app — the local hooks/useTheme.ts, prefs/themePrefs.ts and
+ * app/themeConfig.tsx copies are gone. AppHeader renders the shared picker
+ * from this context, so nothing below passes one.
+ */
 export default function App(props: JobPlatformProps = {}) {
   const containerRef = useRef<HTMLElement>(null)
+  return (
+    <HadokuThemeRoot theme={props.theme} containerRef={containerRef}>
+      <AppInner {...props} containerRef={containerRef} />
+    </HadokuThemeRoot>
+  )
+}
+
+function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElement | null> }) {
+  const { containerRef } = props
 
   // Bundle the auth credentials once at the root, then thread the same
   // object through every component.
@@ -41,12 +55,9 @@ export default function App(props: JobPlatformProps = {}) {
     return false
   })
 
-  const { theme, setTheme, isDarkTheme, isThemeReady, isInitialThemeLoad, THEME_FAMILIES } =
-    useTheme({
-      propsTheme: props.theme,
-      experimentalThemes: false,
-      containerRef
-    })
+  // Theme comes from <HadokuThemeRoot> above — one implementation for
+  // every app, instead of this repo's former hooks/useTheme.ts copy.
+  const { theme, isDarkTheme, isThemeReady, isInitialThemeLoad } = useHadokuTheme()
 
   if (isInitialThemeLoad && !isThemeReady) {
     return <LoadingSkeleton isDarkTheme={systemPrefersDark} />
@@ -61,20 +72,7 @@ export default function App(props: JobPlatformProps = {}) {
     >
       <HashRouter>
         <div className="job-platform">
-          <AppHeader
-            title="Job Platform"
-            themePicker={
-              <ConnectedThemePicker
-                themeFamilies={THEME_FAMILIES}
-                currentTheme={theme}
-                onThemeChange={setTheme}
-                getThemeIcon={(themeName: string) => {
-                  const Icon = THEME_ICON_MAP[themeName as keyof typeof THEME_ICON_MAP]
-                  return Icon ? <Icon /> : null
-                }}
-              />
-            }
-          />
+          <AppHeader title="Job Platform" />
 
           <Routes>
             <Route element={<Dashboard auth={auth} />}>
