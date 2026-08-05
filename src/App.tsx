@@ -11,8 +11,7 @@ import {
   useSearchParams
 } from 'react-router-dom'
 import { AppHeader, LoadingSkeleton } from '@wolffm/task-ui-components'
-import { useHadokuTheme } from '@wolffm/themes'
-import { HadokuThemeRoot } from '@wolffm/themes'
+import { useHadokuTheme, HadokuThemeRoot } from '@wolffm/themes'
 import { ProfileSidebar } from './components/ProfileSidebar'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
