@@ -8,29 +8,12 @@
  * fallback-free ensures we notice immediately if a rename breaks us.
  */
 
-/* Light themes — explicit color scheme */
-.job-platform-container[data-theme='light'],
-.job-platform-container[data-theme='coffee-light'],
-.job-platform-container[data-theme='nature-light'],
-.job-platform-container[data-theme='lavender-light'],
-.job-platform-container[data-theme='strawberry-light'],
-.job-platform-container[data-theme='ocean-light'],
-.job-platform-container[data-theme='cyberpunk-light'],
-.job-platform-container[data-theme='pink-light'] {
-  color-scheme: light;
-}
-
-/* Dark themes */
-.job-platform-container[data-theme='dark'],
-.job-platform-container[data-theme='coffee-dark'],
-.job-platform-container[data-theme='nature-dark'],
-.job-platform-container[data-theme='lavender-dark'],
-.job-platform-container[data-theme='strawberry-dark'],
-.job-platform-container[data-theme='ocean-dark'],
-.job-platform-container[data-theme='cyberpunk-dark'],
-.job-platform-container[data-theme='pink-dark'] {
-  color-scheme: dark only;
-}
+/* No color-scheme enumeration here: @wolffm/themes >= 3.0.14 declares
+   color-scheme on every theme block, so which theme names are light and which
+   are dark is the package's business, not ours. The hand-written list this
+   replaced had gone stale — izakaya was missing, so those two themes got no
+   color-scheme at all and their scrollbars and form controls rendered for the
+   wrong mode. */
 
 .job-platform-container[data-dark-theme='true'] {
   --is-dark-theme: 1;
