@@ -43,46 +43,55 @@ jobs:
           echo "@wolffm:registry=https://npm.pkg.github.com" > .npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.HADOKU_SITE_TOKEN }}" >> .npmrc
 
-      - name: Update @wolffm/* within their semver range
+      - name: Update @wolffm/* to latest (majors included)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
           # -r so worker/ subpackage's @wolffm/* deps update too
-          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r "@wolffm/*"
+          pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r --latest "@wolffm/*"
 
 
-      # A major sitting outside the declared range is skipped above — by design,
-      # since crossing it needs a migration. Report it so the skip is visible;
-      # silence here is what let a breaking major land unnoticed everywhere.
-      - name: Report @wolffm majors held back by semver
-        continue-on-error: true
+      # Always-latest is the policy, so "not at latest" is a failure, not a note.
+      # This runs AFTER the update above and re-reads the manifests, so it also
+      # catches an update that silently did nothing (a lost dispatch, a registry
+      # hiccup, a range pnpm declined to touch). The fan-out that triggers this
+      # workflow is best-effort; this step is what makes a missed one visible.
+      - name: Assert every @wolffm dependency is at latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
           node -e '
             const {execSync}=require("child_process"), fs=require("fs");
-            const seen=new Set(); let held=0;
+            const seen=new Set(); const stale=[];
             const manifests=execSync("git ls-files \"*package.json\"").toString().trim().split("\n");
             for (const m of manifests) {
               if (!m || m.includes("node_modules")) continue;
               let pkg; try { pkg=JSON.parse(fs.readFileSync(m,"utf8")); } catch { continue; }
               for (const field of ["dependencies","devDependencies"]) {
                 for (const [name,range] of Object.entries(pkg[field]||{})) {
-                  if (!name.startsWith("@wolffm/") || String(range).startsWith("workspace:")) continue;
-                  if (seen.has(name)) continue; seen.add(name);
+                  if (!name.startsWith("@wolffm/")) continue;
+                  // workspace: and * are not version claims — nothing to compare.
+                  const r=String(range);
+                  if (r.startsWith("workspace:") || r==="*") continue;
+                  const key=name+"@"+m; if (seen.has(key)) continue; seen.add(key);
                   let latest; try {
                     latest=execSync(`npm view ${name} version --registry=https://npm.pkg.github.com`,{stdio:["ignore","pipe","ignore"]}).toString().trim();
                   } catch { continue; }
-                  const cur=(String(range).match(/(\d+)/)||[])[1];
-                  const next=(latest.match(/^(\d+)/)||[])[1];
-                  if (cur && next && Number(next)>Number(cur)) {
-                    held++;
-                    console.log(`::warning::${name} ${latest} is available but held back — this repo declares ${range}. Crossing a major needs a deliberate migration; see the package CHANGELOG.`);
+                  const declared=(r.match(/(\d+\.\d+\.\d+)/)||[])[1];
+                  if (declared && latest && declared!==latest) {
+                    stale.push(`${name} in ${m}: declares ${r}, latest is ${latest}`);
                   }
                 }
               }
             }
-            console.log(held ? `${held} @wolffm package(s) have a newer major held back by semver.` : "No @wolffm majors held back.");
+            if (stale.length) {
+              for (const s of stale) console.log(`::error::${s}`);
+              console.error(`\n${stale.length} @wolffm dependency/ies are not at latest.`);
+              console.error("Every @wolffm package must track the newest version, majors included.");
+              console.error("If a major needs code changes, make them — do not pin back.");
+              process.exit(1);
+            }
+            console.log("All @wolffm dependencies are at latest.");
           '
       - name: Commit and push if changed
         run: |

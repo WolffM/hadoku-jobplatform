@@ -37,9 +37,9 @@ verifies — a direct origin hit degrades to `public`.
 
 ## Environment Variables (set in host wrangler.toml)
 
-| Variable            | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `EDGE_AUTH_SECRET`  | Edge provenance secret — `createEdgeAuth` verifies inbound X-Edge-Auth |
+| Variable           | Description                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `EDGE_AUTH_SECRET` | Edge provenance secret — `createEdgeAuth` verifies inbound X-Edge-Auth |
 
 This worker holds no user keys. edge-router resolves the caller against its KV
 key registry and stamps `X-Hadoku-Tier`; the worker trusts that tier only when
