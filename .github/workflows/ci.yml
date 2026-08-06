@@ -15,6 +15,15 @@ name: CI
 # always report.
 on:
   pull_request:
+  # Direct pushes to main are the path almost every commit here actually takes:
+  # `enforce_admins: false` on the branch is deliberate, so the required check
+  # does not apply to them, and without this trigger that path was verified by
+  # nothing at all. This is a smoke alarm, not a gate — the deploy/publish
+  # workflow fires on the same push regardless. It makes a red main visible
+  # instead of silent. The job's scope step already forces run=true for any
+  # non-pull_request event, so no other change is needed.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
