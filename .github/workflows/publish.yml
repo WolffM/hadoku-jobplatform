@@ -85,13 +85,32 @@ jobs:
           # insufficient: if the pre-commit hook was skipped and a prior CI
           # run already burned current+1, we'd write a duplicate version and
           # pnpm publish silently no-ops ("There are no new packages").
-          new_version="$current_version"
+          # Start the walk from the registry's latest, not package.json: CI
+          # bumps are published but never committed back, so the committed
+          # version only falls behind — and this walk used to replay the whole
+          # gap one version at a time on every publish (tenhands died at
+          # attempt 99 of exactly that on 2026-08-05). From latest, one step.
+          latest_published=$(pnpm view "${package_name}" version 2>/dev/null || echo "")
+          if [ -n "$latest_published" ]; then
+            new_version=$(printf '%s\n%s\n' "$current_version" "$latest_published" | sort -V | tail -1)
+            echo "Registry latest: $latest_published; starting walk at $new_version"
+          else
+            echo "No published version found; starting from package.json"
+            new_version="$current_version"
+          fi
+          max_attempts=10
+          attempt=0
           while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
-            echo "Version $new_version already published, bumping..."
+            attempt=$((attempt + 1))
+            if [ $attempt -ge $max_attempts ]; then
+              echo "ERROR: $max_attempts consecutive published versions from $new_version — from the registry's latest this should take one step, so the registry lookup most likely failed"
+              exit 1
+            fi
+            echo "Version $new_version already published, bumping... ($attempt/$max_attempts)"
             major=$(echo $new_version | cut -d. -f1)
             minor=$(echo $new_version | cut -d. -f2)
             patch=$(echo $new_version | cut -d. -f3)
-            if [ $patch -eq 20 ]; then
+            if [ $patch -ge 20 ]; then
               new_minor=$((minor + 1))
               new_version="$major.$new_minor.0"
             else
@@ -116,13 +135,32 @@ jobs:
           current_version=$(node -p "require('./worker/package.json').version")
           echo "Current worker version: $current_version"
           # See UI bump step for the rationale on looping.
-          new_version="$current_version"
+          # Start the walk from the registry's latest, not package.json: CI
+          # bumps are published but never committed back, so the committed
+          # version only falls behind — and this walk used to replay the whole
+          # gap one version at a time on every publish (tenhands died at
+          # attempt 99 of exactly that on 2026-08-05). From latest, one step.
+          latest_published=$(pnpm view "${package_name}" version 2>/dev/null || echo "")
+          if [ -n "$latest_published" ]; then
+            new_version=$(printf '%s\n%s\n' "$current_version" "$latest_published" | sort -V | tail -1)
+            echo "Registry latest: $latest_published; starting walk at $new_version"
+          else
+            echo "No published version found; starting from package.json"
+            new_version="$current_version"
+          fi
+          max_attempts=10
+          attempt=0
           while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
-            echo "Version $new_version already published, bumping..."
+            attempt=$((attempt + 1))
+            if [ $attempt -ge $max_attempts ]; then
+              echo "ERROR: $max_attempts consecutive published versions from $new_version — from the registry's latest this should take one step, so the registry lookup most likely failed"
+              exit 1
+            fi
+            echo "Version $new_version already published, bumping... ($attempt/$max_attempts)"
             major=$(echo $new_version | cut -d. -f1)
             minor=$(echo $new_version | cut -d. -f2)
             patch=$(echo $new_version | cut -d. -f3)
-            if [ $patch -eq 20 ]; then
+            if [ $patch -ge 20 ]; then
               new_minor=$((minor + 1))
               new_version="$major.$new_minor.0"
             else
