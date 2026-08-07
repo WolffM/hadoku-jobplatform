@@ -23,6 +23,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          # The bot pushes straight to a protected main. The default GITHUB_TOKEN
+          # is not an admin, so its push is rejected with "protected branch hook
+          # declined" — and only when there is actually something to push, which
+          # is why this can sit green for weeks. HADOKU_SITE_TOKEN is WolffM's
+          # PAT and the branch has enforce_admins=false, so it bypasses. Same
+          # fix hadoku-task (4276cf2e) and hadoku-resume-bot already took.
+          token: ${{ secrets.HADOKU_SITE_TOKEN }}
           fetch-depth: 0
 
       - uses: actions/setup-node@v6
@@ -126,9 +133,19 @@ jobs:
           git commit -m "chore: auto-update @wolffm/* to latest"
 
           for i in 1 2 3; do
-            if git push; then
+            push_out=$(git push 2>&1) && rc=0 || rc=$?
+            echo "$push_out"
+            if [ "$rc" -eq 0 ]; then
               echo "✅ Pushed"
               exit 0
+            fi
+            # A branch-protection rejection (GH006 / "protected branch hook
+            # declined") is deterministic — rebasing and retrying cannot fix it,
+            # and on 2026-08-04 doing so buried the real cause under a stack of
+            # identical "race" retries. Name the fix and die on the first line.
+            if echo "$push_out" | grep -qiE "GH006|protected branch hook declined"; then
+              echo "::error::Push rejected by branch protection, not a race. The pushing credential cannot satisfy main's required checks — checkout must use a token that bypasses them (token: HADOKU_SITE_TOKEN, see the checkout step). Background: hadoku-task/docs/incident-2026-08-04-ci-failures.md."
+              exit 1
             fi
             echo "Push failed (attempt $i), rebasing..."
             git fetch origin main
