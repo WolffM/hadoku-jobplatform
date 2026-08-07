@@ -137,9 +137,10 @@ function main() {
     const target = applyLevel(parentVersion, level)
     if (!target || target === committedVersion) continue
 
-    const pkg = JSON.parse(readFileSync(path, 'utf8'))
-    pkg.version = target
-    writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
+    const src = readFileSync(path, 'utf8')
+    const patched = src.replace(/("version"\s*:\s*")[^"]*(")/, (mm, a, b) => a + target + b)
+    if (patched === src) throw new Error(`no version field in ${path}`)
+    writeFileSync(path, patched)
     git('add', path)
     rewritten.push(`${path}: ${committedVersion} -> ${target}`)
   }

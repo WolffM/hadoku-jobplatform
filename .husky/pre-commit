@@ -58,9 +58,11 @@ bump_version() {
 
   node -e "
 const fs = require('fs');
-const pkg = JSON.parse(fs.readFileSync('${pkg_path}', 'utf8'));
-pkg.version = '${new_version}';
-fs.writeFileSync('${pkg_path}', JSON.stringify(pkg, null, 2) + '\n');
+const p = '${pkg_path}';
+const src = fs.readFileSync(p, 'utf8');
+const next = src.replace(/(\"version\"\s*:\s*\")[^\"]*(\")/, (m, a, b) => a + '${new_version}' + b);
+if (next === src) { console.error('could not patch version in ' + p); process.exit(1); }
+fs.writeFileSync(p, next);
 "
 
   echo "${label} version bumped: ${current} -> ${new_version}"
