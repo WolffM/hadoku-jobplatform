@@ -39,8 +39,8 @@
   },
   "peerDependencies": {
     "@wolffm/logger": ">=1.0.0",
-    "@wolffm/task-ui-components": "^3.0.0",
-    "@wolffm/themes": "^4.0.0",
+    "@wolffm/task-ui-components": ">=3.0.0",
+    "@wolffm/themes": ">=4.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
