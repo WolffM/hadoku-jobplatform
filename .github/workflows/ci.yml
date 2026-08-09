@@ -37,7 +37,7 @@ permissions:
 jobs:
   typecheck:
     name: typecheck
-    runs-on: [self-hosted, hadoku-builder]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
@@ -95,7 +95,7 @@ jobs:
 
   lint:
     name: lint
-    runs-on: [self-hosted, hadoku-builder]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
