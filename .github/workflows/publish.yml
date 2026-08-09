@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   publish:
-    runs-on: [self-hosted, hadoku-builder]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
     steps:
       - uses: actions/checkout@v6
         with:
