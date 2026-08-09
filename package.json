@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.0.15",
+  "version": "3.0.16",
   "description": "Job listings aggregation and tracking dashboard",
   "type": "module",
   "packageManager": "pnpm@11.5.0",
