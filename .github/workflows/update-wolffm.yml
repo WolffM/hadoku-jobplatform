@@ -1,11 +1,30 @@
 name: Auto-update @wolffm packages
 
+# NO `schedule:` TRIGGER HERE — deliberate, do not add one back.
+#
+# The daily safety net moved to hadoku_site's cron-worker, where a Temporal
+# schedule fires ON TIME: `services/cron-worker/profiles.json` -> repo-sync
+# profile (13:00 UTC / 06:00 Pacific, the last daily profile) -> tail job
+# `ci:wolffm-fanout` -> `services/mgmt-api/src/routes/jobs/wolffm-fanout.ts`,
+# which dispatches `wolffm_published` to every consumer in child-apps.json.
+# That job throws on a non-204, so a dropped dispatch pages Discord — louder
+# than this cron ever was, since a failed CI fan-out only emits a warning and
+# leaves its run green.
+#
+# A GitHub Actions `schedule` is the wrong trigger for anything that ends in a
+# deploy, because it does not fire when it says it does. Measured across 46
+# runs of this same `0 */6 * * *` expression in hadoku-watchparty: median
+# +57min late, max +162min, worst at the 00:00 UTC slot (median +105min)
+# because midnight UTC is the most contended cron minute on the platform.
+# 00:00 UTC is 17:00 Pacific — on 2026-08-10 that slot landed at 18:52 Pacific
+# and redeployed production into a live watch party.
+#
+# Fast path is unchanged: a publish still dispatches `wolffm_published`
+# immediately via hadoku_site's update-packages.yml fan-out.
 on:
   repository_dispatch:
     types: [wolffm_published]
   workflow_dispatch:
-  schedule:
-    - cron: '0 */6 * * *' # safety net every 6h
 
 concurrency:
   group: update-wolffm
