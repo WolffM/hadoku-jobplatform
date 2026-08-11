@@ -12,8 +12,8 @@ importers:
         specifier: ^1.3.1
         version: 1.3.1
       '@wolffm/prefs-client':
-        specifier: ^1.0.6
-        version: 1.0.6(react@19.2.4)(zod@4.3.6)
+        specifier: ^1.0.7
+        version: 1.0.7(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -44,10 +44,10 @@ importers:
         version: 5.2.0(vite@7.3.1(@types/node@26.1.1)(yaml@2.8.3))
       '@wolffm/task-ui-components':
         specifier: ^4.2.1
-        version: 4.2.1(@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6))(react@19.2.4)
+        version: 4.2.1(@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6))(react@19.2.4)
       '@wolffm/themes':
         specifier: ^5.2.1
-        version: 5.2.1(@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)
+        version: 5.2.1(@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -871,8 +871,8 @@ packages:
     resolution: {integrity: sha512-6MxJ8Z/vhUozc9Q90rYR0YY5YZzuf/9azAPTXd6Iu+V7XIjXrfgs6zoEiEQWwv4VPUGzqpT7NZKW1PBv3EbreQ==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.3.1/de57a6b958ebc88f8870df1dfba626a7fcb028fb}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.0.6':
-    resolution: {integrity: sha512-gYQLBhaMc42kkVQs9BitjYbP9UfHhMCSYpJET9vXfBPg+zEsRTqM++MgNEm/CDoSz/9jZ4gbC194IaQkxjbBEA==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.6/d6c9c9d7dc821d435cdb73995611493ecf471ef4}
+  '@wolffm/prefs-client@1.0.7':
+    resolution: {integrity: sha512-IsNePCFC8sLcFFYBTaADUOaZ3b7hhx0C1KDUu9W/50rk0siLF/69OEZWl0A5+/UL4c5g8kc9jQ88HDd7Ku16Vg==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.7/d88c0d1266f3b250b6fa5dcdbaeb74a7dbf3fade}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3096,19 +3096,19 @@ snapshots:
 
   '@wolffm/logger@1.3.1': {}
 
-  '@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@4.2.1(@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6))(react@19.2.4)':
+  '@wolffm/task-ui-components@4.2.1(@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': 5.2.1(@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)
+      '@wolffm/themes': 5.2.1(@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
 
-  '@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.6(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/themes@5.2.1(@wolffm/prefs-client@1.0.7(react@19.2.4)(zod@4.3.6))(react@19.2.4)(zod@4.3.6)':
     dependencies:
-      '@wolffm/prefs-client': 1.0.6(react@19.2.4)(zod@4.3.6)
+      '@wolffm/prefs-client': 1.0.7(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
       zod: 4.3.6
 
