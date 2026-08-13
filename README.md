@@ -1,8 +1,9 @@
 # hadoku-jobplatform
 
 An end-to-end job-search pipeline. It pulls postings off company ATS boards, scores
-them against role profiles you define, lets you triage what survives, and generates a
-tailored resume and cover letter for the ones worth applying to.
+them against role profiles you define, lets you triage what survives, and assembles a
+full application packet — tailored resume, cover letter, intro email, screening
+answers — for the ones worth applying to.
 
 Live at **[hadoku.me/jobplatform](https://hadoku.me/jobplatform)** (~7,600 postings in
 the corpus as of August 2026). The job list is public; profiles, triage state, and
@@ -108,7 +109,8 @@ The pipeline, end to end:
                       └───────────┬───────────────┘
                                   │  service binding
                                   ▼
-                            resume-api  →  tailored resume + cover letter
+                            resume-api  →  resume, cover letter, intro email,
+                                           screening answers → one shareable packet
 ```
 
 Companies are a **directive the scraper pulls**, not targets this app pushes. The worker
