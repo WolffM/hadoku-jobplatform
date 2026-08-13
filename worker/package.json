@@ -2,6 +2,7 @@
 	"name": "@wolffm/jobplatform-worker",
 	"version": "2.1.5",
 	"description": "Job listings aggregation and tracking dashboard - Worker package",
+	"license": "MIT",
 	"type": "module",
 	"repository": {
 		"type": "git",

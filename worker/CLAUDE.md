@@ -14,11 +14,16 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/index.ts` — main exports (factory functions, route mounting)
 - `src/types.ts` — AppEnv interface
 - `src/schemas.ts` — Zod schemas for OpenAPI validation
-- `src/scoring.ts` — job-profile scoring algorithm
+- `src/scoring.ts` — job-profile scoring algorithm (runs on read, per request)
+- `src/roleClassify.ts` — infers `(role_track, role_level)` from the title at ingest
+- `src/slugParse.ts` — derives `(ats, slug)` from `job.url` at ingest
+- `src/userId.ts` — resolves the identity D1 rows are keyed by
+- `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
-- `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, scores, stores in D1)
-- `src/routes/jobs.ts` — job listing queries
-- `src/routes/profiles.ts` — profile CRUD
+- `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`
+- `src/routes/jobs.ts` — job listing queries, triage state, resume/cover-letter binding calls
+- `src/routes/profiles.ts` — profile CRUD + each profile's company slice
+- `src/routes/companies.ts` — read-only `/companies/match` and `/companies/probe` proxies
 - `migrations/` — D1 database migrations
 
 ## Auth

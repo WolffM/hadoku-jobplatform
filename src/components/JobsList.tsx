@@ -116,7 +116,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
   }, [jobs, search])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
-  // Auth-gated filters: the API requires admin/friend for state= / mine= / hide_dismissed=.
+  // Auth-gated filters: the API requires admin/friend for state=.
   // We don't pre-flight whoami here — instead, rely on a real state value in the
   // response. Both null (authed-but-no-row) and undefined (older worker without
   // the field) mean "not authed enough to surface the filters".

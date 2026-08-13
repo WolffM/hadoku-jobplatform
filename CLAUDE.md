@@ -9,7 +9,7 @@ Monorepo with two pnpm workspace packages:
 
 ## Contracts
 
-- **UI**: exports `mount(el)`, `unmount(el)` from `src/entry.tsx` — consumed by hadoku_site at `/jobs/`
+- **UI**: exports `mount(el)`, `unmount(el)` from `src/entry.tsx` — consumed by hadoku_site at `/jobplatform/`
 - **Worker**: exports `createFetchHandler()`, `createScheduledHandler()` from `worker/src/index.ts` — consumed by `hadoku_site/workers/jobplatform-api/`
 - Both publish to GitHub Packages on push to main via `.github/workflows/publish.yml`
 - Dispatch: `packages_updated` event notifies hadoku_site to pull new versions and redeploy
@@ -25,25 +25,40 @@ Monorepo with two pnpm workspace packages:
 | **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, Kanban view, follow-up dates                        |
 | **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold            |
 
-## Worker API (V1 live)
+## Worker API
 
-| Method | Path                   | Auth                 | Purpose                                                                              |
-| ------ | ---------------------- | -------------------- | ------------------------------------------------------------------------------------ |
-| POST   | /ingest                | admin/friend/service | Scraper webhook (posts as service) — receives jobs inline, scores, stores in D1      |
-| POST   | /ingest/rescore        | admin/friend         | Rescore all jobs against updated profiles                                            |
-| POST   | /ingest/backfill-slugs | admin/friend         | One-off: parse `(ats, slug)` from `job.url` for NULL rows                            |
-| POST   | /ingest/backfill-roles | admin/friend         | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all |
-| GET    | /profiles              | open                 | List scoring profiles                                                                |
-| POST   | /profiles              | admin/friend         | Create profile                                                                       |
-| PUT    | /profiles/:id          | admin/friend         | Update profile                                                                       |
-| GET    | /jobs                  | open\*               | List scored jobs (profile_id, min_score, sort, mine=true)                            |
-| GET    | /jobs/:id              | open                 | Job detail + score breakdown                                                         |
-| GET    | /companies             | admin/friend         | List this user's subscribed companies                                                |
-| POST   | /companies             | admin/friend         | Subscribe; calls scraper /targets + fire-and-forget /search                          |
-| DELETE | /companies/:id         | admin/friend         | Unsubscribe; idempotent on scraper 404                                               |
-| GET    | /health                | open                 | Health check                                                                         |
+Base path `/jobplatform/api` (`createJobPlatformHandler`). Gates are `requireMinTier`,
+and tiers RANK (`public < friend < service < admin`) — "friend" admits service and
+admin too.
 
-\*`mine=true` requires admin/friend even though the rest of `GET /jobs` is open.
+| Method | Path                               | Auth   | Purpose                                                                              |
+| ------ | ---------------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| GET    | /health                            | open   | Health check                                                                         |
+| GET    | /jobs                              | open\* | List jobs (profile_id, min_score, min_salary, sort, state, hide_dismissed)           |
+| GET    | /jobs/:id                          | open   | Job detail + score breakdown                                                         |
+| GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose      |
+| PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                            |
+| DELETE | /jobs/:id/state                    | friend | Clear it                                                                             |
+| POST   | /jobs/:id/resume                   | friend | Tailored resume via the `RESUME` service binding                                     |
+| POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                    |
+| POST   | /jobs/:id/packet-link              | friend | Application-packet link                                                              |
+| GET    | /profiles                          | friend | List scoring profiles; materializes the Default profile on first call                |
+| POST   | /profiles                          | friend | Create profile                                                                       |
+| PUT    | /profiles/:id                      | friend | Update profile                                                                       |
+| DELETE | /profiles/:id                      | friend | Delete profile                                                                       |
+| GET    | /profiles/:id/companies            | friend | The companies in this profile's slice                                                |
+| POST   | /profiles/:id/companies            | friend | Add a confirmed `(ats, slug)` to the slice                                           |
+| DELETE | /profiles/:id/companies/:companyId | friend | Remove one                                                                           |
+| POST   | /companies/match                   | friend | Read-only proxy to scraper `/match` — name → best board                              |
+| POST   | /companies/probe                   | friend | Read-only proxy to scraper `/probe` — verify explicit slugs                          |
+| POST   | /ingest                            | friend | Scraper webhook (posts as service) — jobs inline, scored, stored in D1               |
+| POST   | /ingest/backfill-slugs             | friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows                            |
+| POST   | /ingest/backfill-roles             | friend | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all |
+| GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)       |
+
+\*`GET /jobs` is open, but `state=` requires friend. `hide_dismissed=` is a no-op
+when unauthed rather than an error, so the UI can default it on without a
+pre-flight auth check.
 
 ## Key Decisions
 
@@ -67,8 +82,14 @@ Monorepo with two pnpm workspace packages:
   Regression cases: `worker/tests/roleClassify.test.ts`, `pnpm test` in
   `worker/` (node:test, no framework dependency).
 - Scraper writes raw jobs to KV (`jobplatform:raw:{source}_{job_id}`) for archival/prune, but POSTs **full jobs inline** in the webhook body (not ID-only). Worker scores the inline payload against all profiles and stores matches in D1.
-- V1 company-subscription flow (shipped): `POST /companies` → scraper `/targets` → scraper scrapes → webhook fires → jobs land. Scraper owns the resolver/registry; jobplatform owns per-user subscriptions and scoring.
-- V1 `(ats, slug)` is derived at ingest time from `job.url` via `worker/src/slugParse.ts` and stored on the `jobs` table (migration 0003). Used by `mine=true` to join jobs against `user_companies`.
+- **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
+  (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
+  reads `GET /directives` (the union of every profile's companies + keywords)
+  on its next run and registers them itself → webhook fires → jobs land. The old
+  push model (`POST /companies` → scraper `/targets`) is retired; its client
+  helpers were deleted 2026-08-13. Per-profile `profile_companies` replaced the
+  user-global `user_companies`, which survives only as harmless legacy.
+- `(ats, slug)` is derived at ingest time from `job.url` via `worker/src/slugParse.ts` and stored on the `jobs` table (migration 0003). It scopes a profile's feed to its companies' jobs.
 - V1 user identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1.
 - V2 triage state lives in the `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)` (migration 0005). See ARCHITECTURE.md §"Worker API V2" and §"Data Model — Job States".
 - V3 resume-bot integration (shipped 2026-07-14) uses a Cloudflare **service binding** from `hadoku_site/workers/jobplatform-api/` to `resume-api`. Both `/tailored-resume` and `/cover-letter` are live; blocks are seeded. The binding call stamps `X-Edge-Auth` + `X-Hadoku-Tier: service` to satisfy resume-bot's in-worker gate (added 2026-07-13 — the old "zero-trust binding, no key" assumption is dead).
@@ -116,32 +137,19 @@ Read `node_modules/@wolffm/themes/THEME_USAGE_GUIDE.md` before writing styles.
 - **Secrets**: vault-broker model, NO `.env` files. Local dev fetches via `.devvault.json` + `node ../hadoku_site/scripts/secrets/dev-vault.mjs -- <cmd>`. If `pnpm dev` fails, run `node ../hadoku_site/scripts/secrets/dev-vault.mjs --check` for diagnostics. **Tutorial: `../hadoku_site/docs/child-apps/USING_VAULT.md`**. Operational reference: `../hadoku_site/docs/operations/SECRETS.md`.
 - **Auth model**: 1:1 named user-keys. `/auth` accepts key + name; whoami returns the name. Admin endpoints `GET/POST/DELETE /session/admin/keys` manage the registry. See `../hadoku_site/docs/planning/next-work.md`.
 
-## Vault — what your service-tier key can and can't do
+## Vault — how this repo gets its dev secrets
 
-This repo's vault key lives in `.devvault.local.json` at the repo root (gitignored, mode 0600). `dev-vault.mjs` reads it automatically. Per-key ACL is enforced as of 2026-05-04.
+This repo's vault key lives in `.devvault.local.json` at the repo root (gitignored,
+mode 0600); `dev-vault.mjs` reads it automatically. The key is **service tier and
+scoped to this repo** — it can read the values declared in `.devvault.json` and
+nothing else. Reads of another repo's secrets, and every write/admin operation,
+return 403 by design; those are operator-only and there is no self-service path to
+them.
 
-CAN do (no operator needed):
+Adding a new `process.env.X`: declare the mapping in `.devvault.json` (commit-safe,
+names only — no values), then ask the operator to grant it. Diagnose with
+`node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`.
 
-- `GET /api/secrets/status` — sealed/unlocked check
-- `GET /api/secrets/get/:key` — fetch a value declared in this repo's `.devvault.json`
-  (other repos' secrets return 403 — your key is scoped to THIS repo)
-- `GET /api/secrets/acl/me` — see what your key is granted
-- Verify with: `node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`
-
-CANNOT do (returns `403` — by design):
-
-- Read secrets NOT in this repo's `.devvault.json`
-- `POST /api/secrets/admin/set-many` — adding/changing secrets
-- `POST /api/secrets/admin/lock` — sealing the vault
-- `GET /api/secrets/list` — enumerating every secret name
-- `GET /api/secrets/audit` — dead-key report
-
-If your code reads a new `process.env.X` that isn't in `.devvault.json` yet:
-
-1. Add the mapping to `.devvault.json` (commit-safe, no values).
-2. Tell the operator: they grant the new entries via `key-acl-sync --repo ../<this-repo> --key <uuid> [--prune]`.
-3. Re-run your dev command.
-
-Operator-only operations (set / lock / audit / grant) use `HADOKU_ADMIN_KEY`. Don't try to escalate: service tier can't write, and there is no key list to add yourself to — auth resolves from the edge-router key registry, which only an admin can write.
-
-Lost or rotating your key? Operator: `python scripts/administration.py key-generate --tier service --repo ../<repo> --name <your-name>-<repo>` then drop the new UUID in `.devvault.local.json`.
+Full broker API, ACL commands, and key rotation live in the hadoku_site operational
+docs (`docs/child-apps/USING_VAULT.md`, `docs/operations/SECRETS.md`) — deliberately
+not mirrored here, since this repo is public.
