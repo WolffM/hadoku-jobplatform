@@ -6,7 +6,7 @@
  * ORPHANED all of their rows. Retained only as a fallback for callers that
  * bypass edge-router (direct *.workers.dev) and therefore get no X-User-Id.
  */
-export async function userIdFromCredential(credential: string): Promise<string> {
+async function userIdFromCredential(credential: string): Promise<string> {
 	const data = new TextEncoder().encode(credential);
 	const hash = await crypto.subtle.digest('SHA-256', data);
 	return Array.from(new Uint8Array(hash))
