@@ -10,6 +10,11 @@ export default [
       '**/dist/**',
       '**/node_modules/**',
       '**/coverage/**',
+      // Agent worktrees live here (see AGENTS.md). They are full checkouts, so
+      // without this the MAIN checkout lints every worktree's sources against
+      // its own tsconfig and fails with "file not found in any of the provided
+      // project(s)" — which blocks commits here for as long as a worktree exists.
+      '.claude/**',
       '**/*.test.ts',
       '**/*.test.tsx',
       'tests/**', // Playwright e2e — outside the src/ TS project
