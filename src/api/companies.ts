@@ -15,18 +15,6 @@ interface Wrapped<T> {
   message?: string
 }
 
-export interface ProviderHit {
-  ats: string
-  company_name: string | null
-  n_jobs: number
-  sample_titles: string[]
-}
-
-export interface SlugProbeResult {
-  slug: string
-  hits: ProviderHit[]
-}
-
 export interface CompanyMatch {
   query: string
   matched: boolean
@@ -71,24 +59,5 @@ export async function matchCompanies(names: string[], auth?: Auth): Promise<Comp
     body: JSON.stringify({ names })
   })
   const data = await parseWrapped<{ results: CompanyMatch[] }>(response)
-  return data.results
-}
-
-/**
- * Probe explicit slugs (read-only) to preview what each provider returns.
- * Slugs are matched as-is, not resolved from a name.
- */
-export async function probeSlugs(
-  slugs: string[],
-  providers: string[] | undefined,
-  auth?: Auth
-): Promise<SlugProbeResult[]> {
-  const response = await fetch(`${BASE_URL}/companies/probe`, {
-    method: 'POST',
-    headers: authHeaders(auth, true),
-    credentials: 'include',
-    body: JSON.stringify(providers ? { slugs, providers } : { slugs })
-  })
-  const data = await parseWrapped<{ results: SlugProbeResult[] }>(response)
   return data.results
 }

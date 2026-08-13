@@ -13,33 +13,8 @@ import type { AppEnv } from '../types.js';
 
 const DEFAULT_BASE_URL = 'https://scraper.hadoku.me';
 
-export interface TargetView {
-	id: number;
-	ats: string;
-	slug: string;
-	added_at: string;
-	last_scraped_at: string | null;
-	last_job_count: number | null;
-	consecutive_failures: number;
-	disabled_at: string | null;
-	disabled_reason: string | null;
-	is_active: boolean;
-	/** Present when the target was added by display name via /resolve. */
-	display_name?: string;
-}
-
-export interface AddTargetsResponse {
-	success: boolean;
-	data?: {
-		added: TargetView[];
-		skipped: TargetView[];
-		added_count: number;
-	};
-	error?: { message: string } | null;
-}
-
 /** One provider's answer for a probed slug. Only greenhouse exposes a name. */
-export interface ProviderHit {
+interface ProviderHit {
 	ats: string;
 	company_name: string | null;
 	n_jobs: number;
@@ -111,41 +86,6 @@ async function scraperFetch(env: AppEnv, path: string, init: ScraperFetchInit): 
 }
 
 /**
- * Add targets by display name. Scraper resolves each name to one or more
- * (ats, slug) pairs and registers each. Returns one TargetView per added
- * target — a single name can produce multiple entries.
- */
-export async function addTargetsByName(
-	env: AppEnv,
-	displayNames: string[],
-	options: { useLlm?: boolean } = {}
-): Promise<{ added: TargetView[]; skipped: TargetView[] }> {
-	const response = await scraperFetch(env, '/api/v1/jobboards/targets', {
-		method: 'POST',
-		body: JSON.stringify({
-			companies: displayNames,
-			use_llm: options.useLlm ?? true,
-		}),
-	});
-	if (!response.ok) {
-		throw new ScraperClientError(
-			`scraper /targets returned ${response.status}`,
-			response.status,
-			await response.text()
-		);
-	}
-	const json: AddTargetsResponse = await response.json();
-	if (!json.success || !json.data) {
-		throw new ScraperClientError(
-			`scraper /targets reported failure: ${json.error?.message ?? 'unknown'}`,
-			500,
-			JSON.stringify(json)
-		);
-	}
-	return { added: json.data.added, skipped: json.data.skipped };
-}
-
-/**
  * Probe explicit slugs against each ATS. Read-only — reports the company name
  * (greenhouse only), open-job count, and sample titles per provider so the
  * operator can confirm the correct (ats, slug) before locking it in. Does NOT
@@ -208,54 +148,6 @@ export async function matchCompanies(
 		);
 	}
 	return json.data.results;
-}
-
-/**
- * Register a single target by explicit (ats, slug) — the "lock in" half of the
- * verify-and-lock flow, bypassing name resolution entirely. Returns the
- * registered TargetView.
- */
-export async function addTargetBySlug(env: AppEnv, ats: string, slug: string): Promise<TargetView> {
-	const response = await scraperFetch(env, '/api/v1/jobboards/targets', {
-		method: 'POST',
-		body: JSON.stringify({ targets: [{ ats, slug }] }),
-	});
-	if (!response.ok) {
-		throw new ScraperClientError(
-			`scraper /targets returned ${response.status}`,
-			response.status,
-			await response.text()
-		);
-	}
-	const json: AddTargetsResponse = await response.json();
-	if (!json.success || !json.data || json.data.added.length === 0) {
-		throw new ScraperClientError(
-			`scraper /targets did not register ${ats}:${slug}: ${json.error?.message ?? 'no target added'}`,
-			500,
-			JSON.stringify(json)
-		);
-	}
-	return json.data.added[0];
-}
-
-/**
- * Hard-delete a target by scraper id.
- *
- * Scraper returns 404 on missing target. We swallow that — from our caller's
- * perspective "delete a thing that doesn't exist" is success (idempotent).
- */
-export async function deleteTarget(env: AppEnv, targetId: number): Promise<void> {
-	const response = await scraperFetch(env, `/api/v1/jobboards/targets/${targetId}`, {
-		method: 'DELETE',
-	});
-	if (response.status === 404) return;
-	if (!response.ok) {
-		throw new ScraperClientError(
-			`scraper DELETE /targets/${targetId} returned ${response.status}`,
-			response.status,
-			await response.text()
-		);
-	}
 }
 
 /**
