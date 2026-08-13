@@ -1,3 +1,4 @@
 # Force LF line endings for shell scripts (prevents CRLF breaking shebangs; Linux-only host)
 *.sh text eol=lf
 .husky/* text eol=lf
+.vibecompact/ledger.jsonl merge=union
