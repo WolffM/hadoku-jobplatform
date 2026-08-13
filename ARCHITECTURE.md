@@ -21,18 +21,21 @@ Cross-repo orchestration (scraper cadence, resume-bot block pipeline, link-tailo
 
 ## System Architecture
 
-End-to-end pipeline (V1 target state — company subscription flow):
+End-to-end pipeline (as shipped — scrape-directive pull model):
 
 ```
-User adds a company in the jobplatform UI
+User adds a confirmed (ats, slug) to a profile in the jobplatform UI
   ↓
-POST /jobplatform/api/companies  (this worker)
-  │  writes user_companies row
-  │  calls scraper POST /api/v1/jobboards/targets {companies: [display_name]}
-  │  stores returned {target_id, ats, slug} from scraper's registry
+POST /jobplatform/api/profiles/:id/companies  (this worker)
+  │  writes a profile_companies row. NO scraper call — companies are a
+  │  directive the scraper pulls, not a target we push.
+  ↓
+GET /jobplatform/api/directives  (this worker, scraper reads it)
+  │  the union of every profile's companies + keywords
   ↓
 hadoku-scrape (Python FastAPI, sibling repo)
   │  resolves company → (ats, slug) via cache / mechanical / alias / optional LLM
+  │  registers targets in its own registry, then scrapes them
   │  scheduled (or on-demand) POST /api/v1/jobboards/search
   │  enumerates active targets: Greenhouse, Lever, LinkedIn (Ashby resolver-only)
   │  writes each listing to Cloudflare KV: jobplatform:raw:{source}_{id}
@@ -40,24 +43,27 @@ hadoku-scrape (Python FastAPI, sibling repo)
   ↓
 POST /jobplatform/api/ingest  (this worker)
   │  reads jobs from webhook body (NOT from KV — KV is archival only)
-  │  dedups by URL, inserts into D1 jobs
-  │  scores each job against every profile, writes job_profile_matches
+  │  dedups by URL, classifies (role_track, role_level), parses (ats, slug)
+  │  inserts into D1 jobs
   ↓
 @wolffm/jobplatform-worker (Hono, this repo)
-  │  reads D1 for scored/filtered job lists
+  │  reads D1 for filtered job lists
+  │  SCORES ON READ, per request — the precomputed job_profile_matches
+  │  table was dropped in migration 0008, so a score always reflects the
+  │  profile as it is now
   │  exposes REST API under /jobplatform/api
   ↓
 @wolffm/jobplatform (React, this repo)
-  │  company manager + per-profile job browser
+  │  profile sidebar + per-profile job browser
   │  job detail drawer + action panel
   │  mounts in hadoku_site
   ↓
 hadoku_site
   └── routes /jobplatform/api/* → Cloudflare Worker (hadoku_site/workers/jobplatform-api/)
-  └── mounts React micro-frontend at /jobs/
+  └── mounts React micro-frontend at /jobplatform/
 ```
 
-**Live today**: scraper pipeline end-to-end (greenhouse / lever / linkedin, 3,000+ jobs in D1, daily scheduled scrape via hadoku_site cron), worker `/ingest` receiving inline webhooks, D1 storage, scoring, `/jobs` / `/profiles` / `/companies` APIs, `mine=true` filter with slug-based join, full V1/V2 UI (profile CRUD sidebar, job list with score/filter/pagination, detail drawer with score breakdown + triage buttons, companies manager), `job_states` triage persistence, per-user scoping (`profiles.user_id`, react-router scaffolding).
+**Live today**: scraper pipeline end-to-end (greenhouse / lever / linkedin / remoteok, ~7,600 jobs in D1 as of 2026-08-13, daily scheduled scrape via hadoku_site cron), worker `/ingest` receiving inline webhooks, `/directives` serving the scrape directive, D1 storage, scoring on read, `/jobs` / `/profiles` / `/companies/match` / `/companies/probe` APIs, full V1/V2 UI (profile CRUD sidebar, job list with score/filter/pagination, detail drawer with score breakdown + triage buttons, companies manager), `job_states` triage persistence, per-user scoping (`profiles.user_id`), and V3 tailored resume / cover letter over the `RESUME` service binding.
 
 ---
 
@@ -158,7 +164,7 @@ Scheduling lives in hadoku_site. The `mgmt-api` cron-jobs dispatcher fires `POST
 
 ## Data Model
 
-Current D1 schema (migrations 0001–0003): `profiles`, `jobs`, `job_profile_matches`, `user_companies`. No standalone `users` table — identity is opaque (`sha256(credential).slice(0, 16)`) and carried inline on `user_companies.user_id`. Same pattern will apply to the V2 `job_states` table.
+Current D1 schema (migrations 0001–0009): `profiles`, `jobs`, `profile_companies`, `job_states`. There is no standalone `users` table — identity is carried inline on each row's `user_id`. `job_profile_matches` was dropped in 0008 (scoring moved on-read) and `user_companies` was superseded by `profile_companies` in 0007, surviving only as harmless legacy.
 
 ### Users & Company Subscriptions (V1, shipped)
 
@@ -321,42 +327,56 @@ Scraper does not deduplicate across sources. Our ingest logic:
 
 Base path: `/jobplatform/api`
 
-### V1 — implemented
+### Implemented
+
+The authoritative route table (method, path, tier, purpose) lives in
+[`CLAUDE.md`](./CLAUDE.md#worker-api) — it is kept in sync with the code rather
+than duplicated here. In outline:
 
 ```
-POST  /ingest                    ← scraper webhook, admin/friend via X-User-Key, inline jobs
-POST  /ingest/rescore            ← rescore all jobs against one or all profiles
-POST  /ingest/backfill-slugs     ← one-off: parse (ats, slug) from job.url for rows with NULL
-GET   /profiles                  ← list profiles
-POST  /profiles                  ← create profile
-PUT   /profiles/:id              ← update profile
-GET   /jobs?profile_id=&...      ← profile_id optional; sort=score|date, min_score, mine=true filters
-GET   /jobs/:id                  ← full job detail + score breakdown
-GET   /health
+GET   /health                    ← open
+GET   /jobs?profile_id=&...      ← open; profile_id optional, sort=score|date|salary,
+                                   min_score, min_salary, state (friend), hide_dismissed
+GET   /jobs/:id                  ← open; full job detail + score breakdown
+GET   /jobs/preflight            ← open; "does this connect to something real?"
+PUT   /jobs/:id/state            ← friend; triage state
+POST  /jobs/:id/{resume,cover-letter,packet-link}
+                                 ← friend; via the RESUME service binding
+GET   /profiles, POST /profiles, PUT|DELETE /profiles/:id
+                                 ← friend
+GET|POST /profiles/:id/companies, DELETE /profiles/:id/companies/:companyId
+                                 ← friend; the profile's company slice
+POST  /companies/match           ← friend; read-only proxy to scraper /match
+POST  /companies/probe           ← friend; read-only proxy to scraper /probe
+POST  /ingest                    ← friend; scraper webhook, inline jobs
+POST  /ingest/backfill-{slugs,roles}
+                                 ← friend; one-off reparse/reclassify
+GET   /directives                ← friend; the scrape directive the scraper PULLS
 GET   /openapi.json
 ```
 
-### V1 — implemented (companies)
+**Retired.** `GET|POST|DELETE /companies` (the user-global subscribe/unsubscribe
+endpoints) and `POST /ingest/rescore` no longer exist. Companies moved under
+profiles in migration 0007, and rescore died with `job_profile_matches` in 0008.
+The scraper-push client helpers (`addTargetsByName`, `addTargetBySlug`,
+`deleteTarget`) were deleted 2026-08-13. `GET /jobs?mine=true` is likewise gone —
+per-profile company scoping replaced it.
 
-```
-GET     /companies               ← list this user's subscribed companies
-POST    /companies               ← subscribe by display name; calls scraper /targets + fire-and-forget /search
-DELETE  /companies/:id           ← unsubscribe; proxies scraper DELETE /targets/{target_id}, idempotent on 404
-```
+User identity is the stable per-user id that edge-router injects as `X-User-Id`,
+falling back to the legacy opaque `sha256(credential).slice(0, 16)` only for
+callers that bypass the edge. Raw credentials never enter D1.
 
-All three gated by `requireMinTier('friend')`. User identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1. Multi-target resolution: a single display name can resolve to multiple `(ats, slug)` targets (e.g. greenhouse + lever); each becomes its own `user_companies` row under the same user.
+Outbound calls go through `worker/src/clients/scraper.ts`, which requires the
+`SCRAPER_USER_KEY` binding and sends it as `X-User-Key` (a service-tier key from
+vault `JOBPLATFORM_SCRAPER_KEY`). Bearer was deprecated 2026-05-05.
 
-Outbound calls go through `worker/src/clients/scraper.ts`, which requires the `SCRAPER_API_KEY` binding (Bearer token; same value the scraper checks as its own `HADOKU_API_KEY`).
+### Job → company join
 
-### V1 — implemented (jobs filtering)
-
-```
-GET /jobs?mine=true   ← filters jobs to companies the caller is subscribed to
-```
-
-Joins `jobs` to `user_companies` via stable `(ats, slug)`. Derived at ingest time from `job.url` by `worker/src/slugParse.ts` — four patterns today (lever, greenhouse boards, ashby, linkedin + the stripe.com/gh_jid shortlink). Stored on the `jobs` table via migration 0003. Unmatched URLs get NULL and are excluded from `mine=true` queries. `POST /ingest/backfill-slugs` re-parses historical rows (idempotent).
-
-`mine=true` requires admin/friend auth even though the rest of `GET /jobs` is open. Can be combined with `profile_id` to AND both filters.
+`(ats, slug)` is derived at ingest time from `job.url` by `worker/src/slugParse.ts`
+— four patterns today (lever, greenhouse boards, ashby, linkedin + the
+stripe.com/gh_jid shortlink) — and stored on the `jobs` table via migration 0003.
+It scopes a profile's feed to its companies' jobs. Unmatched URLs get NULL.
+`POST /ingest/backfill-slugs` re-parses historical rows (idempotent).
 
 ### V1 — implemented (UI)
 
@@ -608,7 +628,7 @@ Job detail opens in a right-side drawer: full description, score breakdown by si
 | Endpoint                                                             | Auth                                                                             |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `POST /ingest`                                                       | `requireMinTier('friend')` (the scraper posts as service, which outranks friend) |
-| `POST/PUT /profiles`, all `/companies`, `mine=true`                  | `requireMinTier('friend')` in-worker                                             |
+| all `/profiles`, `/companies/*`, `GET /directives`                   | `requireMinTier('friend')` in-worker                                             |
 | `PUT/DELETE /jobs/:id/state`, `POST /jobs/:id/{resume,cover-letter}` | `gateAuthed` (admin/friend) in-worker                                            |
 | Read-only `GET /jobs`, `/jobs/:id` (unscoped)                        | Public                                                                           |
 
@@ -628,7 +648,7 @@ All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `req
 - [x] **Block seeding** — blocks seeded in prod (`resume:blocks:*`); `/tailored-resume` returns 200.
 - [x] **Service binding wiring** — `RESUME` binding declared (hadoku_site#193) and used (`worker/src/routes/jobs.ts`), stamping `X-Edge-Auth` + `X-Hadoku-Tier: service`.
 - [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. The V3 UI does NOT pass `profile_type` yet (the passthrough is wired but unused) pending a shared vocab (e.g. `ml`, `staff`, `leadership`), or they'll drift.
-- [ ] **Tailored-resume provenance on jobs** — add `job_profile_matches.tailored_resume_cached_at` or similar so the UI can show a "Generate" vs "Regenerate" state without round-tripping resume-bot.
+- [ ] **Tailored-resume provenance on jobs** — record a `tailored_resume_cached_at` (on `job_states`, since `job_profile_matches` is gone as of 0008) so the UI can show a "Generate" vs "Regenerate" state without round-tripping resume-bot.
 
 ### V4+ to scope later
 
@@ -642,7 +662,7 @@ All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `req
 - [x] **V3 shipped (2026-07-14)** — `POST /jobs/:id/{resume,cover-letter}` proxy to resume-api over the `RESUME` service binding; JobDrawer "Generate packet" button renders both artifacts.
 - [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs.ts:26`).
 - [x] **User scoping** — `user_companies` table + `userIdFromCredential()` helper shipped. Profiles staying global for V1; per-user scoping moved to V2 readiness.
-- [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used by `mine=true`.
+- [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used to scope a profile's feed to its companies.
 - [x] **Scheduler** — `createScheduledHandler` stays a stub. hadoku_site's `mgmt-api` cron owns the daily `/api/v1/jobboards/search` dispatch.
 - [x] **LinkedIn `li_at` cookie** — no blocker. Scraper uses `browser-cookie3` to extract from Firefox/Chrome.
 - [x] **Auth on ingest** — `requireUserType(['admin','friend'])` via `X-User-Key`, confirmed live.

@@ -77,7 +77,7 @@ app.openapi(
 		method: 'get',
 		path: '/jobs',
 		tags: ['Jobs'],
-		summary: 'List jobs (optionally scored, mine-only, or filtered by triage state)',
+		summary: 'List jobs (optionally scored, or filtered by triage state)',
 		request: {
 			query: z.object({
 				profile_id: z
@@ -127,7 +127,7 @@ app.openapi(
 				content: { 'application/json': { schema: JobsResponseSchema } },
 			},
 			401: {
-				description: 'mine=true / state= / hide_dismissed= require auth',
+				description: 'state= requires auth',
 				content: { 'application/json': { schema: ErrorResponseSchema } },
 			},
 		},
@@ -174,11 +174,10 @@ app.openapi(
 			row_state: string | null;
 		}
 
-		// mine=true and state= require an authed caller — they explicitly opt
-		// into per-user filtering and the wrong answer is misleading. hide_dismissed
-		// is treated as a no-op for unauthed callers (no per-user join, nothing
-		// to hide) so the UI can default it on without forcing a pre-flight
-		// auth check.
+		// state= requires an authed caller — it explicitly opts into per-user
+		// filtering and the wrong answer is misleading. hide_dismissed is treated
+		// as a no-op for unauthed callers (no per-user join, nothing to hide) so
+		// the UI can default it on without forcing a pre-flight auth check.
 		const userId = await maybeUserId(c);
 		const needsAuth = stateFilter !== undefined;
 		if (needsAuth && !userId) {
