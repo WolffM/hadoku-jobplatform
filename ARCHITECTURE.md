@@ -164,7 +164,7 @@ Scheduling lives in hadoku_site. The `mgmt-api` cron-jobs dispatcher fires `POST
 
 ## Data Model
 
-Current D1 schema (migrations 0001–0009): `profiles`, `jobs`, `profile_companies`, `job_states`. There is no standalone `users` table — identity is carried inline on each row's `user_id`. `job_profile_matches` was dropped in 0008 (scoring moved on-read) and `user_companies` was superseded by `profile_companies` in 0007, surviving only as harmless legacy.
+Current D1 schema (migrations 0001–0010): `profiles`, `jobs`, `profile_companies`, `job_states`. There is no standalone `users` table — identity is carried inline on each row's `user_id`. `job_profile_matches` was dropped in 0008 (scoring moved on-read) and `user_companies` was superseded by `profile_companies` in 0007, surviving only as harmless legacy.
 
 ### Users & Company Subscriptions (V1, shipped)
 
@@ -340,7 +340,7 @@ GET   /jobs?profile_id=&...      ← open; profile_id optional, sort=score|date|
 GET   /jobs/:id                  ← open; full job detail + score breakdown
 GET   /jobs/preflight            ← open; "does this connect to something real?"
 PUT   /jobs/:id/state            ← friend; triage state
-POST  /jobs/:id/{resume,cover-letter,packet-link}
+POST  /jobs/:id/{resume,cover-letter,application-extras,packet-link}
                                  ← friend; via the RESUME service binding
 GET   /profiles, POST /profiles, PUT|DELETE /profiles/:id
                                  ← friend
@@ -648,7 +648,7 @@ All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `req
 - [x] **Block seeding** — blocks seeded in prod (`resume:blocks:*`); `/tailored-resume` returns 200.
 - [x] **Service binding wiring** — `RESUME` binding declared (hadoku_site#193) and used (`worker/src/routes/jobs.ts`), stamping `X-Edge-Auth` + `X-Hadoku-Tier: service`.
 - [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. The V3 UI does NOT pass `profile_type` yet (the passthrough is wired but unused) pending a shared vocab (e.g. `ml`, `staff`, `leadership`), or they'll drift.
-- [ ] **Tailored-resume provenance on jobs** — record a `tailored_resume_cached_at` (on `job_states`, since `job_profile_matches` is gone as of 0008) so the UI can show a "Generate" vs "Regenerate" state without round-tripping resume-bot.
+- [x] **Application-packet provenance** — migration 0010 adds `job_states.variant_slug`, stashing the minted packet link on the state row so the record of what was actually sent survives. A "Generate" vs "Regenerate" hint for the resume itself is still not cached; the UI round-trips resume-bot for that.
 
 ### V4+ to scope later
 

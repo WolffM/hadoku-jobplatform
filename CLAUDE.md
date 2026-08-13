@@ -41,7 +41,8 @@ admin too.
 | DELETE | /jobs/:id/state                    | friend | Clear it                                                                             |
 | POST   | /jobs/:id/resume                   | friend | Tailored resume via the `RESUME` service binding                                     |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                    |
-| POST   | /jobs/:id/packet-link              | friend | Application-packet link                                                              |
+| POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)             |
+| POST   | /jobs/:id/packet-link              | friend | Mint the shareable packet link; its slug is stashed on `job_states.variant_slug`     |
 | GET    | /profiles                          | friend | List scoring profiles; materializes the Default profile on first call                |
 | POST   | /profiles                          | friend | Create profile                                                                       |
 | PUT    | /profiles/:id                      | friend | Update profile                                                                       |
