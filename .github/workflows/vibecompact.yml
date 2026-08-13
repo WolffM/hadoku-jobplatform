@@ -1,0 +1,26 @@
+name: vibeCompact
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *" # daily poll; the activity gate exits in seconds when quiet
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  audit:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    steps:
+      - name: Checkout (full history — the audit reads git forensics)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run vibeCompact
+        uses: WolffM/vibecheck@main
+        with:
+          mode: audit
+          github_token: ${{ secrets.GITHUB_TOKEN }}
