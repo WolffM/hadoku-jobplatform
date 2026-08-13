@@ -48,3 +48,11 @@ extract/
 # vibeCompact audit working artifacts (regenerable; ledger + trends stay tracked)
 .vibecompact/audit.md
 .vibecompact/out/
+
+# Agent worktrees (AGENTS.md tells every agent to create one here). These are
+# full checkouts of this repo, so leaving them untracked-but-not-ignored lets
+# filesystem-walking tools treat them as part of it: a local vibeCompact run
+# reported 9202 duplicated lines across 44 files, every one of them a file
+# "cloned" by its own copy in the worktree. eslint hit the same thing from the
+# other direction (see eslint.config.js).
+.claude/worktrees/
