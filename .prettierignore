@@ -1,0 +1,26 @@
+node_modules
+dist
+build
+coverage
+.vscode
+.git
+*.log
+
+# Sibling git worktrees. AGENTS.md tells every agent to create one under
+# .claude/worktrees/, so without this `format:check` walks into whatever every
+# other agent currently has checked out and fails on THEIR in-progress files.
+# Worse, the pre-commit hook runs `pnpm run format`, which WRITES — so a commit
+# here would silently reformat another agent's working tree.
+# eslint.config.js ignores the same path for the same reason; keep the two in step.
+#
+# Scoped to worktrees/ rather than all of .claude, so tracked settings stay checked.
+.claude/worktrees
+
+# Machine-written vibeCompact state. `vibecheck audit` regenerates these on every
+# local run, and prettier-formatting them just makes the next run dirty the tree
+# again — trends.json failed `format:check` on exactly this loop.
+.vibecompact
+
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
