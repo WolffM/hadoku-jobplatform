@@ -1,0 +1,46 @@
+[
+  {
+    "at": "2026-08-13T16:39:51-07:00",
+    "sha": "de063d0fa4b8c24296e214ef9a86d3f529dbc4c8",
+    "dirty": false,
+    "toolVersions": {
+      "scc": "3.7.0"
+    },
+    "floors": {},
+    "saturated": [
+      "arrival"
+    ],
+    "aggregates": {
+      "candidateFiles": 77,
+      "perLane": {
+        "size": {
+          "filesAssessed": 45,
+          "filesFlagged": 2
+        },
+        "arrival": {
+          "filesAssessed": 26,
+          "filesFlagged": 0
+        },
+        "deadcode": {
+          "filesAssessed": 42,
+          "filesFlagged": 0
+        },
+        "duplication": {
+          "filesAssessed": 45,
+          "filesFlagged": 0
+        },
+        "smells": {
+          "filesAssessed": 35,
+          "filesFlagged": 0
+        },
+        "consistency": {
+          "filesAssessed": 36,
+          "filesFlagged": 0
+        }
+      },
+      "gatePassing": 0,
+      "offenders": 0,
+      "suppressedByFloor": 0
+    }
+  }
+]
