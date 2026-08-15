@@ -182,13 +182,13 @@ jobs:
         if: steps.ui_changed.outputs.changed == 'true'
         run: pnpm publish --no-git-checks
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish worker package
         if: steps.worker_changed.outputs.changed == 'true'
         run: pnpm --filter @wolffm/jobplatform-worker publish --no-git-checks
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify parent about deployment
         if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
