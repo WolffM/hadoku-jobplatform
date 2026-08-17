@@ -50,14 +50,18 @@ interface MatchResponse {
 	error?: { message: string } | null;
 }
 
+// Fields are declared and assigned explicitly rather than via TypeScript
+// parameter properties: node's strip-only type stripping rejects those outright,
+// and the integration tests import the whole worker through it.
 export class ScraperClientError extends Error {
-	constructor(
-		message: string,
-		public status: number,
-		public body: string
-	) {
+	readonly status: number;
+	readonly body: string;
+
+	constructor(message: string, status: number, body: string) {
 		super(message);
 		this.name = 'ScraperClientError';
+		this.status = status;
+		this.body = body;
 	}
 }
 

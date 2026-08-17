@@ -111,7 +111,9 @@ test('adjacent-ladder titles are multiplied down, not hidden', () => {
 	const eng = { ...pm, title: 'Staff Software Engineer, ML Foundations' };
 	const profile = {
 		keywords: ['ai', 'platform'],
-		levels: ['staff'] as const,
+		// Not `as const` — scoreJob takes a mutable RoleLevel[], and a readonly
+		// tuple does not satisfy it.
+		levels: ['staff' as const],
 		remote_pref: 'remote',
 	};
 
