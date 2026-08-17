@@ -2,6 +2,19 @@ import { useCallback, useEffect, useState } from 'react'
 import { listProfiles, deleteProfile, ProfilesApiError, type JobProfile } from '../api/profiles'
 import type { Auth } from '../api/auth'
 
+/**
+ * Where "Sign in" sends an anonymous visitor.
+ *
+ * edge-router's /auth takes a `return` param and bounces back to it after a
+ * successful sign-in, so this brings the user back to the app rather than to
+ * the site root. The app mounts under /jobplatform/ and keeps its own state in
+ * the hash, which `location.hash` preserves.
+ */
+function signInHref(): string {
+  const here = window.location.pathname + window.location.search + window.location.hash
+  return `/auth?return=${encodeURIComponent(here)}`
+}
+
 interface Props {
   auth: Auth
   selectedId: string | null
@@ -19,7 +32,22 @@ export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, relo
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Profiles are per-user and the API gates /profiles at friend tier, so an
+  // anonymous visitor can only ever get a 403 here. The feed itself is public,
+  // so we skip the call rather than firing a request whose only outcome is a
+  // console error and an error string in the sidebar.
+  //
+  // This reads the sessionId the shell already handed us — it is not a whoami
+  // pre-flight, which is exactly what JobsList avoids.
+  const isAuthed = Boolean(auth.sessionId)
+
   const refresh = useCallback(async () => {
+    if (!isAuthed) {
+      setProfiles([])
+      setError(null)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
@@ -29,7 +57,7 @@ export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, relo
     } finally {
       setLoading(false)
     }
-  }, [auth])
+  }, [auth, isAuthed])
 
   useEffect(() => {
     void refresh()
@@ -60,6 +88,24 @@ export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, relo
     } catch (err) {
       setError(err instanceof ProfilesApiError ? err.message : 'Failed to delete profile')
     }
+  }
+
+  if (!isAuthed) {
+    return (
+      <aside className="jp-sidebar">
+        <div className="jp-sidebar__header">
+          <h2>Profiles</h2>
+        </div>
+        <p className="jp-muted">
+          The feed to the right is the whole public corpus, newest first. Sign in to rank it against
+          your own profile — keywords, IC or manager track, level and remote preference — and to
+          track which jobs you’ve looked at.
+        </p>
+        <a className="jp-sidebar__signin" href={signInHref()}>
+          Sign in
+        </a>
+      </aside>
+    )
   }
 
   return (

@@ -51,9 +51,13 @@ test.describe('smoke', () => {
 
   test('public visitor sees the unscored-list hint', async ({ page }) => {
     await page.goto('/')
-    // No profile selected (and public can't list any anyway). The list view
-    // surfaces a hint pointing the user at profile creation.
-    await expect(page.getByText(/No profile selected/i)).toBeVisible({ timeout: 10_000 })
+    // Anonymously there is no profile and none can be created, so the hint
+    // explains the unscored ordering instead of pointing at profile creation.
+    // (The "No profile selected" wording is the authed branch, which rarely
+    // renders in practice — the sidebar auto-selects the default profile.)
+    await expect(page.getByText(/Showing every job in the corpus/i)).toBeVisible({
+      timeout: 10_000
+    })
   })
 
   test('jobs API returns real data through the proxy', async ({ page }) => {
@@ -72,17 +76,92 @@ test.describe('smoke', () => {
 })
 
 test.describe('auth gate', () => {
-  test('public visitor gets 403 on /profiles', async ({ page }) => {
-    let profilesStatus: number | null = null
-    page.on('response', r => {
-      if (r.url().endsWith('/jobplatform/api/profiles')) profilesStatus = r.status()
+  // The gate itself, asserted directly against the API rather than through the
+  // UI. This is the security-relevant half and must hold regardless of what the
+  // client chooses to request.
+  test('/profiles is friend-gated — 403 for an anonymous caller', async ({ request }) => {
+    const res = await request.get('http://localhost:5173/jobplatform/api/profiles')
+    expect(res.status()).toBe(403)
+  })
+
+  // ...and the client half: the anonymous UI must not fire that request at all.
+  // It previously did, which put a 403 in the console on every public load.
+  test('anonymous UI never requests /profiles', async ({ page }) => {
+    const profileCalls: string[] = []
+    page.on('request', r => {
+      if (r.url().includes('/jobplatform/api/profiles')) profileCalls.push(r.url())
     })
+
     await page.goto('/')
-    // Wait for the sidebar's profile-list call to go through
-    await page.waitForResponse(r => r.url().endsWith('/jobplatform/api/profiles'), {
-      timeout: 10_000
+    // Anchor on the feed having actually loaded, so this can't pass simply by
+    // asserting before anything happened.
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible()
+
+    expect(profileCalls).toEqual([])
+  })
+
+  test('anonymous load produces no failed API requests', async ({ page }) => {
+    const failures: string[] = []
+    page.on('response', r => {
+      if (r.url().includes('/jobplatform/api/') && r.status() >= 400) {
+        failures.push(`${r.status()} ${r.url()}`)
+      }
     })
-    expect(profilesStatus).toBe(403)
+
+    await page.goto('/')
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+
+    expect(failures).toEqual([])
+  })
+})
+
+test.describe('public feed', () => {
+  test('the corpus is browsable without signing in', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: 'Job Platform', level: 1 })).toBeVisible()
+    // Real cards, not an empty/demo shell.
+    const cards = page.locator('.jp-jobcard')
+    await expect(cards.first()).toBeVisible({ timeout: 30_000 })
+    expect(await cards.count()).toBeGreaterThan(1)
+    await expect(page.getByPlaceholder(/Search title/i)).toBeVisible()
+  })
+
+  test('sidebar offers sign-in that returns to the app', async ({ page }) => {
+    await page.goto('/')
+    const signIn = page.getByRole('link', { name: 'Sign in' })
+    await expect(signIn).toBeVisible({ timeout: 30_000 })
+    // The return param is what makes sign-in come back here instead of
+    // dumping the user on the site root.
+    const href = await signIn.getAttribute('href')
+    expect(href).toMatch(/^\/auth\?return=/)
+    expect(decodeURIComponent(href ?? '')).toContain('/')
+  })
+
+  test('per-user controls are absent anonymously', async ({ page }) => {
+    await page.goto('/')
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+    // State filter and hide-dismissed are per-user; they need a session.
+    await expect(page.getByText('Hide dismissed')).toBeHidden()
+    await expect(page.locator('.jp-sidebar__new')).toHaveCount(0)
+  })
+
+  test('opening a job anonymously shows the sign-in prompt, not triage buttons', async ({
+    page
+  }) => {
+    await page.goto('/')
+    const firstCard = page.locator('.jp-jobcard').first()
+    await expect(firstCard).toBeVisible({ timeout: 30_000 })
+    await firstCard.click()
+
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible()
+    // Applying is public — it is just a link to the ATS.
+    await expect(drawer.getByRole('link', { name: /Apply on/ })).toBeVisible()
+    // Triage is not: the buttons render but must be inert without a session.
+    await expect(drawer.getByText(/Sign in to track your interest/i)).toBeVisible()
+    await expect(drawer.getByTestId('state-action-interested')).toBeDisabled()
+    await expect(drawer.getByTestId('prepare-application')).toBeDisabled()
   })
 })
 
