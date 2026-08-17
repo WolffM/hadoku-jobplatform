@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Job listings aggregation and tracking dashboard",
   "license": "MIT",
   "type": "module",
@@ -29,6 +29,7 @@
     "dev": "node ../hadoku_site/scripts/secrets/dev-vault.mjs -- vite",
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "doctor": "node scripts/check-node-modules-links.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "lint:css": "stylelint \"src/**/*.css\" && node node_modules/@wolffm/themes/scripts/check-usage.mjs ./src",
