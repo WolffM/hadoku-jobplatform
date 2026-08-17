@@ -1,0 +1,69 @@
+/* ============================================================================
+   Keyword chips + role-type picker (shared by the profile editor)
+   ============================================================================ */
+
+.jp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-xs);
+  align-items: center;
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+}
+
+.jp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hdk-space-xs);
+  padding: 0 var(--hdk-space-xs) 0 var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--hdk-text-base);
+  line-height: 1;
+  padding: 0;
+}
+
+.jp-chips__input {
+  flex: 1;
+  min-width: 8ch;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  outline: none;
+  padding: var(--hdk-space-xs);
+}
+
+.jp-role-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-role-opt {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.jp-role-opt--on {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}

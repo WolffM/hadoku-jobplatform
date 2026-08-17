@@ -1,0 +1,100 @@
+/* No color-scheme enumeration here: @wolffm/themes >= 3.0.14 declares
+   color-scheme on every theme block, so which theme names are light and which
+   are dark is the package's business, not ours. The hand-written list this
+   replaced had gone stale — izakaya was missing, so those two themes got no
+   color-scheme at all and their scrollbars and form controls rendered for the
+   wrong mode. */
+
+.job-platform-container[data-dark-theme='true'] {
+  --is-dark-theme: 1;
+}
+
+/* ============================================================================
+   Shell
+   ============================================================================ */
+
+.job-platform-container {
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+.job-platform {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--hdk-space-3xl);
+}
+
+/* Header now comes from the shared <AppHeader> (@wolffm/task-ui-components,
+ * app-header.css). The former .job-platform__header rules were removed on
+ * adopting the unified header. */
+
+.job-platform__content {
+  padding: var(--hdk-space-xl);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  box-shadow: var(--hdk-shadow-sm);
+}
+
+.job-platform__content p {
+  margin: var(--hdk-space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-base);
+  line-height: 1.6;
+}
+
+/* ============================================================================
+   Top-nav
+   ============================================================================ */
+
+.job-platform__nav {
+  display: flex;
+  gap: var(--hdk-space-lg);
+  margin-bottom: var(--hdk-space-xl);
+}
+
+.job-platform__nav a {
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--hdk-text-sm);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.job-platform__nav a:hover {
+  color: var(--color-text);
+}
+
+.job-platform__nav a.active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
+}
+
+/* ============================================================================
+   Shared utility classes
+   ============================================================================ */
+
+.jp-muted {
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin: var(--hdk-space-lg) 0;
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-error {
+  margin: var(--hdk-space-md) 0;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+  font-size: var(--hdk-text-sm);
+}

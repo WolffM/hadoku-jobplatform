@@ -1,0 +1,130 @@
+/* ============================================================================
+   Companies Manager (legacy, also used on /companies route)
+   ============================================================================ */
+
+.job-platform__companies-title {
+  margin: 0 0 var(--hdk-space-lg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.job-platform__companies-form {
+  display: flex;
+  gap: var(--hdk-space-md);
+  margin-bottom: var(--hdk-space-lg);
+}
+
+.job-platform__companies-form input {
+  flex: 1;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: var(--hdk-text-base);
+}
+
+.job-platform__companies-form input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+.job-platform__companies-form input:disabled {
+  opacity: 0.5;
+}
+
+.job-platform__companies-form button {
+  padding: var(--hdk-space-md) var(--hdk-space-xl);
+  border: none;
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.job-platform__companies-form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.job-platform__companies-note {
+  margin: var(--hdk-space-md) 0;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+  font-size: var(--hdk-text-sm);
+}
+
+.job-platform__companies-error {
+  margin: var(--hdk-space-md) 0;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+  font-size: var(--hdk-text-sm);
+}
+
+.job-platform__companies-empty {
+  margin: var(--hdk-space-xl) 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.job-platform__companies-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+}
+
+.job-platform__companies-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+}
+
+.job-platform__companies-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+}
+
+.job-platform__companies-item-main strong {
+  color: var(--color-text);
+  font-size: var(--hdk-text-base);
+}
+
+.job-platform__companies-item-meta {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  font-family: monospace;
+}
+
+.job-platform__companies-item-remove {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.job-platform__companies-item-remove:hover {
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+  border-color: var(--color-danger);
+}

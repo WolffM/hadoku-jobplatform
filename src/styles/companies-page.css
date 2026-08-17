@@ -1,0 +1,18 @@
+/* ============================================================================
+   Companies page wrapper
+   ============================================================================ */
+
+.jp-companies-intro {
+  margin: 0 0 var(--hdk-space-lg);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-companies-intro a {
+  color: var(--color-text);
+  text-decoration: underline;
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-companies-intro a:hover {
+  text-decoration-thickness: 2px;
+}

@@ -1,0 +1,373 @@
+/* ============================================================================
+   Job detail drawer
+   ============================================================================ */
+
+.jp-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-bg-overlay);
+  z-index: 40;
+}
+
+.jp-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(600px, 100vw);
+  background-color: var(--color-bg-card);
+  border-left: 1px solid var(--color-border);
+  padding: var(--hdk-space-xl) var(--hdk-space-3xl);
+  overflow-y: auto;
+  z-index: 50;
+  box-shadow: var(--hdk-shadow-lg);
+  color: var(--color-text);
+}
+
+.jp-drawer__header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--hdk-space-md);
+}
+
+.jp-drawer__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--hdk-text-lg);
+  line-height: 1;
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  transition: all 0.15s ease;
+}
+
+.jp-drawer__close:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.jp-drawer__title {
+  margin: 0 0 var(--hdk-space-sm);
+  color: var(--color-text);
+  font-size: var(--hdk-text-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.jp-drawer__company {
+  margin: 0 0 var(--hdk-space-lg);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-base);
+}
+
+.jp-drawer__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-md);
+  margin-bottom: var(--hdk-space-xl);
+}
+
+.jp-drawer__facts span {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-drawer__section {
+  margin-top: var(--hdk-space-xl);
+  padding-top: var(--hdk-space-xl);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.jp-drawer__section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.jp-drawer__section h3 {
+  margin: 0 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.jp-drawer__score-total {
+  margin-bottom: var(--hdk-space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-drawer__score-total strong {
+  color: var(--color-text);
+  font-size: var(--hdk-text-md);
+}
+
+.jp-drawer__breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+}
+
+.jp-drawer__breakdown li {
+  display: grid;
+  grid-template-columns: 90px 1fr 50px;
+  gap: var(--hdk-space-md);
+  align-items: center;
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-drawer__breakdown-label {
+  color: var(--color-text-secondary);
+}
+
+.jp-drawer__breakdown-bar {
+  height: 6px;
+  background-color: var(--color-neutral-bg);
+  border-radius: var(--hdk-radius-sm);
+  overflow: hidden;
+}
+
+.jp-drawer__breakdown-fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+.jp-drawer__breakdown-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-drawer__description {
+  color: var(--color-text);
+  line-height: 1.6;
+  font-size: var(--hdk-text-sm);
+}
+
+/* LinkedIn/Lever descriptions arrive as plain text with \n linebreaks — make
+   those render as actual line breaks instead of collapsing. pre-wrap keeps
+   long lines wrapping naturally within the drawer width. */
+.jp-drawer__description--plain {
+  white-space: pre-wrap;
+}
+
+.jp-drawer__description p {
+  margin: var(--hdk-space-md) 0;
+}
+
+.jp-drawer__description ul,
+.jp-drawer__description ol {
+  padding-left: var(--hdk-space-3xl);
+  margin: var(--hdk-space-md) 0;
+}
+
+.jp-drawer__description a {
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
+.jp-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-md);
+}
+
+.jp-drawer__cta {
+  padding: var(--hdk-space-md) var(--hdk-space-xl);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.jp-drawer__cta:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.jp-drawer__cta--primary {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
+}
+
+.jp-drawer__cta--primary:hover {
+  background-color: var(--color-primary-dark);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary-dark);
+}
+
+.jp-drawer__cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* V3 application packet — generated tailored resume + cover letter. */
+.jp-drawer__packet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+  margin-top: var(--hdk-space-md);
+}
+
+.jp-drawer__packet-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-drawer__packet-text {
+  width: 100%;
+  resize: vertical;
+  font-family: monospace;
+  font-size: var(--hdk-text-sm);
+  font-weight: normal;
+  line-height: 1.5;
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.jp-drawer__packet-link {
+  display: flex;
+  gap: var(--hdk-space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.jp-drawer__packet-link-input {
+  flex: 1;
+  min-width: 12rem;
+  padding: var(--hdk-space-sm);
+  font-family: monospace;
+  font-size: var(--hdk-text-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+/* Application-kit fields — each a labelled copy-able block. Sits below the
+   résumé/cover packet with a divider so the extras read as a second group. */
+.jp-drawer__kit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+  margin-top: var(--hdk-space-md);
+  padding-top: var(--hdk-space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.jp-drawer__kit-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-drawer__kit-field-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-drawer__kit-field-label {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-drawer__kit-field-hint {
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-drawer__kit-copy {
+  margin-left: auto;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  font-size: var(--hdk-text-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background: var(--color-bg-card);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.jp-drawer__kit-copy:hover {
+  background: var(--color-bg-hover);
+}
+
+/* V2 triage actions. Active = current state. Each action pairs colour
+   with the matching badge family so the drawer and cards read as one
+   system. */
+.jp-drawer__cta--active {
+  border-width: 2px;
+  font-weight: var(--font-weight-bold);
+}
+
+.jp-drawer__cta--state-interested.jp-drawer__cta--active {
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  border-color: var(--color-primary);
+}
+
+.jp-drawer__cta--state-saved.jp-drawer__cta--active {
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+  border-color: var(--color-warning);
+}
+
+.jp-drawer__cta--state-applied.jp-drawer__cta--active {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+  border-color: var(--color-success);
+}
+
+.jp-drawer__cta--state-dismissed.jp-drawer__cta--active {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-tertiary);
+  border-color: var(--color-text-tertiary);
+}
+
+.jp-drawer__facts-state {
+  padding: var(--hdk-space-xs) var(--hdk-space-md) !important;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-drawer__facts-state--interested {
+  background-color: var(--color-primary-bg) !important;
+  color: var(--color-on-primary-bg) !important;
+}
+
+.jp-drawer__facts-state--saved {
+  background-color: var(--color-warning-bg) !important;
+  color: var(--color-on-warning-bg) !important;
+}
+
+.jp-drawer__facts-state--applied {
+  background-color: var(--color-success-bg) !important;
+  color: var(--color-success-dark) !important;
+}
+
+.jp-drawer__facts-state--dismissed {
+  background-color: var(--color-neutral-bg) !important;
+  color: var(--color-text-tertiary) !important;
+}

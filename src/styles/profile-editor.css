@@ -1,0 +1,191 @@
+/* ============================================================================
+   Full-screen profile editor modal
+   ============================================================================ */
+
+.jp-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: var(--color-bg-overlay);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--hdk-space-xl);
+}
+
+.jp-editor {
+  width: min(880px, 90vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-lg);
+  box-shadow: var(--hdk-shadow-lg);
+  color: var(--color-text);
+}
+
+.jp-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jp-editor__title {
+  margin: 0;
+  font-size: var(--hdk-text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.jp-editor__close {
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--hdk-text-lg);
+  line-height: 1;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+}
+
+.jp-editor__close:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.jp-editor__body {
+  overflow-y: auto;
+  padding: var(--hdk-space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xl);
+}
+
+.jp-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-editor__section--split {
+  flex-direction: row;
+  gap: var(--hdk-space-lg);
+}
+
+.jp-editor__section--split > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-editor__section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hdk-space-md);
+  flex-wrap: wrap;
+}
+
+.jp-editor__field-label {
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.jp-editor__hint {
+  font-size: var(--hdk-text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.jp-editor__text {
+  width: 100%;
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-editor__text:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.jp-editor__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--hdk-space-xs);
+  border-radius: var(--hdk-radius-sm);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  background-color: var(--color-success-bg);
+  color: var(--color-on-success-bg);
+}
+
+.jp-editor__count--zero {
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-editor__count--loading {
+  background-color: transparent;
+  color: var(--color-text-tertiary);
+}
+
+.jp-editor__error {
+  margin: 0;
+  padding: 0 var(--hdk-space-xl);
+  border-left: 3px solid var(--color-danger);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--hdk-space-md);
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border-top: 1px solid var(--color-border);
+}
+
+.jp-editor__saved {
+  margin-right: auto;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-editor__cancel {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-editor__cancel:hover {
+  background-color: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.jp-editor__save {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  background-color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--hdk-radius-sm);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-editor__save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
