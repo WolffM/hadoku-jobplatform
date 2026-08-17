@@ -60,7 +60,7 @@ salary_line}`. Seed via wrangler KV put (dev-vault token). The résumé header
    the standard-fields block + salary/sponsorship answers.
 
 3. **jobplatform — thin proxy route** `POST /jobs/:id/application-extras`
-   (`worker/src/routes/jobs.ts`) that binds to resume-bot's endpoint (same
+   (`worker/src/routes/jobs/tailoring.ts`) that binds to resume-bot's endpoint (same
    `callResumeBinding` pattern as /resume, /cover-letter, /packet-link). Keeps the
    UI on `/jobplatform/api`.
 
@@ -93,7 +93,7 @@ salary_line}`. Seed via wrangler KV put (dev-vault token). The résumé header
 
 ## Pointers
 
-- Existing packet flow: jobplatform `worker/src/routes/jobs.ts` (`/jobs/:id/resume`,
+- Existing packet flow: jobplatform `worker/src/routes/jobs/tailoring.ts` (`/jobs/:id/resume`,
   `/cover-letter`, `/packet-link`, `callResumeBinding`) + `src/components/JobDrawer.tsx`
   (`handleGenerate`, `handleCreateLink`). resume-bot `worker/src/tailored-resume.ts`,
   `cover-letter.ts`, `variants.ts`, `index.ts`.

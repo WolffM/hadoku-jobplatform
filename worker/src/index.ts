@@ -31,7 +31,7 @@ import { logger } from './logger.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
-import { jobRoutes } from './routes/jobs.js';
+import { jobRoutes } from './routes/jobs/index.js';
 import { companyRoutes } from './routes/companies.js';
 
 interface AppContext {

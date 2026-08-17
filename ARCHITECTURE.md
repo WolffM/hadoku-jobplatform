@@ -479,7 +479,7 @@ Config per-profile: `alert_min_score`, `alert_channel` (`email` | `push` | `none
 
 ## Scoring Algorithm
 
-Runs on read, per request (see `worker/src/routes/jobs.ts`) — the precomputed
+Runs on read, per request (see `worker/src/routes/jobs/feed.ts`) — the precomputed
 `job_profile_matches` table was dropped in migration 0008, so scores always
 reflect the profile as it is right now.
 
@@ -646,7 +646,7 @@ All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `req
 ### V3 — shipped 2026-07-14, with follow-ups
 
 - [x] **Block seeding** — blocks seeded in prod (`resume:blocks:*`); `/tailored-resume` returns 200.
-- [x] **Service binding wiring** — `RESUME` binding declared (hadoku_site#193) and used (`worker/src/routes/jobs.ts`), stamping `X-Edge-Auth` + `X-Hadoku-Tier: service`.
+- [x] **Service binding wiring** — `RESUME` binding declared (hadoku_site#193) and used (`worker/src/routes/jobs/tailoring.ts`), stamping `X-Edge-Auth` + `X-Hadoku-Tier: service`.
 - [ ] **`profile_type` vocabulary** — jobplatform scoring profiles and resume-bot block tags are freeform on both sides. The V3 UI does NOT pass `profile_type` yet (the passthrough is wired but unused) pending a shared vocab (e.g. `ml`, `staff`, `leadership`), or they'll drift.
 - [x] **Application-packet provenance** — migration 0010 adds `job_states.variant_slug`, stashing the minted packet link on the state row so the record of what was actually sent survives. A "Generate" vs "Regenerate" hint for the resume itself is still not cached; the UI round-trips resume-bot for that.
 
@@ -660,7 +660,7 @@ All gating is **in-worker** via `@wolffm/worker-utils` `createEdgeAuth()` + `req
 - [x] **V1 shipped** — scrape → ingest → score → browsable UI live at `/jobplatform` (whitelisted + friend-gated in hadoku_site `src/pages/[app].astro`).
 - [x] **V2 shipped** — `job_states` table (migration 0005), triage endpoints + JobDrawer buttons, `profiles.user_id` (migration 0004), react-router UI scaffolding (HashRouter, list ↔ drawer ↔ companies).
 - [x] **V3 shipped (2026-07-14)** — `POST /jobs/:id/{resume,cover-letter}` proxy to resume-api over the `RESUME` service binding; JobDrawer "Generate packet" button renders both artifacts.
-- [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs.ts:26`).
+- [x] **`/jobs` requires `profile_id`** — now `.optional()` (`worker/src/routes/jobs/feed.ts`).
 - [x] **User scoping** — `user_companies` table + `userIdFromCredential()` helper shipped. Profiles staying global for V1; per-user scoping moved to V2 readiness.
 - [x] **Stable job → company join** — `worker/src/slugParse.ts` derives `(ats, slug)` from `job.url` at ingest time; stored on the `jobs` table (migration 0003) and used to scope a profile's feed to its companies.
 - [x] **Scheduler** — `createScheduledHandler` stays a stub. hadoku_site's `mgmt-api` cron owns the daily `/api/v1/jobboards/search` dispatch.
