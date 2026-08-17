@@ -34,6 +34,10 @@ coverage/
 test-results/
 playwright-report/
 playwright/.cache/
+# Console/page dumps written into the repo root by the Playwright MCP server.
+# Untracked but unignored is the dangerous combination — one `git add -A` and
+# browser logs land in a public repo. Nine sibling repos already ignore it.
+.playwright-mcp/
 
 # Temporary
 .tmp/
