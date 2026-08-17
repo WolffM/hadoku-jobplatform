@@ -64,6 +64,27 @@
   color: var(--color-on-primary);
 }
 
+/* Anonymous sidebar: the one call to action a signed-out visitor gets. Filled
+   rather than outlined (unlike __new above) because it is the only affordance
+   in an otherwise empty panel. */
+.jp-sidebar__signin {
+  display: inline-block;
+  align-self: flex-start;
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+}
+
+.jp-sidebar__signin:hover {
+  background-color: var(--color-primary-dark);
+}
+
 .jp-sidebar__list {
   list-style: none;
   margin: 0;
