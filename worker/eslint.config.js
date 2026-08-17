@@ -51,6 +51,23 @@ export default [
 		},
 	},
 	{
+		// Tests run on node, not in the Workers runtime, so they legitimately reach
+		// for globals the list above deliberately withholds from src/ (Buffer for
+		// the loopback resume-api server, RequestInit for the node fetch types).
+		// Scoped to tests/ so worker source still can't reach a global that does
+		// not exist at the edge.
+		files: ['tests/**/*.ts'],
+		languageOptions: {
+			globals: {
+				Buffer: 'readonly',
+				RequestInit: 'readonly',
+				process: 'readonly',
+				setTimeout: 'readonly',
+				clearTimeout: 'readonly',
+			},
+		},
+	},
+	{
 		ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts', 'validate-template.mjs'],
 	},
 ];

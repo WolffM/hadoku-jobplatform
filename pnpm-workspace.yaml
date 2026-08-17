@@ -3,6 +3,11 @@ packages:
   - 'worker'
 allowBuilds:
   esbuild: true
+  # miniflare (worker tests) pulls workerd in. Its postinstall only resolves the
+  # platform-specific binary, which the @cloudflare/workerd-<platform> optional
+  # dependency already installs directly — the tests run with the script skipped,
+  # so there is no reason to grant it.
+  workerd: false
 
 # Supply-chain: external packages must be 7 days old before they resolve. Malicious npm
 # releases are near-always caught within hours (Shai-Hulud ~12h, debug/chalk ~2.5h), so we

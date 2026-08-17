@@ -18,6 +18,10 @@ export default [
       '**/*.test.ts',
       '**/*.test.tsx',
       'tests/**', // Playwright e2e — outside the src/ TS project
+      // Worker integration tests + their helpers. Same reason: they belong to
+      // worker/tsconfig.test.json, which is not in `project` below, and they
+      // are already linted by worker/eslint.config.js.
+      'worker/tests/**',
       '**/vite.config.ts',
       'playwright.config.ts'
     ]
