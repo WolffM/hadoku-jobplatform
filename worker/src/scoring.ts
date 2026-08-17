@@ -94,6 +94,46 @@ function remoteMatch(workplaceType: string, remotePref: string): number {
 	return 0.5;
 }
 
+/**
+ * Optimistic upper bound on a job's score WITHOUT its description — every
+ * factor real except keyword_match, which is assumed perfect (or neutral 0.5
+ * when the profile has no keywords, matching keywordMatch exactly). Used by the
+ * feed's light pass to rank the whole corpus cheaply: a job excluded from the
+ * full-scoring shortlist has a bound below the shortlist's floor, so it could
+ * never have out-ranked the shortlist even with a perfect description match.
+ */
+export function scoreJobUpperBound(
+	job: {
+		title: string;
+		workplace_type: string;
+		role_level: RoleLevel | null;
+	},
+	profile: {
+		keywords: string[];
+		levels: RoleLevel[];
+		remote_pref: string;
+	}
+): number {
+	const breakdown: ScoreBreakdown = {
+		title_match: titleMatch(job.title, profile.keywords),
+		keyword_match: profile.keywords.length ? 1.0 : 0.5,
+		level_match: levelMatch(job.role_level, profile.levels),
+		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
+		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
+	};
+	return composeScore(breakdown);
+}
+
+function composeScore(breakdown: ScoreBreakdown): number {
+	const score =
+		(breakdown.title_match * 0.3 +
+			breakdown.keyword_match * 0.4 +
+			breakdown.level_match * 0.15 +
+			breakdown.remote_match * 0.15) *
+		breakdown.discipline_factor;
+	return Math.round(score * 1000) / 1000;
+}
+
 export function scoreJob(
 	job: {
 		title: string;
@@ -120,12 +160,5 @@ export function scoreJob(
 	// filter now — its old 0.06 weight was mostly noise, since salary_min is
 	// NULL on most postings and the factor returned a neutral 0.5 for all of
 	// them.
-	const score =
-		(breakdown.title_match * 0.3 +
-			breakdown.keyword_match * 0.4 +
-			breakdown.level_match * 0.15 +
-			breakdown.remote_match * 0.15) *
-		breakdown.discipline_factor;
-
-	return { score: Math.round(score * 1000) / 1000, breakdown };
+	return { score: composeScore(breakdown), breakdown };
 }

@@ -1,14 +1,25 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { JobsResponseSchema, ErrorResponseSchema } from '../../schemas.js';
-import { scoreJob } from '../../scoring.js';
+import { scoreJob, scoreJobUpperBound } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
 import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
 
-// Cap on candidates scored in-request for a profile feed. Profile feeds are
-// scoped to the profile's companies, so this is comfortably above any real
-// slice; beyond it we score the most-recent CAP rows and log the truncation.
-const SCORE_CANDIDATE_CAP = 3000;
+// Two-stage score-on-read. Descriptions are what make whole-corpus scoring
+// impossible in one pass (30k rows × ~4KB each), but they feed only ONE factor
+// (keyword_match, weight 0.4). So the light pass ranks the ENTIRE corpus
+// without descriptions using an optimistic score upper bound, and only the top
+// FULL_SCORE_CAP candidates get their descriptions fetched and fully scored.
+// A job outside the shortlist has an upper bound below the shortlist's floor —
+// it could not have out-ranked them even with a perfect description match.
+//
+// LIGHT_CANDIDATE_CAP is a safety valve on the light pass itself (rows without
+// descriptions are ~300 bytes); hitting it is logged, not silent.
+const LIGHT_CANDIDATE_CAP = 50000;
+const FULL_SCORE_CAP = 800;
+// SQLite binds at most 100 parameters per statement; description fetches for
+// the shortlist chunk their IN () lists accordingly (one db.batch round trip).
+const ID_CHUNK = 100;
 
 interface JobRow {
 	id: string;
@@ -214,38 +225,91 @@ export function registerFeedRoute(app: JobsApp): void {
 			// current criteria in JS, then filter/sort/paginate. No precomputed
 			// job_profile_matches, so scores always reflect the profile right now.
 			if (profile_id && profile) {
+				// Stage 1 — light pass over the whole (filtered) corpus, no
+				// descriptions. ~300 bytes/row, so tens of thousands of rows are fine.
 				const candSql = `
 					SELECT
 						j.id, j.title, j.company, j.location, j.workplace_type,
 						j.salary_min, j.salary_max, j.source_site, j.url,
 						j.posted_date, j.scraped_at, j.ats, j.slug,
-						j.role_track, j.role_level, j.description,
+						j.role_track, j.role_level,
 						${stateCols}
 					FROM jobs j
 					${joinClause}
 					${whereClause}
 					ORDER BY j.scraped_at DESC
-					LIMIT ${SCORE_CANDIDATE_CAP}`;
+					LIMIT ${LIGHT_CANDIDATE_CAP}`;
 
 				const candidates = await db
 					.prepare(candSql)
 					.bind(...binds)
-					.all<JobRow>();
+					.all<Omit<JobRow, 'description'>>();
 
-				if (candidates.results.length >= SCORE_CANDIDATE_CAP) {
-					logger.warn('score-on-read candidate cap hit', {
+				if (candidates.results.length >= LIGHT_CANDIDATE_CAP) {
+					logger.warn('score-on-read light-pass cap hit', {
 						profile_id,
-						cap: SCORE_CANDIDATE_CAP,
+						cap: LIGHT_CANDIDATE_CAP,
 					});
 				}
 
-				const scored = candidates.results
+				// Shortlist: for score-sorted feeds, rank by the optimistic upper
+				// bound; other sorts shortlist by their own key, since scoring is
+				// decoration there. Ties break newest-first either way.
+				const light = candidates.results;
+				let shortlist: typeof light;
+				if (sort === 'score') {
+					shortlist = light
+						.map((r) => ({
+							r,
+							bound: scoreJobUpperBound(
+								{
+									title: r.title,
+									workplace_type: r.workplace_type,
+									role_level: asRoleLevel(r.role_level),
+								},
+								profile
+							),
+						}))
+						.sort((a, b) => b.bound - a.bound || b.r.scraped_at.localeCompare(a.r.scraped_at))
+						.slice(0, FULL_SCORE_CAP)
+						.map((x) => x.r);
+				} else if (sort === 'salary') {
+					shortlist = [...light].sort(bySalaryDesc).slice(0, FULL_SCORE_CAP);
+				} else {
+					shortlist = [...light]
+						.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at))
+						.slice(0, FULL_SCORE_CAP);
+				}
+
+				// Stage 2 — fetch descriptions for the shortlist only, then score for
+				// real. IN () lists chunk at the SQLite bind limit; one batch round trip.
+				const descById = new Map<string, string>();
+				const idChunks: string[][] = [];
+				for (let i = 0; i < shortlist.length; i += ID_CHUNK) {
+					idChunks.push(shortlist.slice(i, i + ID_CHUNK).map((r) => r.id));
+				}
+				if (idChunks.length > 0) {
+					const descResults = await db.batch<{ id: string; description: string }>(
+						idChunks.map((ids) =>
+							db
+								.prepare(
+									`SELECT id, description FROM jobs WHERE id IN (${ids.map(() => '?').join(',')})`
+								)
+								.bind(...ids)
+						)
+					);
+					for (const res of descResults) {
+						for (const row of res.results) descById.set(row.id, row.description);
+					}
+				}
+
+				const scored = shortlist
 					.map((r) => {
 						const roleLevel = asRoleLevel(r.role_level);
 						const { score, breakdown } = scoreJob(
 							{
 								title: r.title,
-								description: r.description,
+								description: descById.get(r.id) ?? '',
 								workplace_type: r.workplace_type,
 								role_level: roleLevel,
 							},
