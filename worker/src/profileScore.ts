@@ -8,7 +8,7 @@ export type ProfileTrack = 'ic' | 'manager' | 'either';
 // there is no precomputed job_profile_matches table any more.
 //
 // `track` isn't a score factor — it's applied as a hard SQL filter on
-// jobs.role_track before anything is scored (see routes/jobs.ts), the same way
+// jobs.role_track before anything is scored (see routes/jobs/feed.ts), the same way
 // the profile's companies are. Asking for management roles and getting IC ones
 // ranked slightly lower is not what anyone means by that request.
 export interface ScorableProfile {

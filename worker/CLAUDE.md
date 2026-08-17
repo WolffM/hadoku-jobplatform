@@ -21,10 +21,34 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`
-- `src/routes/jobs.ts` — job listing queries, triage state, resume/cover-letter binding calls
+- `src/routes/jobs/` — job listing queries, triage state, resume/cover-letter binding calls:
+  - `index.ts` — assembles the sub-app. **Registration order is load-bearing** —
+    `/jobs/preflight` must register before the `/jobs/{id}` param route or the
+    param route captures "preflight" as an id. Don't reorder.
+  - `shared.ts` — `maybeUserId`, the `gateAuthed` friend-tier middleware, and the
+    `asRoleLevel`/`asRoleTrack` narrowers for D1's plain-TEXT columns
+  - `feed.ts` — `GET /jobs`: the SQL-paginated path and the score-on-read path
+  - `preflight.ts` — `GET /jobs/preflight` editor probe
+  - `detail.ts` — `GET /jobs/{id}`
+  - `state.ts` — `PUT`/`DELETE /jobs/{id}/state` (V2 triage)
+  - `tailoring.ts` — the four V3 proxies over the `RESUME` service binding
 - `src/routes/profiles.ts` — profile CRUD + each profile's company slice
 - `src/routes/companies.ts` — read-only `/companies/match` and `/companies/probe` proxies
 - `migrations/` — D1 database migrations
+- `tests/helpers/harness.ts` — integration harness: real D1 via Miniflare/workerd
+  with every migration applied, the real edge-auth middleware, and a real
+  loopback HTTP server standing in for the resume-api binding
+
+## Tests
+
+`pnpm test` in `worker/` (node:test, no framework dependency). `tests/*.test.ts`
+are unit tests over the leaf modules; `tests/routes/*.test.ts` drive the whole
+assembled worker through `createJobPlatformHandler` against a real database.
+
+Note for anything importing worker source from a test: node runs `.ts` with
+**strip-only** type stripping, which rejects TypeScript parameter properties and
+enums outright. Keep src free of both, or nothing past a leaf module can be
+imported.
 
 ## Auth
 
