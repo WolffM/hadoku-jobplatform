@@ -1,6 +1,6 @@
 {
 	"name": "@wolffm/jobplatform-worker",
-	"version": "2.1.9",
+	"version": "2.1.10",
 	"description": "Job listings aggregation and tracking dashboard - Worker package",
 	"license": "MIT",
 	"type": "module",

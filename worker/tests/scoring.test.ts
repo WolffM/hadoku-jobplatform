@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreJob } from '../src/scoring.ts';
+import { scoreJob, scoreJobUpperBound } from '../src/scoring.ts';
 
 /** A job that matches every keyword and the remote preference. */
 function job(roleLevel: Parameters<typeof scoreJob>[0]['role_level']) {
@@ -132,5 +132,49 @@ test('engineering-signal titles are never discipline-penalized', () => {
 			{ keywords: ['ai', 'platform'], levels: [], remote_pref: 'remote' }
 		);
 		assert.equal(r.breakdown.discipline_factor, 1.0, title);
+	}
+});
+
+test('scoreJobUpperBound is a true upper bound on the full score', () => {
+	const profiles = [
+		{ keywords: ['ai', 'platform'], levels: ['staff'] as const, remote_pref: 'remote' },
+		{ keywords: [], levels: [] as const, remote_pref: 'any' },
+		{ keywords: ['distributed systems'], levels: ['senior'] as const, remote_pref: 'hybrid' },
+	];
+	const jobsToCheck = [
+		{
+			title: 'Staff AI Platform Engineer',
+			description: 'ai platform work',
+			workplace_type: 'remote',
+			role_level: 'staff' as const,
+		},
+		{
+			title: 'Staff Product Manager, GenAI',
+			description: 'ai platform',
+			workplace_type: 'remote',
+			role_level: 'staff' as const,
+		},
+		{
+			title: 'Junior Designer',
+			description: 'nothing relevant',
+			workplace_type: 'onsite',
+			role_level: 'junior' as const,
+		},
+		{
+			title: 'Software Engineer',
+			description: 'We build distributed systems.',
+			workplace_type: 'hybrid',
+			role_level: null,
+		},
+	];
+	for (const p of profiles) {
+		for (const j of jobsToCheck) {
+			const full = scoreJob(j, p).score;
+			const bound = scoreJobUpperBound(
+				{ title: j.title, workplace_type: j.workplace_type, role_level: j.role_level },
+				p
+			);
+			assert.ok(bound >= full, `bound ${bound} < full ${full} for "${j.title}"`);
+		}
 	}
 });
