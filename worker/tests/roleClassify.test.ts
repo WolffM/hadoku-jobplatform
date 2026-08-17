@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyRole } from '../src/roleClassify.ts';
+import { classifyRole, classifyDiscipline } from '../src/roleClassify.ts';
 
 /**
  * Regression cases for the role classifier.
@@ -91,4 +91,26 @@ test('"Tech Lead" is IC by convention and skips the body probe', () => {
 test('a blank title is the only thing that stays unknown', () => {
 	assert.equal(classifyRole('', '').track, 'unknown');
 	assert.equal(classifyRole('   ', 'some body').track, 'unknown');
+});
+
+// ── discipline ──────────────────────────────────────────────────────────────
+
+test('classifyDiscipline: engineering signal wins over adjacent signal', () => {
+	assert.equal(classifyDiscipline('Engineering Manager'), 'eng');
+	assert.equal(classifyDiscipline('Product Engineer'), 'eng');
+	assert.equal(classifyDiscipline('Staff Site Reliability Engineer'), 'eng');
+	assert.equal(classifyDiscipline('Principal Solutions Architect'), 'eng');
+});
+
+test('classifyDiscipline: adjacent ladders are flagged', () => {
+	assert.equal(classifyDiscipline('Staff Product Manager, ML Foundations and GenAI'), 'adjacent');
+	assert.equal(classifyDiscipline('Technical Program Manager, Enterprise'), 'adjacent');
+	assert.equal(classifyDiscipline('Senior Product Designer'), 'adjacent');
+	assert.equal(classifyDiscipline('Account Executive'), 'adjacent');
+	assert.equal(classifyDiscipline('Business Analyst'), 'adjacent');
+});
+
+test('classifyDiscipline: no signal stays unknown (scored neutral)', () => {
+	assert.equal(classifyDiscipline('Chief of Staff'), 'unknown');
+	assert.equal(classifyDiscipline('Quantitative Trader'), 'unknown');
 });

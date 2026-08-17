@@ -791,6 +791,8 @@ interface JobTailoringFields {
 	title: string;
 	company: string;
 	description: string;
+	location: string | null;
+	workplace_type: string | null;
 }
 
 async function loadTailoringFields(
@@ -798,7 +800,7 @@ async function loadTailoringFields(
 	id: string
 ): Promise<JobTailoringFields | null> {
 	return db
-		.prepare('SELECT title, company, description FROM jobs WHERE id = ?')
+		.prepare('SELECT title, company, description, location, workplace_type FROM jobs WHERE id = ?')
 		.bind(id)
 		.first<JobTailoringFields>();
 }
@@ -1010,6 +1012,10 @@ app.post('/jobs/:id/application-extras', async (c) => {
 		company: job.company,
 		description: job.description,
 		resume_markdown: resumeMarkdown,
+		// The kit's location answers must speak to THIS job's location, not the
+		// candidate's default metro — resume-api injects these into its prompt.
+		job_location: job.location ?? undefined,
+		workplace_type: job.workplace_type ?? undefined,
 	});
 	if (!res.ok) {
 		const detail = await res.text();

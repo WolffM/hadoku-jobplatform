@@ -1,10 +1,13 @@
-import { levelRank, levelTrack, type RoleLevel } from './roleClassify.js';
+import { classifyDiscipline, levelRank, levelTrack, type RoleLevel } from './roleClassify.js';
 
 export interface ScoreBreakdown {
 	title_match: number;
 	keyword_match: number;
 	level_match: number;
 	remote_match: number;
+	/** 1.0 for engineering/unknown titles; DISCIPLINE_PENALTY for adjacent
+	 *  ladders (PM/design/sales/…) — multiplies the whole score. */
+	discipline_factor: number;
 }
 
 export interface ScoreResult {
@@ -12,10 +15,26 @@ export interface ScoreResult {
 	breakdown: ScoreBreakdown;
 }
 
+// Adjacent-ladder roles (Product Manager, designer, sales…) pass the IC/manager
+// track filter by design, so without this an SWE profile literally could not
+// rank them down — a Staff PM hit a perfect 1.000. A multiplier (not a hard
+// filter) keeps them visible at the bottom of the feed instead of silently gone.
+const DISCIPLINE_PENALTY = 0.15;
+
+function escapeRegExp(s: string): string {
+	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Whole-word matching. The old substring `includes` made the keyword "ai"
+// match "maintain", "available", and "GenAI" — inflating title/keyword factors
+// on essentially every posting.
 function countKeywordMatches(text: string, keywords: string[]): number {
 	if (!keywords.length) return 0;
-	const lower = text.toLowerCase();
-	return keywords.filter((kw) => lower.includes(kw.toLowerCase())).length;
+	return keywords.filter((kw) => {
+		const trimmed = kw.trim();
+		if (!trimmed) return false;
+		return new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'i').test(text);
+	}).length;
 }
 
 function titleMatch(title: string, keywords: string[]): number {
@@ -93,6 +112,7 @@ export function scoreJob(
 		keyword_match: keywordMatch(job.description, profile.keywords),
 		level_match: levelMatch(job.role_level, profile.levels),
 		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
+		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
 	};
 
 	// Two criteria are hard filters applied in SQL rather than score factors:
@@ -101,10 +121,11 @@ export function scoreJob(
 	// NULL on most postings and the factor returned a neutral 0.5 for all of
 	// them.
 	const score =
-		breakdown.title_match * 0.3 +
-		breakdown.keyword_match * 0.4 +
-		breakdown.level_match * 0.15 +
-		breakdown.remote_match * 0.15;
+		(breakdown.title_match * 0.3 +
+			breakdown.keyword_match * 0.4 +
+			breakdown.level_match * 0.15 +
+			breakdown.remote_match * 0.15) *
+		breakdown.discipline_factor;
 
 	return { score: Math.round(score * 1000) / 1000, breakdown };
 }
