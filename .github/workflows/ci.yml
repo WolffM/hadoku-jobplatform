@@ -37,7 +37,21 @@ permissions:
 jobs:
   typecheck:
     name: typecheck
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    # HOSTED, DELIBERATELY — do not point this workflow at the self-hosted
+    # builder, and do not restore the `vars.CI_RUNNER || ...` fallback here.
+    #
+    # This repo is public and this is the ONLY workflow a fork can trigger
+    # (`pull_request` above). The workflow file itself comes from the base
+    # branch, so a fork cannot edit these steps — but `pnpm install` and
+    # `pnpm run typecheck` execute scripts out of the PR's own package.json.
+    # On the self-hosted builder that is arbitrary code as the runner's user,
+    # with its home directory, credentials and other checkouts in reach.
+    #
+    # Hardcoded rather than defaulted because `CI_RUNNER` is a plausible thing
+    # to set for speed later, and doing so would silently reopen that path.
+    # publish / update-wolffm / vibecompact are not fork-reachable and still
+    # honour CI_RUNNER.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
@@ -95,7 +109,8 @@ jobs:
 
   lint:
     name: lint
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    # Hosted, deliberately — see the typecheck job above.
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
