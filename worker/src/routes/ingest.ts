@@ -49,26 +49,22 @@ const ingestRoute = createRoute({
 	},
 });
 
+// One db.batch round trip can carry only so many statements comfortably;
+// chunking keeps each D1 call bounded no matter how large a webhook batch the
+// scraper sends.
+const INGEST_BATCH_CHUNK = 100;
+
 app.openapi(ingestRoute, async (c) => {
 	const { jobs, batch_number, is_final } = c.req.valid('json');
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
 
-	let accepted = 0;
-	let skipped = 0;
-
-	for (const job of jobs) {
-		// Same-source dedup via URL
-		const existing = await db
-			.prepare('SELECT id FROM jobs WHERE url = ?')
-			.bind(job.url)
-			.first<{ id: string }>();
-
-		if (existing) {
-			skipped++;
-			continue;
-		}
-
+	// Same-source dedup rides the UNIQUE index on jobs.url: INSERT OR IGNORE
+	// makes the whole write one batched round trip per chunk instead of a
+	// SELECT + INSERT per job. The old per-job loop cost 2 D1 subrequests per
+	// posting — a large batch could blow the 1,000-subrequest invocation cap,
+	// and a full corpus refresh burned ~2 round trips per job for nothing.
+	const stmts = jobs.map((job) => {
 		const workplaceType = normalizeWorkplaceType(job.workplace_type);
 		const salaryMin = job.salary?.min ?? null;
 		const salaryMax = job.salary?.max ?? null;
@@ -77,9 +73,9 @@ app.openapi(ingestRoute, async (c) => {
 		// write time — rather than re-deriving them from the title on every read.
 		const role = classifyRole(job.title, job.description);
 
-		await db
+		return db
 			.prepare(
-				`INSERT INTO jobs (
+				`INSERT OR IGNORE INTO jobs (
 					id, url, source_site, title, company, location,
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
@@ -109,11 +105,15 @@ app.openapi(ingestRoute, async (c) => {
 				slug,
 				role.track,
 				role.level
-			)
-			.run();
+			);
+	});
 
-		accepted++;
+	let accepted = 0;
+	for (let i = 0; i < stmts.length; i += INGEST_BATCH_CHUNK) {
+		const results = await db.batch(stmts.slice(i, i + INGEST_BATCH_CHUNK));
+		for (const r of results) accepted += r.meta?.changes ?? 0;
 	}
+	const skipped = jobs.length - accepted;
 
 	return c.json(
 		{
