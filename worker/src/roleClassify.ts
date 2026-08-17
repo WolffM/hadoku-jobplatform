@@ -46,6 +46,47 @@ export interface RoleClassification {
 	level: RoleLevel | null;
 }
 
+/**
+ * Discipline — is this an ENGINEERING seat at all?
+ *
+ * Track answers IC-vs-manager; it deliberately puts a Staff Product Manager on
+ * the `ic` track, which is correct for track but means an engineering profile
+ * could never exclude PM/design/sales roles — one topped the SWE feed at a
+ * perfect 1.000. `eng` wins when both signals appear ("Product Engineer",
+ * "Engineering Manager" are engineering; "Product Manager" is not), and titles
+ * with neither signal stay `unknown` and are scored neutrally.
+ */
+export type RoleDiscipline = 'eng' | 'adjacent' | 'unknown';
+
+const ENG_TITLE = new RegExp(
+	'\\b(?:engineer(?:ing)?|developer|swe|sde|sre|devops|architect|scientist|' +
+		'researcher|programmer|technician)\\b'
+);
+
+const ADJACENT_TITLE = new RegExp(
+	[
+		// product/program/project ladders (incl. TPM and "Product Owner")
+		'\\b(?:technical\\s+)?(?:product|program|project)\\s+(?:manager|owner|lead|director)\\b',
+		'\\btpm\\b',
+		// design ladder
+		'\\b(?:product\\s+|ux\\s+|ui\\s+|visual\\s+)?designer\\b|\\bux\\b|\\bdesign\\s+(?:lead|director)\\b',
+		// go-to-market and business seats
+		'\\b(?:marketing|sales|account\\s+(?:executive|manager)|partnerships?|business\\s+development)\\b',
+		// people/talent/legal/finance/support ladders
+		'\\b(?:recruiter|talent|people\\s+ops|human\\s+resources|counsel|legal|' +
+			'accountant|controller|customer\\s+(?:success|support)|community)\\b',
+		// analyst seats without an engineering qualifier
+		'\\b(?:business|financial|data)\\s+analyst\\b',
+	].join('|')
+);
+
+export function classifyDiscipline(title: string): RoleDiscipline {
+	const t = title.toLowerCase();
+	if (ENG_TITLE.test(t)) return 'eng';
+	if (ADJACENT_TITLE.test(t)) return 'adjacent';
+	return 'unknown';
+}
+
 // ── title patterns ──────────────────────────────────────────────────────────
 
 // Titles that carry a management word but describe an individual contributor.
