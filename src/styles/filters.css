@@ -1,0 +1,153 @@
+/* ============================================================================
+   Jobs filter bar — search, sort, min_score, mine toggle
+   ============================================================================ */
+
+.jp-jobs__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-lg);
+  align-items: center;
+  margin-bottom: var(--hdk-space-xl);
+  padding: var(--hdk-space-lg);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  box-shadow: var(--hdk-shadow-sm);
+}
+
+.jp-jobs__search {
+  flex: 1;
+  min-width: 220px;
+  padding: var(--hdk-space-md) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-family: inherit;
+}
+
+.jp-jobs__search:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+.jp-jobs__filter {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.jp-jobs__filter select {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-normal);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.jp-jobs__filter select:hover {
+  border-color: var(--color-primary);
+}
+
+.jp-jobs__filter select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+.jp-jobs__salary {
+  width: 7rem;
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-normal);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s ease;
+}
+
+.jp-jobs__salary:hover {
+  border-color: var(--color-primary);
+}
+
+.jp-jobs__salary:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+.jp-jobs__filter-value {
+  display: inline-block;
+  min-width: 2.5rem;
+  padding: 2px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  text-align: center;
+}
+
+/* Range slider — styled for all browsers, track + thumb via accent-color
+   (modern one-liner supported across chromium/gecko/webkit). */
+.jp-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 6px;
+  background: var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.jp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-bg-card);
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  box-shadow: var(--hdk-shadow-sm);
+}
+
+.jp-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--color-bg-card);
+  border-radius: 50%;
+  background: var(--color-primary);
+  cursor: pointer;
+  box-shadow: var(--hdk-shadow-sm);
+}
+
+.jp-slider:focus {
+  box-shadow: var(--hdk-shadow-focus-sm);
+}
+
+/* Checkbox — accent-color themes the fill; add explicit sizing so the hit
+   target is clickable without cramped padding. */
+.jp-jobs__filter input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}

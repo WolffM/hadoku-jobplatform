@@ -1,0 +1,208 @@
+/* ============================================================================
+   Job list + cards
+   ============================================================================ */
+
+.jp-jobs__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+}
+
+.jp-jobs__pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--hdk-space-xl);
+  padding: var(--hdk-space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-jobs__pagination button {
+  padding: var(--hdk-space-sm) var(--hdk-space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.jp-jobs__pagination button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.jp-jobs__pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jp-jobcard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-sm);
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border: 1px solid var(--color-border-light);
+  border-left: 3px solid transparent;
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  box-shadow: var(--hdk-shadow-sm);
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--color-text);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.jp-jobcard:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--hdk-shadow-md);
+  border-color: var(--color-border);
+}
+
+.jp-jobcard--score-high {
+  border-left-color: var(--color-success);
+}
+
+.jp-jobcard--score-mid {
+  border-left-color: var(--color-primary);
+}
+
+.jp-jobcard--score-low {
+  border-left-color: var(--color-neutral);
+}
+
+.jp-jobcard__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--hdk-space-xl);
+}
+
+.jp-jobcard__top-right {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  flex-shrink: 0;
+}
+
+/* Triage state badge on the card. Uppercased for visual contrast vs title.
+   Each state pulls a distinct theme family so it's recognisable at a glance. */
+.jp-jobcard__state {
+  padding: 2px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.jp-jobcard__state--interested {
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+}
+
+.jp-jobcard__state--saved {
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-jobcard__state--applied {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+}
+
+.jp-jobcard__state--dismissed {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-tertiary);
+}
+
+/* Dim the whole card for dismissed jobs that slipped through (e.g. when
+   the user picks state=dismissed explicitly). */
+.jp-jobcard--state-dismissed {
+  opacity: 0.6;
+}
+
+.jp-jobcard--state-dismissed:hover {
+  opacity: 1;
+}
+
+.jp-jobcard__title {
+  color: var(--color-text);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--hdk-text-base);
+}
+
+.jp-jobcard__score {
+  padding: 2px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-jobcard__score--high {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-dark);
+}
+
+.jp-jobcard__score--mid {
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+}
+
+.jp-jobcard__score--low {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-secondary);
+}
+
+.jp-jobcard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-jobcard__company {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-jobcard__sep {
+  color: var(--color-text-tertiary);
+}
+
+.jp-jobcard__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-lg);
+  color: var(--color-text-tertiary);
+  font-size: var(--hdk-text-xs);
+  align-items: center;
+}
+
+.jp-jobcard__salary {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-jobcard__source {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+}
