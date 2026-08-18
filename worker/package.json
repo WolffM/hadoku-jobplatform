@@ -1,6 +1,6 @@
 {
 	"name": "@wolffm/jobplatform-worker",
-	"version": "2.1.11",
+	"version": "2.1.12",
 	"description": "Job listings aggregation and tracking dashboard - Worker package",
 	"license": "MIT",
 	"type": "module",
@@ -34,7 +34,7 @@
 	},
 	"peerDependencies": {
 		"@hono/zod-openapi": ">=1.0.0",
-		"@wolffm/worker-utils": "^1.5.4",
+		"@wolffm/worker-utils": ">=1.5.4",
 		"hono": ">=4.6.0"
 	},
 	"devDependencies": {
