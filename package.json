@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.2.7",
+  "version": "3.2.8",
   "description": "Job listings aggregation and tracking dashboard",
   "license": "MIT",
   "type": "module",
@@ -61,7 +61,7 @@
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
     "@wolffm/task-ui-components": "^4.7.3",
-    "@wolffm/themes": "^5.7.7",
+    "@wolffm/themes": "^5.7.8",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
