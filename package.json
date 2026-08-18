@@ -20,7 +20,7 @@
   ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/entry.d.ts",
       "default": "./dist/index.js"
     },
     "./style.css": "./dist/style.css"
