@@ -203,10 +203,34 @@ jobs:
           API_URL="https://api.github.com/repos/WolffM/hadoku_site/dispatches"
           AUTH_HEADER="Authorization: Bearer $HADOKU_SITE_TOKEN"
 
-          # Build packages array — always includes both packages when worker exists
-          PACKAGES="\"$PACKAGE_NAME\""
-          if [ -n "$WORKER_PACKAGE_NAME" ]; then
-            PACKAGES="$PACKAGES, \"$WORKER_PACKAGE_NAME\""
+          # Announce EXACTLY what was published, never what merely exists.
+          #
+          # This used to name the UI package unconditionally and the worker
+          # package whenever WORKER_PACKAGE_NAME was non-empty — neither of which
+          # is "did it publish". The consumer then updates a package that did not
+          # change, and for a never-published one hadoku_site's Update Packages
+          # dies with a 404 on `Fail on partial package update`.
+          #
+          # Both packages here are published, so this was the quiet variant: a
+          # UI-only release still announced the worker, and hadoku_site dutifully
+          # "updated" something that had not moved. hadoku-study hit the loud
+          # variant of the same line (its worker has never published, so every
+          # release reddened the parent) and fixed it 2026-08-18; the scaffolder
+          # template was fixed the same day. This is the same fix, byte-identical.
+          #
+          # Both `changed` outputs are exactly the conditions the publish steps
+          # above are gated on, so the dispatch cannot disagree with reality.
+          PACKAGES=""
+          if [ "${{ steps.ui_changed.outputs.changed }}" = "true" ]; then
+            PACKAGES="\"$PACKAGE_NAME\""
+          fi
+          if [ -n "$WORKER_PACKAGE_NAME" ] && [ "${{ steps.worker_changed.outputs.changed }}" = "true" ]; then
+            [ -n "$PACKAGES" ] && PACKAGES="$PACKAGES, "
+            PACKAGES="$PACKAGES\"$WORKER_PACKAGE_NAME\""
+          fi
+          if [ -z "$PACKAGES" ]; then
+            echo "Nothing was published — no dispatch."
+            exit 0
           fi
 
           # Dispatch packages_updated (triggers update-packages → deploy)
