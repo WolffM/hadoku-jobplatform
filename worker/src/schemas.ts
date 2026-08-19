@@ -71,10 +71,13 @@ export const DeleteResponseSchema = S(
 
 export const ScoreBreakdownSchema = z
 	.object({
-		title_match: z.number(),
-		keyword_match: z.number(),
+		relevance: z.number(),
 		level_match: z.number(),
-		remote_match: z.number(),
+		geo_fit: z.number(),
+		comp_fit: z.number(),
+		stack_fit: z.number(),
+		domain_interest: z.number(),
+		discipline_factor: z.number(),
 	})
 	.openapi('ScoreBreakdown');
 
@@ -117,6 +120,11 @@ export const JobSummarySchema = z
 		// 'new' when no row in job_states for the caller, or null when
 		// unauthenticated (we don't know which user is asking).
 		state: JobStateReadSchema.nullable(),
+		// The caller's curation vote, when authenticated; feed-only for now.
+		vote: z
+			.union([z.literal(1), z.literal(-1)])
+			.nullable()
+			.optional(),
 	})
 	.openapi('JobSummary');
 
@@ -131,6 +139,36 @@ export const JobDetailSchema = JobSummarySchema.extend({
 }).openapi('JobDetail');
 
 // PUT /jobs/:id/state — body
+export const FEEDBACK_REASONS = [
+	// downvote-flavored
+	'pay',
+	'location',
+	'stack',
+	'domain',
+	'level',
+	'company',
+	// upvote-flavored
+	'comp',
+	'fit',
+	'other',
+] as const;
+
+export const SetJobFeedbackSchema = z
+	.object({
+		vote: z.union([z.literal(1), z.literal(-1)]),
+		reason: z.enum(FEEDBACK_REASONS).optional(),
+	})
+	.openapi('SetJobFeedback');
+
+export const JobFeedbackResponseSchema = S(
+	z.object({
+		job_id: z.string(),
+		vote: z.union([z.literal(1), z.literal(-1)]).nullable(),
+		reason: z.string().nullable(),
+		updated_at: z.string(),
+	})
+).openapi('JobFeedbackResponse');
+
 export const SetJobStateSchema = z
 	.object({
 		state: JobStateSchema,

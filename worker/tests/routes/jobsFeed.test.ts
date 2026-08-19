@@ -356,7 +356,7 @@ describe('GET /jobs — request validation', () => {
 describe('GET /jobs — two-stage scoring', () => {
 	it('description-only keyword matches still reach the feed fully scored', async () => {
 		// 'kubernetes' appears ONLY in descriptions (g-1, g-2), never in titles.
-		// If stage 2 failed to fetch descriptions, keyword_match would be 0 for
+		// If stage 2 failed to fetch descriptions, the relevance axis would miss for
 		// everything and these jobs could not outrank non-matching ones.
 		await seedProfile(h.db, {
 			id: 'p-desc',
@@ -368,7 +368,10 @@ describe('GET /jobs — two-stage scoring', () => {
 		assert.equal(status, 200);
 		const byId = Object.fromEntries(body.data.jobs.map((j) => [j.id, j]));
 		assert.ok(byId['g-1'], 'g-1 present');
-		assert.equal(byId['g-1'].score_breakdown.keyword_match, 1, 'description keyword scored');
+		assert.ok(
+			byId['g-1'].score_breakdown.relevance > byId['a-1'].score_breakdown.relevance,
+			'description keyword raises relevance vs non-matching'
+		);
 		assert.ok(byId['g-1'].score > byId['a-1'].score, 'desc-matching job outranks non-matching');
 	});
 });

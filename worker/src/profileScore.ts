@@ -16,6 +16,10 @@ export interface ScorableProfile {
 	track: ProfileTrack;
 	levels: RoleLevel[];
 	remote_pref: string;
+	stack: string[];
+	interests_like: string[];
+	interests_avoid: string[];
+	salary_floor: number | null;
 }
 
 const NEUTRAL: ScorableProfile = {
@@ -23,6 +27,10 @@ const NEUTRAL: ScorableProfile = {
 	track: 'either',
 	levels: [],
 	remote_pref: 'any',
+	stack: [],
+	interests_like: [],
+	interests_avoid: [],
+	salary_floor: null,
 };
 
 /**
@@ -34,14 +42,28 @@ export async function loadScorableProfile(
 	profileId: string
 ): Promise<ScorableProfile> {
 	const r = await db
-		.prepare('SELECT keywords, track, levels, remote_pref FROM profiles WHERE id = ?')
+		.prepare(
+			'SELECT keywords, track, levels, remote_pref, stack, interests_like, interests_avoid, salary_floor FROM profiles WHERE id = ?'
+		)
 		.bind(profileId)
 		.first<Record<string, unknown>>();
 	if (!r) return NEUTRAL;
+	const arr = (v: unknown): string[] => {
+		try {
+			const parsed = JSON.parse((v as string) || '[]') as unknown;
+			return Array.isArray(parsed) ? (parsed as string[]) : [];
+		} catch {
+			return [];
+		}
+	};
 	return {
-		keywords: JSON.parse(r.keywords as string) as string[],
+		keywords: arr(r.keywords),
 		track: r.track as ProfileTrack,
 		levels: JSON.parse(r.levels as string) as RoleLevel[],
 		remote_pref: r.remote_pref as string,
+		stack: arr(r.stack),
+		interests_like: arr(r.interests_like),
+		interests_avoid: arr(r.interests_avoid),
+		salary_floor: typeof r.salary_floor === 'number' ? r.salary_floor : null,
 	};
 }

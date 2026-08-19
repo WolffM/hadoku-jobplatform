@@ -1,12 +1,37 @@
 import { classifyDiscipline, levelRank, levelTrack, type RoleLevel } from './roleClassify.js';
 
+/**
+ * Scoring v2 (2026-08-19). The v1 model was a threshold, not a ranking: its
+ * clamped ratios saturated at 1.0 for hundreds of postings once the corpus
+ * grew past the 9 curated boards, and three axes the owner actually decides on
+ * — pay, geography, what the work IS — were not in the model at all. v2 is a
+ * graded ranking function with negative evidence:
+ *
+ *   relevance        keyword evidence with diminishing returns; title hits
+ *                    outweigh description hits; specific keywords outweigh
+ *                    generic ones. Soft-OR composition — never clamps to 1.
+ *   level_match      unchanged from v1 (distance on the ladder) — it worked.
+ *   geo_fit          remote/hybrid preference × country signal. Explicitly
+ *                    non-Americas remote is a multiplicative sink (×0.1):
+ *                    "Remote Spain" must not tie with "U.S. Remote".
+ *   comp_fit         published salary vs the profile's salary_floor. Unpublished
+ *                    is NEUTRAL (most strong payers don't publish). Published
+ *                    far below floor is a multiplicative sink (×0.15).
+ *   stack_fit        tech named in the TITLE that the profile's stack lacks
+ *                    ("(Ruby/Rails)") grades down — a fit signal, not a filter.
+ *   domain_interest  per-profile ± phrase lists over title+description: what
+ *                    the work is about matters (gen-AI > ads), softly.
+ *   discipline_factor unchanged from v1 (adjacent ladders ×0.15).
+ */
+
 export interface ScoreBreakdown {
-	title_match: number;
-	keyword_match: number;
+	relevance: number;
 	level_match: number;
-	remote_match: number;
-	/** 1.0 for engineering/unknown titles; DISCIPLINE_PENALTY for adjacent
-	 *  ladders (PM/design/sales/…) — multiplies the whole score. */
+	geo_fit: number;
+	comp_fit: number;
+	stack_fit: number;
+	domain_interest: number;
+	/** ×1 or ×DISCIPLINE_PENALTY — multiplies the whole score. */
 	discipline_factor: number;
 }
 
@@ -15,55 +40,119 @@ export interface ScoreResult {
 	breakdown: ScoreBreakdown;
 }
 
-// Adjacent-ladder roles (Product Manager, designer, sales…) pass the IC/manager
-// track filter by design, so without this an SWE profile literally could not
-// rank them down — a Staff PM hit a perfect 1.000. A multiplier (not a hard
-// filter) keeps them visible at the bottom of the feed instead of silently gone.
+export interface ScorableJobLight {
+	title: string;
+	location: string | null;
+	workplace_type: string;
+	salary_max: number | null;
+	role_level: RoleLevel | null;
+}
+
+export interface ScorableJob extends ScorableJobLight {
+	description: string;
+}
+
+export interface ScoringProfile {
+	keywords: string[];
+	levels: RoleLevel[];
+	remote_pref: string;
+	/** Techs the owner can credibly claim; title-named tech outside it grades down. */
+	stack: string[];
+	/** Domains that make work interesting / boring. Grown by feedback mining. */
+	interests_like: string[];
+	interests_avoid: string[];
+	/** Comp floor in USD; null disables the comp axis (neutral 0.5). */
+	salary_floor: number | null;
+}
+
+const WEIGHTS = {
+	relevance: 0.4,
+	level_match: 0.15,
+	geo_fit: 0.12,
+	comp_fit: 0.1,
+	stack_fit: 0.08,
+	domain_interest: 0.15,
+} as const;
+
 const DISCIPLINE_PENALTY = 0.15;
+const NON_AMERICAS_PENALTY = 0.1;
+const LOWBALL_PENALTY = 0.15;
+/** Published salary_max below this fraction of the floor is a lowball sink. */
+const LOWBALL_RATIO = 0.7;
+
+function round3(n: number): number {
+	return Math.round(n * 1000) / 1000;
+}
 
 function escapeRegExp(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Whole-word matching. The old substring `includes` made the keyword "ai"
-// match "maintain", "available", and "GenAI" — inflating title/keyword factors
-// on essentially every posting.
-function countKeywordMatches(text: string, keywords: string[]): number {
-	if (!keywords.length) return 0;
-	return keywords.filter((kw) => {
-		const trimmed = kw.trim();
-		if (!trimmed) return false;
-		return new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'i').test(text);
-	}).length;
+function wordHit(text: string, phrase: string): boolean {
+	const trimmed = phrase.trim();
+	if (!trimmed) return false;
+	return new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'i').test(text);
 }
 
-function titleMatch(title: string, keywords: string[]): number {
-	if (!keywords.length) return 0.5;
-	const matched = countKeywordMatches(title, keywords);
-	return Math.min(1.0, matched / Math.max(1, keywords.length * 0.3));
-}
+// ── relevance ────────────────────────────────────────────────────────────────
 
-function keywordMatch(description: string, keywords: string[]): number {
-	if (!keywords.length) return 0.5;
-	const matched = countKeywordMatches(description, keywords);
-	// Expect ~40% keyword hit rate for a good match
-	return Math.min(1.0, matched / Math.max(1, keywords.length * 0.4));
+// Terms so common in this corpus that matching one says almost nothing.
+const GENERIC_TERMS = new Set([
+	'software engineer',
+	'engineer',
+	'developer',
+	'backend',
+	'frontend',
+	'platform',
+	'cloud',
+	'ai',
+	'ml',
+	'data',
+]);
+
+function keywordWeight(kw: string): number {
+	const k = kw.trim().toLowerCase();
+	if (!k) return 0;
+	if (GENERIC_TERMS.has(k)) return 0.12;
+	return k.includes(' ') ? 0.3 : 0.2;
 }
 
 /**
- * How close is the job's rung to the rungs the profile asked for?
- *
- * The old seniorityMatch substring-matched the profile's role_types against the
- * raw title and returned a flat 1.0/0.4 — so a Junior Engineer and a VP of
- * Engineering were penalized identically when you asked for Staff, and a plain
- * "Software Engineer" was penalized for having no modifier at all. This scores
- * against the classified `role_level` instead, and grades the distance:
- *
- *   exact rung          1.0
- *   one rung away       0.7   (Staff when you asked for Principal)
- *   further / off-track 0.2
- *   unclassified job    0.5   (no signal is not a miss)
+ * Soft-OR evidence: each keyword contributes independently with diminishing
+ * returns (1 - Π(1-wᵢ)), so more/better matches always rank higher but the
+ * axis approaches 1.0 asymptotically instead of clamping there. Title hits
+ * count double (capped) — a keyword in the title is what the job IS.
  */
+function relevance(title: string, description: string, keywords: string[]): number {
+	if (!keywords.length) return 0.5;
+	let miss = 1;
+	for (const kw of keywords) {
+		const w = keywordWeight(kw);
+		if (w === 0) continue;
+		let contribution = 0;
+		if (wordHit(title, kw)) contribution = Math.min(0.5, w * 2);
+		else if (wordHit(description, kw)) contribution = w;
+		miss *= 1 - contribution;
+	}
+	return round3(1 - miss);
+}
+
+/** Optimistic variant for the feed's light pass: title evidence is real,
+ *  description evidence assumed present for every keyword the title missed. */
+function relevanceUpperBound(title: string, keywords: string[]): number {
+	if (!keywords.length) return 0.5;
+	let miss = 1;
+	for (const kw of keywords) {
+		const w = keywordWeight(kw);
+		if (w === 0) continue;
+		const contribution = wordHit(title, kw) ? Math.min(0.5, w * 2) : w;
+		miss *= 1 - contribution;
+	}
+	return round3(1 - miss);
+}
+
+// ── level (unchanged from v1 — distance on the ladder) ──────────────────────
+
 function levelMatch(jobLevel: RoleLevel | null, wanted: RoleLevel[]): number {
 	if (!wanted.length) return 0.5;
 	if (!jobLevel) return 0.5;
@@ -82,83 +171,232 @@ function levelMatch(jobLevel: RoleLevel | null, wanted: RoleLevel[]): number {
 	return best;
 }
 
-function remoteMatch(workplaceType: string, remotePref: string): number {
+// ── geo ──────────────────────────────────────────────────────────────────────
+
+// Explicit non-Americas signals in a location string. Americas timezones are
+// workable for a continental-US schedule; Europe/Asia/Africa/Oceania are not.
+// Word-boundary matching keeps "UK" from firing inside "Ukraine" etc.
+const NON_AMERICAS = new RegExp(
+	'\\b(?:emea|apac|europe|spain|poland|germany|france|netherlands|ireland|' +
+		'portugal|italy|romania|czechia|czech republic|hungary|austria|belgium|' +
+		'denmark|sweden|norway|finland|estonia|lithuania|latvia|greece|serbia|' +
+		'croatia|bulgaria|slovakia|slovenia|switzerland|luxembourg|ukraine|' +
+		'uk|u\\.k\\.|united kingdom|england|scotland|london|india|pakistan|' +
+		'bangladesh|philippines|vietnam|indonesia|malaysia|singapore|thailand|' +
+		'china|japan|korea|taiwan|hong kong|israel|turkey|uae|dubai|egypt|' +
+		'nigeria|kenya|south africa|australia|new zealand)\\b',
+	'i'
+);
+
+const AMERICAS_HINT = new RegExp(
+	'\\b(?:us|u\\.s\\.|usa|united states|america|americas|canada|latam|brazil|' +
+		'mexico|argentina|colombia|chile|peru|costa rica)\\b',
+	'i'
+);
+
+function remotePrefMatch(workplaceType: string, remotePref: string): number {
 	if (remotePref === 'any') return 1.0;
-	if (remotePref === 'remote') return workplaceType === 'remote' ? 1.0 : 0.0;
+	if (remotePref === 'remote') {
+		if (workplaceType === 'remote') return 1.0;
+		if (workplaceType === 'hybrid') return 0.35;
+		return 0.15;
+	}
 	if (remotePref === 'hybrid') {
 		if (workplaceType === 'hybrid') return 1.0;
 		if (workplaceType === 'remote') return 0.7;
-		return 0.0;
+		return 0.15;
 	}
-	if (remotePref === 'onsite') return workplaceType === 'onsite' ? 1.0 : 0.0;
+	if (remotePref === 'onsite') return workplaceType === 'onsite' ? 1.0 : 0.15;
 	return 0.5;
 }
 
-/**
- * Optimistic upper bound on a job's score WITHOUT its description — every
- * factor real except keyword_match, which is assumed perfect (or neutral 0.5
- * when the profile has no keywords, matching keywordMatch exactly). Used by the
- * feed's light pass to rank the whole corpus cheaply: a job excluded from the
- * full-scoring shortlist has a bound below the shortlist's floor, so it could
- * never have out-ranked the shortlist even with a perfect description match.
- */
-export function scoreJobUpperBound(
-	job: {
-		title: string;
-		workplace_type: string;
-		role_level: RoleLevel | null;
-	},
-	profile: {
-		keywords: string[];
-		levels: RoleLevel[];
-		remote_pref: string;
+function geoFit(
+	location: string | null,
+	workplaceType: string,
+	remotePref: string
+): { fit: number; penalty: number } {
+	const loc = location ?? '';
+	const base = remotePrefMatch(workplaceType, remotePref);
+	if (NON_AMERICAS.test(loc) && !AMERICAS_HINT.test(loc)) {
+		return { fit: Math.min(base, NON_AMERICAS_PENALTY), penalty: NON_AMERICAS_PENALTY };
 	}
+	// Known-Americas scores the preference cleanly; an unparseable location gets
+	// a small haircut so explicit US postings edge it out.
+	const known = AMERICAS_HINT.test(loc);
+	return { fit: round3(known ? base : base * 0.85), penalty: 1 };
+}
+
+// ── comp ─────────────────────────────────────────────────────────────────────
+
+function compFit(salaryMax: number | null, floor: number | null): { fit: number; penalty: number } {
+	if (!salaryMax || !floor) return { fit: 0.5, penalty: 1 };
+	const ratio = salaryMax / floor;
+	if (ratio >= 1) return { fit: round3(Math.min(1, 0.9 + (ratio - 1) * 0.2)), penalty: 1 };
+	if (ratio >= LOWBALL_RATIO) {
+		// Below floor but negotiable territory: below-neutral, visible.
+		const t = (ratio - LOWBALL_RATIO) / (1 - LOWBALL_RATIO);
+		return { fit: round3(0.35 + t * 0.5), penalty: 1 };
+	}
+	return { fit: 0.1, penalty: LOWBALL_PENALTY };
+}
+
+// ── stack ────────────────────────────────────────────────────────────────────
+
+// Techs that, named in a TITLE, define the role's stack. Deliberately excludes
+// ambiguous tokens ('go', 'c') and anything in the owner-common set that would
+// never be a surprise requirement.
+const TITLE_TECH = [
+	'ruby',
+	'rails',
+	'php',
+	'laravel',
+	'elixir',
+	'erlang',
+	'scala',
+	'clojure',
+	'haskell',
+	'perl',
+	'cobol',
+	'fortran',
+	'salesforce',
+	'apex',
+	'sap',
+	'abap',
+	'servicenow',
+	'workday',
+	'java',
+	'kotlin',
+	'swift',
+	'objective-c',
+	'ios',
+	'android',
+	'flutter',
+	'unity',
+	'unreal',
+	'golang',
+	'rust',
+	'c\\+\\+',
+	'c#',
+	'\\.net',
+	'python',
+	'typescript',
+	'javascript',
+	'react',
+	'angular',
+	'vue',
+	'node',
+] as const;
+
+function titleTechs(title: string): string[] {
+	const hits: string[] = [];
+	for (const tech of TITLE_TECH) {
+		if (new RegExp(`(?:^|[^a-z0-9+#.])${tech}(?:[^a-z0-9+#]|$)`, 'i').test(title)) {
+			hits.push(tech.replace(/\\/g, ''));
+		}
+	}
+	return hits;
+}
+
+function stackFit(title: string, stack: string[]): number {
+	const named = titleTechs(title);
+	if (named.length === 0) return 1.0;
+	const known = new Set(stack.map((s) => s.trim().toLowerCase()));
+	const foreign = named.filter((t) => !known.has(t.toLowerCase()));
+	if (foreign.length === 0) return 1.0;
+	return foreign.length === 1 ? 0.35 : 0.2;
+}
+
+// ── domain interest ──────────────────────────────────────────────────────────
+
+function domainInterest(
+	title: string,
+	description: string,
+	like: string[],
+	avoid: string[]
 ): number {
-	const breakdown: ScoreBreakdown = {
-		title_match: titleMatch(job.title, profile.keywords),
-		keyword_match: profile.keywords.length ? 1.0 : 0.5,
-		level_match: levelMatch(job.role_level, profile.levels),
-		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
-		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
-	};
-	return composeScore(breakdown);
-}
-
-function composeScore(breakdown: ScoreBreakdown): number {
-	const score =
-		(breakdown.title_match * 0.3 +
-			breakdown.keyword_match * 0.4 +
-			breakdown.level_match * 0.15 +
-			breakdown.remote_match * 0.15) *
-		breakdown.discipline_factor;
-	return Math.round(score * 1000) / 1000;
-}
-
-export function scoreJob(
-	job: {
-		title: string;
-		description: string;
-		workplace_type: string;
-		role_level: RoleLevel | null;
-	},
-	profile: {
-		keywords: string[];
-		levels: RoleLevel[];
-		remote_pref: string;
+	if (!like.length && !avoid.length) return 0.5;
+	let delta = 0;
+	let likeBoost = 0;
+	let avoidDrag = 0;
+	for (const phrase of like) {
+		if (wordHit(title, phrase)) likeBoost += 0.25;
+		else if (wordHit(description, phrase)) likeBoost += 0.1;
 	}
-): ScoreResult {
+	for (const phrase of avoid) {
+		if (wordHit(title, phrase)) avoidDrag += 0.3;
+		else if (wordHit(description, phrase)) avoidDrag += 0.12;
+	}
+	delta = Math.min(0.5, likeBoost) - Math.min(0.5, avoidDrag);
+	return round3(Math.min(1, Math.max(0, 0.5 + delta)));
+}
+
+/** Optimistic variant: title signals real, every like assumed present in the
+ *  description, no avoids assumed beyond the title's. */
+function domainInterestUpperBound(title: string, like: string[], avoid: string[]): number {
+	if (!like.length && !avoid.length) return 0.5;
+	let likeBoost = 0;
+	let avoidDrag = 0;
+	for (const phrase of like) likeBoost += wordHit(title, phrase) ? 0.25 : 0.1;
+	for (const phrase of avoid) if (wordHit(title, phrase)) avoidDrag += 0.3;
+	const delta = Math.min(0.5, likeBoost) - Math.min(0.5, avoidDrag);
+	return round3(Math.min(1, Math.max(0, 0.5 + delta)));
+}
+
+// ── composition ──────────────────────────────────────────────────────────────
+
+function compose(breakdown: ScoreBreakdown, penalties: number): number {
+	const weighted =
+		breakdown.relevance * WEIGHTS.relevance +
+		breakdown.level_match * WEIGHTS.level_match +
+		breakdown.geo_fit * WEIGHTS.geo_fit +
+		breakdown.comp_fit * WEIGHTS.comp_fit +
+		breakdown.stack_fit * WEIGHTS.stack_fit +
+		breakdown.domain_interest * WEIGHTS.domain_interest;
+	return round3(weighted * breakdown.discipline_factor * penalties);
+}
+
+export function scoreJob(job: ScorableJob, profile: ScoringProfile): ScoreResult {
+	const geo = geoFit(job.location, job.workplace_type, profile.remote_pref);
+	const comp = compFit(job.salary_max, profile.salary_floor);
 	const breakdown: ScoreBreakdown = {
-		title_match: titleMatch(job.title, profile.keywords),
-		keyword_match: keywordMatch(job.description, profile.keywords),
+		relevance: relevance(job.title, job.description, profile.keywords),
 		level_match: levelMatch(job.role_level, profile.levels),
-		remote_match: remoteMatch(job.workplace_type, profile.remote_pref),
+		geo_fit: geo.fit,
+		comp_fit: comp.fit,
+		stack_fit: stackFit(job.title, profile.stack),
+		domain_interest: domainInterest(
+			job.title,
+			job.description,
+			profile.interests_like,
+			profile.interests_avoid
+		),
 		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
 	};
+	return { score: compose(breakdown, geo.penalty * comp.penalty), breakdown };
+}
 
-	// Two criteria are hard filters applied in SQL rather than score factors:
-	// the profile's companies, and its track (IC vs manager). Salary is a view
-	// filter now — its old 0.06 weight was mostly noise, since salary_min is
-	// NULL on most postings and the factor returned a neutral 0.5 for all of
-	// them.
-	return { score: composeScore(breakdown), breakdown };
+/**
+ * Optimistic upper bound WITHOUT the description — used by the feed's light
+ * pass. Description-independent axes are exact; relevance and interest assume
+ * best-case description content. A job excluded from the full-scoring
+ * shortlist has a bound below the shortlist's floor, so it could never have
+ * out-ranked the shortlist even with a perfect description.
+ */
+export function scoreJobUpperBound(job: ScorableJobLight, profile: ScoringProfile): number {
+	const geo = geoFit(job.location, job.workplace_type, profile.remote_pref);
+	const comp = compFit(job.salary_max, profile.salary_floor);
+	const breakdown: ScoreBreakdown = {
+		relevance: relevanceUpperBound(job.title, profile.keywords),
+		level_match: levelMatch(job.role_level, profile.levels),
+		geo_fit: geo.fit,
+		comp_fit: comp.fit,
+		stack_fit: stackFit(job.title, profile.stack),
+		domain_interest: domainInterestUpperBound(
+			job.title,
+			profile.interests_like,
+			profile.interests_avoid
+		),
+		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
+	};
+	return compose(breakdown, geo.penalty * comp.penalty);
 }

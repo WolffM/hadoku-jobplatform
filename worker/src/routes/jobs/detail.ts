@@ -59,7 +59,9 @@ export function registerDetailRoute(app: JobsApp): void {
 					{
 						title: row.title as string,
 						description: row.description as string,
+						location: (row.location as string | null) ?? null,
 						workplace_type: row.workplace_type as string,
+						salary_max: (row.salary_max as number | null) ?? null,
 						role_level: roleLevel,
 					},
 					profile

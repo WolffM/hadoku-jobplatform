@@ -59,8 +59,11 @@ export async function gateAuthed(
 
 /** The score shape returned when nothing was scored. */
 export const ZERO_BREAKDOWN = {
-	title_match: 0,
-	keyword_match: 0,
+	relevance: 0,
 	level_match: 0,
-	remote_match: 0,
+	geo_fit: 0,
+	comp_fit: 0,
+	stack_fit: 0,
+	domain_interest: 0,
+	discipline_factor: 0,
 };

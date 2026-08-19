@@ -13,6 +13,7 @@ import { registerFeedRoute } from './feed.js';
 import { registerPreflightRoute } from './preflight.js';
 import { registerDetailRoute } from './detail.js';
 import { registerStateRoutes } from './state.js';
+import { registerFeedbackRoutes } from './feedback.js';
 import { registerTailoringRoutes } from './tailoring.js';
 
 const app = new OpenAPIHono<RouteContext>();
@@ -21,6 +22,7 @@ registerFeedRoute(app);
 registerPreflightRoute(app); // before the param route below — see above
 registerDetailRoute(app);
 registerStateRoutes(app);
+registerFeedbackRoutes(app);
 registerTailoringRoutes(app);
 
 export const jobRoutes = app;
