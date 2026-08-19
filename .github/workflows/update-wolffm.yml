@@ -68,11 +68,11 @@ jobs:
       - name: Configure .npmrc for GitHub Packages
         run: |
           echo "@wolffm:registry=https://npm.pkg.github.com" > .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.HADOKU_SITE_TOKEN }}" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.HADOKU_NPM_READ_TOKEN }}" >> .npmrc
 
       - name: Update @wolffm/* to latest (majors included)
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
         run: |
           # -r so worker/ subpackage's @wolffm/* deps update too
           pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store update -r --latest "@wolffm/*"
@@ -85,7 +85,7 @@ jobs:
       # workflow is best-effort; this step is what makes a missed one visible.
       - name: Assert every @wolffm dependency is at latest
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
         run: |
           node -e '
             const {execSync}=require("child_process"), fs=require("fs");
