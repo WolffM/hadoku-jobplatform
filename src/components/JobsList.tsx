@@ -41,7 +41,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   const [error, setError] = useState<string | null>(null)
 
   const [sort, setSort] = useState<JobSort>('score')
-  const [minScore, setMinScore] = useState(0)
   // Salary is a view control, not a profile criterion — it narrows what you're
   // looking at right now without changing how anything scores.
   const [minSalary, setMinSalary] = useState('')
@@ -77,7 +76,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
           page,
           limit,
           sort: effectiveSort,
-          min_score: minScore,
           min_salary: effectiveMinSalary
         },
         auth
@@ -97,7 +95,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
     page,
     limit,
     effectiveSort,
-    minScore,
     effectiveMinSalary
   ])
 
@@ -108,7 +105,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, effectiveSort, minScore, effectiveMinSalary, stateFilter, effectiveHideDismissed])
+  }, [profileId, effectiveSort, effectiveMinSalary, stateFilter, effectiveHideDismissed])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs
@@ -158,21 +155,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
             placeholder="any"
           />
         </label>
-        {profileId && (
-          <label className="jp-jobs__filter">
-            Min score
-            <input
-              type="range"
-              className="jp-slider"
-              min={0}
-              max={1}
-              step={0.05}
-              value={minScore}
-              onChange={e => setMinScore(Number(e.target.value))}
-            />
-            <span className="jp-jobs__filter-value">{minScore.toFixed(2)}</span>
-          </label>
-        )}
         {seemsAuthed && (
           <label className="jp-jobs__filter">
             State
