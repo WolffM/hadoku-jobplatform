@@ -97,7 +97,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@wolffm'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       # corepack, not pnpm/action-setup — the self-installer intermittently
       # dies on this runner with `ENOENT ... uv_cwd`.
@@ -111,7 +111,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Typecheck
         if: steps.scope.outputs.run == 'true'
@@ -166,7 +166,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@wolffm'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       # corepack, not pnpm/action-setup — the self-installer intermittently
       # dies on this runner with `ENOENT ... uv_cwd`.
@@ -180,7 +180,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: ESLint
         if: steps.scope.outputs.run == 'true'

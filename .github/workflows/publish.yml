@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Build UI package
         run: pnpm run build
@@ -126,7 +126,7 @@ jobs:
             echo "Version $current_version not published yet"
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Check and bump worker version if needed
         if: steps.worker_changed.outputs.changed == 'true'
@@ -176,7 +176,7 @@ jobs:
             echo "Version $current_version not published yet"
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Publish UI package
         if: steps.ui_changed.outputs.changed == 'true'
