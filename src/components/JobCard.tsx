@@ -1,4 +1,4 @@
-import type { JobSummary, VoteValue } from '../api/jobs'
+import type { FeedbackReason, JobSummary, VoteValue } from '../api/jobs'
 import type { Auth } from '../api/auth'
 import { VoteControl } from './VoteControl'
 
@@ -8,8 +8,9 @@ interface Props {
   auth: Auth
   // The vote to display — feed value merged with any this-session override.
   vote: VoteValue | null
+  voteReasons: FeedbackReason[]
   onClick: () => void
-  onVote: (jobId: string, vote: VoteValue | null) => void
+  onVote: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
 }
 
 function formatSalary(min: number | null, max: number | null): string | null {
@@ -35,7 +36,7 @@ function scoreTier(score: number): 'high' | 'mid' | 'low' {
   return 'low'
 }
 
-export function JobCard({ job, showScore, auth, vote, onClick, onVote }: Props) {
+export function JobCard({ job, showScore, auth, vote, voteReasons, onClick, onVote }: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
   const tier = showScore ? scoreTier(job.score) : null
@@ -77,7 +78,15 @@ export function JobCard({ job, showScore, auth, vote, onClick, onVote }: Props) 
             </span>
           )}
           {showScore && <span className={scoreClass}>{job.score.toFixed(2)}</span>}
-          {canVote && <VoteControl jobId={job.id} auth={auth} vote={vote} onVoteChange={onVote} />}
+          {canVote && (
+            <VoteControl
+              jobId={job.id}
+              auth={auth}
+              vote={vote}
+              reasons={voteReasons}
+              onVoteChange={onVote}
+            />
+          )}
         </div>
       </div>
       <div className="jp-jobcard__meta">

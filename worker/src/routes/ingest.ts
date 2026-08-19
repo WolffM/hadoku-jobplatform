@@ -86,9 +86,9 @@ app.openapi(ingestRoute, async (c) => {
 					id, url, source_site, title, company, location,
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
-					scraper_used, raw, scraped_at, ats, slug,
+					scraper_used, raw, scraped_at, last_seen_at, ats, slug,
 					role_track, role_level
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				job.id,
@@ -108,6 +108,7 @@ app.openapi(ingestRoute, async (c) => {
 				job.scraper_used ?? null,
 				JSON.stringify(job.raw),
 				now,
+				now,
 				ats,
 				slug,
 				role.track,
@@ -121,6 +122,23 @@ app.openapi(ingestRoute, async (c) => {
 		for (const r of results) accepted += r.meta?.changes ?? 0;
 	}
 	const skipped = jobs.length - accepted;
+
+	// Liveness: every URL in this payload was just seen on its source — bump
+	// last_seen_at for the skipped (already-known) rows too. A board posting
+	// whose last_seen_at stops advancing has been taken down.
+	const urls = jobs.map((j) => j.url);
+	const seenStmts = [];
+	for (let i = 0; i < urls.length; i += 90) {
+		const chunk = urls.slice(i, i + 90);
+		seenStmts.push(
+			db
+				.prepare(
+					`UPDATE jobs SET last_seen_at = ? WHERE url IN (${chunk.map(() => '?').join(',')})`
+				)
+				.bind(now, ...chunk)
+		);
+	}
+	if (seenStmts.length) await db.batch(seenStmts);
 
 	return c.json(
 		{

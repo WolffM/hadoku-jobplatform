@@ -120,11 +120,12 @@ export const JobSummarySchema = z
 		// 'new' when no row in job_states for the caller, or null when
 		// unauthenticated (we don't know which user is asking).
 		state: JobStateReadSchema.nullable(),
-		// The caller's curation vote, when authenticated; feed-only for now.
+		// The caller's curation vote + reasons, when authenticated; feed-only.
 		vote: z
 			.union([z.literal(1), z.literal(-1)])
 			.nullable()
 			.optional(),
+		vote_reasons: z.array(z.string()).optional(),
 	})
 	.openapi('JobSummary');
 
@@ -156,7 +157,8 @@ export const FEEDBACK_REASONS = [
 export const SetJobFeedbackSchema = z
 	.object({
 		vote: z.union([z.literal(1), z.literal(-1)]),
-		reason: z.enum(FEEDBACK_REASONS).optional(),
+		// Multi-select: a posting can be wrong on several axes at once.
+		reasons: z.array(z.enum(FEEDBACK_REASONS)).max(9).default([]),
 	})
 	.openapi('SetJobFeedback');
 
@@ -164,7 +166,7 @@ export const JobFeedbackResponseSchema = S(
 	z.object({
 		job_id: z.string(),
 		vote: z.union([z.literal(1), z.literal(-1)]).nullable(),
-		reason: z.string().nullable(),
+		reasons: z.array(z.string()),
 		updated_at: z.string(),
 	})
 ).openapi('JobFeedbackResponse');

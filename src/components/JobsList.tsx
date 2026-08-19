@@ -4,6 +4,7 @@ import {
   JobsApiError,
   type JobSummary,
   type JobStateRead,
+  type FeedbackReason,
   type JobSort,
   type VoteValue
 } from '../api/jobs'
@@ -20,8 +21,8 @@ interface Props {
   // This-session vote overrides (card thumbs + drawer), keyed by job id.
   // They shadow the fetched feed value so a vote never forces a refetch —
   // the feed only re-ranks on the next natural load.
-  voteOverrides: Record<string, VoteValue | null>
-  onVote: (jobId: string, vote: VoteValue | null) => void
+  voteOverrides: Record<string, { vote: VoteValue | null; reasons: FeedbackReason[] }>
+  onVote: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
 }
 
 const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
@@ -46,6 +47,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
   const [hideDismissed, setHideDismissed] = useState(true)
+  const [workplace, setWorkplace] = useState<'' | 'remote' | 'hybrid' | 'onsite'>('')
 
   const limit = 25
 
@@ -67,7 +69,8 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
           state: stateFilter || undefined,
           page,
           limit,
-          sort: effectiveSort
+          sort: effectiveSort,
+          workplace: workplace || undefined
         },
         auth
       )
@@ -78,7 +81,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
     } finally {
       setLoading(false)
     }
-  }, [auth, profileId, stateFilter, page, limit, effectiveSort])
+  }, [auth, profileId, stateFilter, page, limit, effectiveSort, workplace])
 
   useEffect(() => {
     void load()
@@ -87,7 +90,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, effectiveSort, stateFilter])
+  }, [profileId, effectiveSort, stateFilter, workplace])
 
   const filtered = useMemo(() => {
     // Hide-dismissed is a VIEW filter over the already-loaded page — toggling
@@ -126,8 +129,23 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
           Sort
           <select value={effectiveSort} onChange={e => setSort(e.target.value as JobSort)}>
             {profileId && <option value="score">Score</option>}
+            {profileId && <option value="comp">Comp lens</option>}
+            {profileId && <option value="interest">Interest lens</option>}
+            {profileId && <option value="relevance">Relevance lens</option>}
             <option value="date">Date</option>
             <option value="salary">Salary</option>
+          </select>
+        </label>
+        <label className="jp-jobs__filter">
+          Workplace
+          <select
+            value={workplace}
+            onChange={e => setWorkplace(e.target.value as '' | 'remote' | 'hybrid' | 'onsite')}
+          >
+            <option value="">All</option>
+            <option value="remote">Remote</option>
+            <option value="hybrid">Hybrid</option>
+            <option value="onsite">Onsite</option>
           </select>
         </label>
         {seemsAuthed && (
@@ -176,7 +194,9 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
       ) : (
         <ul className="jp-jobs__list">
           {filtered.map(job => {
-            const vote = job.id in voteOverrides ? voteOverrides[job.id] : (job.vote ?? null)
+            const ov = voteOverrides[job.id]
+            const vote = ov ? ov.vote : (job.vote ?? null)
+            const voteReasons = ov ? ov.reasons : ((job.vote_reasons ?? []) as FeedbackReason[])
             return (
               <li key={job.id}>
                 <JobCard
@@ -184,6 +204,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
                   showScore={!!profileId}
                   auth={auth}
                   vote={vote}
+                  voteReasons={voteReasons}
                   onClick={() => onSelect(job.id, vote)}
                   onVote={onVote}
                 />

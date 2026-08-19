@@ -18,7 +18,7 @@ import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
 import type { Auth } from './api/auth'
-import type { VoteValue } from './api/jobs'
+import type { FeedbackReason, VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
 import type { JobPlatformProps } from './entry'
 
@@ -26,7 +26,7 @@ type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
 interface DashboardOutletCtx {
   onJobStateChanged: () => void
-  onJobVoted: (jobId: string, vote: VoteValue | null) => void
+  onJobVoted: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
 }
 
 /**
@@ -119,10 +119,15 @@ function Dashboard({ auth }: { auth: Auth }) {
   // shuffle jobs under the user. Overrides shadow the fetched value until the
   // next natural reload, and both the cards and the drawer write through here
   // so the two stay in sync.
-  const [voteOverrides, setVoteOverrides] = useState<Record<string, VoteValue | null>>({})
-  const onJobVoted = useCallback((jobId: string, vote: VoteValue | null) => {
-    setVoteOverrides(prev => ({ ...prev, [jobId]: vote }))
-  }, [])
+  const [voteOverrides, setVoteOverrides] = useState<
+    Record<string, { vote: VoteValue | null; reasons: FeedbackReason[] }>
+  >({})
+  const onJobVoted = useCallback(
+    (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => {
+      setVoteOverrides(prev => ({ ...prev, [jobId]: { vote, reasons } }))
+    },
+    []
+  )
 
   // Full-screen profile editor (create/edit) + a reload token that re-fetches
   // the sidebar list after a save.

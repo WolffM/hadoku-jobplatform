@@ -6,9 +6,10 @@ interface Props {
   jobId: string
   auth: Auth
   vote: VoteValue | null
-  // Called optimistically on every vote transition (and again to revert if
-  // the request fails) — the parent owns the displayed value.
-  onVoteChange: (jobId: string, vote: VoteValue | null) => void
+  reasons: FeedbackReason[]
+  // Called optimistically on every transition (and again to revert if the
+  // request fails) — the parent owns the displayed value.
+  onVoteChange: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
   disabled?: boolean
   // Which edge the reason popover hangs from. Cards sit at the right edge of
   // the list so they anchor 'end'; the drawer control anchors 'start'.
@@ -36,32 +37,51 @@ const UP_REASONS: { reason: FeedbackReason; label: string }[] = [
 ]
 
 /**
- * One-tap posting feedback: 👍/👎 plus a single reason chip. Clicking a thumb
- * opens the direction's reason chips; a chip fires the PUT and closes.
- * Clicking the already-active thumb clears the vote (DELETE). Everything is
- * optimistic — the vote flips immediately and reverts on error — so ripping
- * through a hundred postings never waits on the network.
+ * One-tap posting feedback: 👍/👎 plus MULTI-select reason chips. Tapping a
+ * thumb saves the vote immediately and opens the direction's chips; each chip
+ * toggles and saves (idempotent upsert) with the popover staying open until
+ * blur/Escape, so several reasons can be stacked. Tapping the active thumb
+ * clears the vote (DELETE). Everything is optimistic — values flip
+ * immediately and revert on error — so ripping through a hundred postings
+ * never waits on the network.
  */
-export function VoteControl({ jobId, auth, vote, onVoteChange, disabled, align = 'end' }: Props) {
+export function VoteControl({
+  jobId,
+  auth,
+  vote,
+  reasons,
+  onVoteChange,
+  disabled,
+  align = 'end'
+}: Props) {
   const [openFor, setOpenFor] = useState<VoteValue | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const handleThumb = (dir: VoteValue) => {
     if (vote === dir) {
       // Second tap on the active thumb clears the vote.
+      const prevReasons = reasons
       setOpenFor(null)
-      onVoteChange(jobId, null)
-      clearJobFeedback(jobId, auth).catch(() => onVoteChange(jobId, dir))
+      onVoteChange(jobId, null, [])
+      clearJobFeedback(jobId, auth).catch(() => onVoteChange(jobId, dir, prevReasons))
       return
     }
-    setOpenFor(prev => (prev === dir ? null : dir))
+    // The vote saves immediately — reasons are optional garnish on top.
+    const prevVote = vote
+    const prevReasons = reasons
+    onVoteChange(jobId, dir, [])
+    setJobFeedback(jobId, dir, [], auth).catch(() => onVoteChange(jobId, prevVote, prevReasons))
+    setOpenFor(dir)
   }
 
-  const handleReason = (dir: VoteValue, reason: FeedbackReason) => {
-    const prev = vote
-    setOpenFor(null)
-    onVoteChange(jobId, dir)
-    setJobFeedback(jobId, dir, reason, auth).catch(() => onVoteChange(jobId, prev))
+  const handleReasonToggle = (dir: VoteValue, reason: FeedbackReason) => {
+    const prevReasons = reasons
+    const next = prevReasons.includes(reason)
+      ? prevReasons.filter(r => r !== reason)
+      : [...prevReasons, reason]
+    onVoteChange(jobId, dir, next)
+    setJobFeedback(jobId, dir, next, auth).catch(() => onVoteChange(jobId, dir, prevReasons))
+    // Popover stays open — multi-select until blur/Escape/thumb.
   }
 
   // Close the popover when focus leaves the control — covers both tabbing
@@ -78,7 +98,7 @@ export function VoteControl({ jobId, auth, vote, onVoteChange, disabled, align =
     }
   }
 
-  const reasons = openFor === -1 ? DOWN_REASONS : UP_REASONS
+  const chipSet = openFor === -1 ? DOWN_REASONS : UP_REASONS
 
   return (
     <div
@@ -118,13 +138,14 @@ export function VoteControl({ jobId, auth, vote, onVoteChange, disabled, align =
       </button>
       {openFor !== null && (
         <div className="jp-vote__reasons" role="menu" aria-label="Why?" data-testid="vote-reasons">
-          {reasons.map(({ reason, label }) => (
+          {chipSet.map(({ reason, label }) => (
             <button
               key={reason}
               type="button"
-              role="menuitem"
-              className="jp-vote__reason"
-              onClick={() => handleReason(openFor, reason)}
+              role="menuitemcheckbox"
+              aria-checked={reasons.includes(reason)}
+              className={`jp-vote__reason${reasons.includes(reason) ? ' jp-vote__reason--active' : ''}`}
+              onClick={() => handleReasonToggle(openFor, reason)}
               data-testid={`vote-reason-${reason}`}
             >
               {label}

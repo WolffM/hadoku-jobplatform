@@ -71,7 +71,9 @@ export function registerFeedbackRoutes(app: JobsApp): void {
 			}
 
 			const now = new Date().toISOString();
+			// Reasons are multi-select, stored CSV in the single `reason` column.
 			// A changed vote resets processed_at: tier-2/3 must re-consume it.
+			const reasonCsv = body.reasons.length ? body.reasons.join(',') : null;
 			await db
 				.prepare(
 					`INSERT INTO job_feedback (id, user_id, job_id, vote, reason, created_at, processed_at)
@@ -82,13 +84,13 @@ export function registerFeedbackRoutes(app: JobsApp): void {
 					   created_at = excluded.created_at,
 					   processed_at = NULL`
 				)
-				.bind(crypto.randomUUID(), userId, id, body.vote, body.reason ?? null, now)
+				.bind(crypto.randomUUID(), userId, id, body.vote, reasonCsv, now)
 				.run();
 
 			return c.json(
 				{
 					success: true as const,
-					data: { job_id: id, vote: body.vote, reason: body.reason ?? null, updated_at: now },
+					data: { job_id: id, vote: body.vote, reasons: body.reasons, updated_at: now },
 				},
 				200
 			);
@@ -130,7 +132,7 @@ export function registerFeedbackRoutes(app: JobsApp): void {
 			return c.json(
 				{
 					success: true as const,
-					data: { job_id: id, vote: null, reason: null, updated_at: new Date().toISOString() },
+					data: { job_id: id, vote: null, reasons: [], updated_at: new Date().toISOString() },
 				},
 				200
 			);
