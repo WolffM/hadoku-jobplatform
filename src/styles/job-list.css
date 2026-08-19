@@ -135,6 +135,17 @@
   opacity: 1;
 }
 
+/* A downvoted card dims but never hides — the feed re-ranks it on the next
+   load, and the active thumb has to stay visible so the vote can be undone. */
+.jp-jobcard--downvoted {
+  opacity: 0.55;
+}
+
+.jp-jobcard--downvoted:hover,
+.jp-jobcard--downvoted:focus-within {
+  opacity: 1;
+}
+
 .jp-jobcard__title {
   color: var(--color-text);
   font-weight: var(--font-weight-bold);

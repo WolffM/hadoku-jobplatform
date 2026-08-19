@@ -5,6 +5,7 @@ import {
   Outlet,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useOutletContext,
   useParams,
@@ -17,6 +18,7 @@ import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
 import type { Auth } from './api/auth'
+import type { VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
 import type { JobPlatformProps } from './entry'
 
@@ -24,6 +26,7 @@ type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
 interface DashboardOutletCtx {
   onJobStateChanged: () => void
+  onJobVoted: (jobId: string, vote: VoteValue | null) => void
 }
 
 /**
@@ -112,12 +115,21 @@ function Dashboard({ auth }: { auth: Auth }) {
   const [refreshKey, setRefreshKey] = useState(0)
   const onJobStateChanged = useCallback(() => setRefreshKey(k => k + 1), [])
 
+  // Votes deliberately do NOT refetch — re-ranking the feed mid-rip would
+  // shuffle jobs under the user. Overrides shadow the fetched value until the
+  // next natural reload, and both the cards and the drawer write through here
+  // so the two stay in sync.
+  const [voteOverrides, setVoteOverrides] = useState<Record<string, VoteValue | null>>({})
+  const onJobVoted = useCallback((jobId: string, vote: VoteValue | null) => {
+    setVoteOverrides(prev => ({ ...prev, [jobId]: vote }))
+  }, [])
+
   // Full-screen profile editor (create/edit) + a reload token that re-fetches
   // the sidebar list after a save.
   const [editing, setEditing] = useState<EditorState | null>(null)
   const [profilesReload, setProfilesReload] = useState(0)
 
-  const ctx: DashboardOutletCtx = { onJobStateChanged }
+  const ctx: DashboardOutletCtx = { onJobStateChanged, onJobVoted }
 
   return (
     <div className="jp-dashboard">
@@ -134,9 +146,13 @@ function Dashboard({ auth }: { auth: Auth }) {
           auth={auth}
           profileId={profileId}
           refreshKey={refreshKey}
-          onSelect={jobId => {
+          voteOverrides={voteOverrides}
+          onVote={onJobVoted}
+          onSelect={(jobId, vote) => {
             const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
-            void navigate(`/jobs/${encodeURIComponent(jobId)}${params}`)
+            // The detail endpoint doesn't return the vote, so the card hands
+            // its current value to the drawer via navigation state.
+            void navigate(`/jobs/${encodeURIComponent(jobId)}${params}`, { state: { vote } })
           }}
         />
       </section>
@@ -164,9 +180,14 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
   const [searchParams] = useSearchParams()
   const profileId = searchParams.get('profile')
   const navigate = useNavigate()
+  const location = useLocation()
   const ctx = useOutletContext<DashboardOutletCtx>()
 
   if (!jobId) return null
+
+  // Seeded by the card that opened the drawer (the detail endpoint doesn't
+  // return the vote). A deep link has no state → null → shown as unvoted.
+  const initialVote = (location.state as { vote?: VoteValue | null } | null)?.vote ?? null
 
   const closeDrawer = () => {
     const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
@@ -178,8 +199,10 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
       auth={auth}
       jobId={jobId}
       profileId={profileId}
+      initialVote={initialVote}
       onClose={closeDrawer}
       onStateChange={() => ctx.onJobStateChanged()}
+      onVoteChange={ctx.onJobVoted}
     />
   )
 }
