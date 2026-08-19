@@ -193,7 +193,7 @@ jobs:
       - name: Notify parent about deployment
         if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
         env:
-          HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+          HADOKU_NPM_READ_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
         run: |
           if [ -z "$HADOKU_SITE_TOKEN" ]; then
             echo "Warning: HADOKU_SITE_TOKEN not available, skipping notifications"
