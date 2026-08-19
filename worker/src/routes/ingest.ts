@@ -4,6 +4,7 @@ import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
+import { parseSalaryRange } from '../salaryParse.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -66,8 +67,14 @@ app.openapi(ingestRoute, async (c) => {
 	// and a full corpus refresh burned ~2 round trips per job for nothing.
 	const stmts = jobs.map((job) => {
 		const workplaceType = normalizeWorkplaceType(job.workplace_type);
-		const salaryMin = job.salary?.min ?? null;
-		const salaryMax = job.salary?.max ?? null;
+		// Structured salary wins; otherwise mine the description prose —
+		// pay-transparency ranges usually live there, not in the ATS fields.
+		const structuredMin = job.salary?.min ?? null;
+		const structuredMax = job.salary?.max ?? null;
+		const prose =
+			structuredMin === null && structuredMax === null ? parseSalaryRange(job.description) : null;
+		const salaryMin = structuredMin ?? prose?.min ?? null;
+		const salaryMax = structuredMax ?? prose?.max ?? null;
 		const { ats, slug } = parseAtsSlug(job.url);
 		// No ATS publishes a track or a level, so we infer both here — once, at
 		// write time — rather than re-deriving them from the title on every read.
@@ -397,6 +404,79 @@ app.openapi(directivesRoute, async (c) => {
 		},
 		200
 	);
+});
+
+// ── POST /ingest/backfill-salary — mine prose salary ranges for NULL rows ────
+// Cursor-paged by id: unparseable rows stay NULL forever, so a WHERE-count stop
+// condition would loop. Loop while has_more, passing back `cursor`.
+const backfillSalaryRoute = createRoute({
+	method: 'post',
+	path: '/ingest/backfill-salary',
+	tags: ['Ingest'],
+	summary: 'Populate jobs.salary_min/max from description prose where NULL',
+	request: {
+		query: z.object({
+			limit: z.coerce.number().int().min(1).max(2000).default(500),
+			cursor: z.string().default('').openapi({ description: 'Last id from the previous call' }),
+		}),
+	},
+	responses: {
+		200: {
+			description: 'Backfill batch complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								scanned: z.number(),
+								updated: z.number(),
+								cursor: z.string(),
+								has_more: z.boolean(),
+							}),
+						})
+						.openapi('BackfillSalaryResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(backfillSalaryRoute, async (c) => {
+	const { limit, cursor } = c.req.valid('query');
+	const db = c.env.JOB_PLATFORM_DB;
+
+	const rows = await db
+		.prepare(
+			'SELECT id, description FROM jobs WHERE salary_max IS NULL AND id > ? ORDER BY id LIMIT ?'
+		)
+		.bind(cursor, limit)
+		.all<{ id: string; description: string }>();
+
+	let updated = 0;
+	const stmts = [];
+	for (const row of rows.results) {
+		const parsed = parseSalaryRange(row.description);
+		if (!parsed) continue;
+		updated++;
+		stmts.push(
+			db
+				.prepare('UPDATE jobs SET salary_min = ?, salary_max = ? WHERE id = ?')
+				.bind(parsed.min, parsed.max, row.id)
+		);
+	}
+	if (stmts.length) await db.batch(stmts);
+
+	const last = rows.results.at(-1)?.id ?? cursor;
+	return c.json({
+		success: true as const,
+		data: {
+			scanned: rows.results.length,
+			updated,
+			cursor: last,
+			has_more: rows.results.length === limit,
+		},
+	});
 });
 
 export const ingestRoutes = app;

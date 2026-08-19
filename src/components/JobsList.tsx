@@ -43,7 +43,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   const [sort, setSort] = useState<JobSort>('score')
   // Salary is a view control, not a profile criterion — it narrows what you're
   // looking at right now without changing how anything scores.
-  const [minSalary, setMinSalary] = useState('')
   const [search, setSearch] = useState('')
   const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
   const [hideDismissed, setHideDismissed] = useState(true)
@@ -58,12 +57,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   // offers — fall back to date rather than rendering a blank selection.
   const effectiveSort: JobSort = !profileId && sort === 'score' ? 'date' : sort
 
-  // Blank / unparseable means "no salary floor" rather than 0 — passing 0 would
-  // read as an explicit filter and drop nothing, but it muddies the query.
-  const minSalaryNum = minSalary.trim() ? Number(minSalary) : NaN
-  const effectiveMinSalary =
-    Number.isFinite(minSalaryNum) && minSalaryNum > 0 ? minSalaryNum : undefined
-
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -72,11 +65,9 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
         {
           profile_id: profileId ?? undefined,
           state: stateFilter || undefined,
-          hide_dismissed: effectiveHideDismissed || undefined,
           page,
           limit,
-          sort: effectiveSort,
-          min_salary: effectiveMinSalary
+          sort: effectiveSort
         },
         auth
       )
@@ -87,16 +78,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
     } finally {
       setLoading(false)
     }
-  }, [
-    auth,
-    profileId,
-    stateFilter,
-    effectiveHideDismissed,
-    page,
-    limit,
-    effectiveSort,
-    effectiveMinSalary
-  ])
+  }, [auth, profileId, stateFilter, page, limit, effectiveSort])
 
   useEffect(() => {
     void load()
@@ -105,18 +87,23 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, effectiveSort, effectiveMinSalary, stateFilter, effectiveHideDismissed])
+  }, [profileId, effectiveSort, stateFilter])
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return jobs
-    const q = search.toLowerCase()
-    return jobs.filter(
-      j =>
-        j.title.toLowerCase().includes(q) ||
-        j.company.toLowerCase().includes(q) ||
-        j.location.toLowerCase().includes(q)
-    )
-  }, [jobs, search])
+    // Hide-dismissed is a VIEW filter over the already-loaded page — toggling
+    // it must never refetch (a feed reload re-scores the corpus, ~1s+).
+    let list = effectiveHideDismissed ? jobs.filter(j => j.state !== 'dismissed') : jobs
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      list = list.filter(
+        j =>
+          j.title.toLowerCase().includes(q) ||
+          j.company.toLowerCase().includes(q) ||
+          j.location.toLowerCase().includes(q)
+      )
+    }
+    return list
+  }, [jobs, search, effectiveHideDismissed])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   // Auth-gated filters: the API requires admin/friend for state=.
@@ -142,18 +129,6 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
             <option value="date">Date</option>
             <option value="salary">Salary</option>
           </select>
-        </label>
-        <label className="jp-jobs__filter">
-          Min salary
-          <input
-            type="number"
-            className="jp-jobs__salary"
-            min={0}
-            step={10000}
-            value={minSalary}
-            onChange={e => setMinSalary(e.target.value)}
-            placeholder="any"
-          />
         </label>
         {seemsAuthed && (
           <label className="jp-jobs__filter">

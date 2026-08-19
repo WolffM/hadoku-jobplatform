@@ -77,8 +77,12 @@ const WEIGHTS = {
 const DISCIPLINE_PENALTY = 0.15;
 const NON_AMERICAS_PENALTY = 0.1;
 const LOWBALL_PENALTY = 0.15;
-/** Published salary_max below this fraction of the floor is a lowball sink. */
-const LOWBALL_RATIO = 0.7;
+/** Estimated TOTAL comp below this fraction of the floor is a lowball sink. */
+const LOWBALL_RATIO = 0.75;
+/** Posted ranges are BASE salary; the floor is TOTAL comp. Equity/bonus at the
+ *  target tier typically adds ~40%, so estimated_total = base × 1.4 — a 250k
+ *  base ≈ the 350k total-comp target (owner calibration, 2026-08-19). */
+const BASE_TO_TOTAL = 1.4;
 
 function round3(n: number): number {
 	return Math.round(n * 1000) / 1000;
@@ -230,7 +234,7 @@ function geoFit(
 
 function compFit(salaryMax: number | null, floor: number | null): { fit: number; penalty: number } {
 	if (!salaryMax || !floor) return { fit: 0.5, penalty: 1 };
-	const ratio = salaryMax / floor;
+	const ratio = (salaryMax * BASE_TO_TOTAL) / floor;
 	if (ratio >= 1) return { fit: round3(Math.min(1, 0.9 + (ratio - 1) * 0.2)), penalty: 1 };
 	if (ratio >= LOWBALL_RATIO) {
 		// Below floor but negotiable territory: below-neutral, visible.

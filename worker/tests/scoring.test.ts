@@ -68,6 +68,16 @@ test('golden #1: published lowball pay sinks (delinea case)', () => {
 	assert.ok(unpublished.score > lowball.score * 3, 'unpublished salary stays neutral');
 	const atFloor = scoreJob(job({ salary_max: 400000 }), OWNER);
 	assert.ok(atFloor.score > unpublished.score, 'above-floor published beats neutral');
+	// Owner calibration (scratch #9): posted ranges are BASE, the 350k floor is
+	// TOTAL comp — a ~250k base ≈ target once equity is counted, so it must
+	// score ABOVE neutral, not below.
+	const baseFine = scoreJob(job({ salary_max: 250000 }), OWNER);
+	assert.ok(
+		baseFine.breakdown.comp_fit >= 0.85,
+		`250k base ≈ 350k total must score well, got ${baseFine.breakdown.comp_fit}`
+	);
+	const nvidia = scoreJob(job({ salary_max: 431250 }), OWNER);
+	assert.ok(nvidia.breakdown.comp_fit >= 0.9, 'NVIDIA 431k base is a clear pass');
 });
 
 test('golden #2: non-Americas remote sinks (affirm Remote Spain / Poland)', () => {
