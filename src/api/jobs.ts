@@ -4,10 +4,13 @@ import type { ProfileTrack, RoleLevel } from './profiles'
 const BASE_URL = '/jobplatform/api'
 
 export interface ScoreBreakdown {
-  title_match: number
-  keyword_match: number
+  relevance: number
   level_match: number
-  remote_match: number
+  geo_fit: number
+  comp_fit: number
+  stack_fit: number
+  domain_interest: number
+  discipline_factor: number
 }
 
 /** As classified at ingest. 'unknown' only for a blank title. */

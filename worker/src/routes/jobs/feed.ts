@@ -21,6 +21,14 @@ const FULL_SCORE_CAP = 800;
 // the shortlist chunk their IN () lists accordingly (one db.batch round trip).
 const ID_CHUNK = 100;
 
+// Tier-1 feedback effect: a downvoted job sinks regardless of its score, an
+// upvote boosts it. Applied after scoring so the model itself stays pure.
+function applyVote(score: number, vote: unknown): number {
+	if (vote === -1) return Math.round(score * 0.15 * 1000) / 1000;
+	if (vote === 1) return Math.round(Math.min(1, score * 1.2 + 0.02) * 1000) / 1000;
+	return score;
+}
+
 interface JobRow {
 	id: string;
 	title: string;
@@ -39,6 +47,7 @@ interface JobRow {
 	role_level: string | null;
 	description: string;
 	row_state: string | null;
+	row_vote: number | null;
 }
 
 /** Highest ceiling first; postings with no stated salary sort to the bottom. */
@@ -158,9 +167,13 @@ export function registerFeedRoute(app: JobsApp): void {
 			// LEFT JOIN job_states once when authed so we can both surface state on
 			// every row AND filter by it cheaply. js.user_id binds first if present
 			// because the join clause has to come before any state filter binds.
-			const stateCols = userId ? 'js.state as row_state' : 'NULL as row_state';
+			const stateCols = userId
+				? 'js.state as row_state, jf.vote as row_vote'
+				: 'NULL as row_state, NULL as row_vote';
 			if (userId) {
 				joins.push('LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?');
+				binds.push(userId);
+				joins.push('LEFT JOIN job_feedback jf ON jf.job_id = j.id AND jf.user_id = ?');
 				binds.push(userId);
 			}
 
@@ -264,7 +277,9 @@ export function registerFeedRoute(app: JobsApp): void {
 							bound: scoreJobUpperBound(
 								{
 									title: r.title,
+									location: r.location,
 									workplace_type: r.workplace_type,
+									salary_max: r.salary_max,
 									role_level: asRoleLevel(r.role_level),
 								},
 								profile
@@ -310,7 +325,9 @@ export function registerFeedRoute(app: JobsApp): void {
 							{
 								title: r.title,
 								description: descById.get(r.id) ?? '',
+								location: r.location,
 								workplace_type: r.workplace_type,
+								salary_max: r.salary_max,
 								role_level: roleLevel,
 							},
 							profile
@@ -331,9 +348,10 @@ export function registerFeedRoute(app: JobsApp): void {
 							slug: r.slug,
 							role_track: asRoleTrack(r.role_track),
 							role_level: roleLevel,
-							score,
+							score: applyVote(score, r.row_vote),
 							score_breakdown: breakdown,
 							state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+							vote: (r.row_vote as 1 | -1 | null) ?? null,
 						};
 					})
 					.filter((j) => j.score >= min_score);

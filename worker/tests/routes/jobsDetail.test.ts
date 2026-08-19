@@ -124,10 +124,13 @@ describe('GET /jobs/{id}', () => {
 		const { body } = await h.json<DetailBody>(`${BASE}/jobs/detail-1`);
 		assert.equal(body.data.job.score, 0);
 		assert.deepEqual(body.data.job.score_breakdown, {
-			title_match: 0,
-			keyword_match: 0,
+			relevance: 0,
 			level_match: 0,
-			remote_match: 0,
+			geo_fit: 0,
+			comp_fit: 0,
+			stack_fit: 0,
+			domain_interest: 0,
+			discipline_factor: 0,
 		});
 	});
 
@@ -135,13 +138,13 @@ describe('GET /jobs/{id}', () => {
 		const { body } = await h.json<DetailBody>(`${BASE}/jobs/detail-1?profile_id=p-detail`);
 		assert.ok(body.data.job.score > 0);
 		assert.equal(body.data.job.score_breakdown.level_match, 1.0, 'exact rung');
-		assert.equal(body.data.job.score_breakdown.remote_match, 1.0, 'remote profile, remote job');
+		assert.ok(body.data.job.score_breakdown.geo_fit >= 0.85, 'remote profile, remote job');
 	});
 
 	it('degrades an unknown profile_id to neutral criteria', async () => {
 		const { status, body } = await h.json<DetailBody>(`${BASE}/jobs/detail-1?profile_id=ghost`);
 		assert.equal(status, 200);
-		assert.equal(body.data.job.score_breakdown.title_match, 0.5, 'no keywords ⇒ neutral');
+		assert.equal(body.data.job.score_breakdown.relevance, 0.5, 'no keywords ⇒ neutral');
 	});
 
 	it('normalises an unclassified row instead of leaking a bogus enum value', async () => {

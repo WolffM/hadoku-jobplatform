@@ -27,10 +27,13 @@ interface Props {
 // here — a job that reached the drawer already passed them. Salary is a view
 // filter and doesn't score at all.
 const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
-  title_match: 'Title',
-  keyword_match: 'Keywords',
+  relevance: 'Relevance',
   level_match: 'Level',
-  remote_match: 'Remote'
+  geo_fit: 'Geo/Remote',
+  comp_fit: 'Comp',
+  stack_fit: 'Stack',
+  domain_interest: 'Interest',
+  discipline_factor: 'Discipline'
 }
 
 const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[] = [
