@@ -237,9 +237,11 @@ function compFit(salaryMax: number | null, floor: number | null): { fit: number;
 	const ratio = (salaryMax * BASE_TO_TOTAL) / floor;
 	if (ratio >= 1) return { fit: round3(Math.min(1, 0.9 + (ratio - 1) * 0.2)), penalty: 1 };
 	if (ratio >= LOWBALL_RATIO) {
-		// Below floor but negotiable territory: below-neutral, visible.
+		// Acceptable territory (owner: even ~200k base is fine): NEVER below
+		// neutral, rising monotonically to 0.9 at the floor. Published-and-
+		// acceptable must not score worse than unpublished (0.5).
 		const t = (ratio - LOWBALL_RATIO) / (1 - LOWBALL_RATIO);
-		return { fit: round3(0.35 + t * 0.5), penalty: 1 };
+		return { fit: round3(0.5 + t * 0.4), penalty: 1 };
 	}
 	return { fit: 0.1, penalty: LOWBALL_PENALTY };
 }

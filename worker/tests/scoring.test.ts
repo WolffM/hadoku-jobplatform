@@ -71,7 +71,15 @@ test('golden #1: published lowball pay sinks (delinea case)', () => {
 	// Owner calibration (scratch #9): posted ranges are BASE, the 350k floor is
 	// TOTAL comp — a ~250k base ≈ target once equity is counted, so it must
 	// score ABOVE neutral, not below.
+	// Even 200k base is acceptable (scratch #13): at least neutral, and the
+	// curve is strictly monotonic above it.
+	const base200 = scoreJob(job({ salary_max: 200000 }), OWNER);
+	assert.ok(
+		base200.breakdown.comp_fit >= 0.5,
+		`200k base must be >= neutral, got ${base200.breakdown.comp_fit}`
+	);
 	const baseFine = scoreJob(job({ salary_max: 250000 }), OWNER);
+	assert.ok(baseFine.breakdown.comp_fit > base200.breakdown.comp_fit, 'higher base weighs higher');
 	assert.ok(
 		baseFine.breakdown.comp_fit >= 0.85,
 		`250k base ≈ 350k total must score well, got ${baseFine.breakdown.comp_fit}`
