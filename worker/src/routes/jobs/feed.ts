@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { JobsResponseSchema, ErrorResponseSchema } from '../../schemas.js';
-import { scoreJob, scoreJobUpperBound } from '../../scoring.js';
+import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
 import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
@@ -29,6 +29,24 @@ function applyVote(score: number, vote: unknown): number {
 	return score;
 }
 
+// Staleness: the owner's first application attempt was a 3-month-old LinkedIn
+// posting that had closed. Freshness = the newest of posted/first-seen/last-
+// seen; board postings keep last_seen_at advancing while listed, so only
+// genuinely dead or unverifiable-old rows decay.
+const DAY_MS = 86_400_000;
+function staleFactor(row: {
+	posted_date: string | null;
+	scraped_at: string;
+	last_seen_at?: string | null;
+}): number {
+	const stamps = [row.posted_date, row.scraped_at, row.last_seen_at].filter(Boolean) as string[];
+	const newest = stamps.reduce((a, b) => (a > b ? a : b), '');
+	const age = (Date.now() - Date.parse(newest)) / DAY_MS;
+	if (!Number.isFinite(age) || age <= 30) return 1.0;
+	if (age <= 60) return 0.7;
+	return 0.25;
+}
+
 interface JobRow {
 	id: string;
 	title: string;
@@ -48,6 +66,8 @@ interface JobRow {
 	description: string;
 	row_state: string | null;
 	row_vote: number | null;
+	row_vote_reasons: string | null;
+	last_seen_at: string | null;
 }
 
 /** Highest ceiling first; postings with no stated salary sort to the bottom. */
@@ -97,8 +117,18 @@ export function registerFeedRoute(app: JobsApp): void {
 						.max(100)
 						.default(25)
 						.openapi({ description: 'Results per page' }),
-					sort: z.enum(['score', 'date', 'salary']).default('score').openapi({
-						description: 'Sort order. salary sorts by salary_max desc, unlisted last.',
+					sort: z
+						.enum(['score', 'date', 'salary', 'comp', 'interest', 'relevance'])
+						.default('score')
+						.openapi({
+							description:
+								'Sort order. comp/interest/relevance are LENSES over the score breakdown: ' +
+								'they exclude floor-violating jobs (lowball comp, non-Americas remote, ' +
+								'non-eng discipline), stale postings, and downvotes, then sort by that axis. ' +
+								'salary sorts by raw salary_max desc.',
+						}),
+					workplace: z.enum(['remote', 'hybrid', 'onsite']).optional().openapi({
+						description: 'Filter to one workplace type (e.g. full-remote only).',
 					}),
 					min_score: z.coerce
 						.number()
@@ -136,6 +166,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				page,
 				limit,
 				sort,
+				workplace,
 				min_score,
 				min_salary,
 			} = c.req.valid('query');
@@ -168,8 +199,8 @@ export function registerFeedRoute(app: JobsApp): void {
 			// every row AND filter by it cheaply. js.user_id binds first if present
 			// because the join clause has to come before any state filter binds.
 			const stateCols = userId
-				? 'js.state as row_state, jf.vote as row_vote'
-				: 'NULL as row_state, NULL as row_vote';
+				? 'js.state as row_state, jf.vote as row_vote, jf.reason as row_vote_reasons'
+				: 'NULL as row_state, NULL as row_vote, NULL as row_vote_reasons';
 			if (userId) {
 				joins.push('LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?');
 				binds.push(userId);
@@ -204,6 +235,11 @@ export function registerFeedRoute(app: JobsApp): void {
 					wheres.push('j.role_track = ?');
 					binds.push(profile.track);
 				}
+			}
+
+			if (workplace) {
+				wheres.push('j.workplace_type = ?');
+				binds.push(workplace);
 			}
 
 			// Salary is a view filter now, never a scoring criterion. Jobs with no
@@ -244,7 +280,7 @@ export function registerFeedRoute(app: JobsApp): void {
 					SELECT
 						j.id, j.title, j.company, j.location, j.workplace_type,
 						j.salary_min, j.salary_max, j.source_site, j.url,
-						j.posted_date, j.scraped_at, j.ats, j.slug,
+						j.posted_date, j.scraped_at, j.last_seen_at, j.ats, j.slug,
 						j.role_track, j.role_level,
 						${stateCols}
 					FROM jobs j
@@ -265,27 +301,46 @@ export function registerFeedRoute(app: JobsApp): void {
 					});
 				}
 
-				// Shortlist: for score-sorted feeds, rank by the optimistic upper
-				// bound; other sorts shortlist by their own key, since scoring is
-				// decoration there. Ties break newest-first either way.
+				// Shortlist: score/lens sorts rank by light-pass axes; other sorts
+				// shortlist by their own key, since scoring is decoration there.
+				// Lens views (comp/interest/relevance) also apply the hard floors:
+				// sunk jobs, downvotes, and stale rows don't top ANY lens.
 				const light = candidates.results;
+				const isLens = sort === 'comp' || sort === 'interest' || sort === 'relevance';
 				let shortlist: typeof light;
-				if (sort === 'score') {
-					shortlist = light
-						.map((r) => ({
-							r,
-							bound: scoreJobUpperBound(
-								{
-									title: r.title,
-									location: r.location,
-									workplace_type: r.workplace_type,
-									salary_max: r.salary_max,
-									role_level: asRoleLevel(r.role_level),
-								},
-								profile
-							),
-						}))
-						.sort((a, b) => b.bound - a.bound || b.r.scraped_at.localeCompare(a.r.scraped_at))
+				if (sort === 'score' || isLens) {
+					let ranked = light.map((r) => ({
+						r,
+						axes: scoreJobLightAxes(
+							{
+								title: r.title,
+								location: r.location,
+								workplace_type: r.workplace_type,
+								salary_max: r.salary_max,
+								role_level: asRoleLevel(r.role_level),
+							},
+							profile
+						),
+					}));
+					if (isLens) {
+						ranked = ranked.filter(
+							({ r, axes }) => !axes.penalized && r.row_vote !== -1 && staleFactor(r) === 1.0
+						);
+					}
+					const lensKey = (a: (typeof ranked)[number]) =>
+						sort === 'comp'
+							? a.axes.comp_fit
+							: sort === 'interest'
+								? a.axes.interest_bound
+								: sort === 'relevance'
+									? a.axes.relevance_bound
+									: a.axes.bound;
+					shortlist = ranked
+						.map((x) => ({ r: x.r, bound: lensKey(x), tie: x.axes.bound }))
+						.sort(
+							(a, b) =>
+								b.bound - a.bound || b.tie - a.tie || b.r.scraped_at.localeCompare(a.r.scraped_at)
+						)
 						.slice(0, FULL_SCORE_CAP)
 						.map((x) => x.r);
 				} else if (sort === 'salary') {
@@ -348,16 +403,31 @@ export function registerFeedRoute(app: JobsApp): void {
 							slug: r.slug,
 							role_track: asRoleTrack(r.role_track),
 							role_level: roleLevel,
-							score: applyVote(score, r.row_vote),
+							score: applyVote(Math.round(score * staleFactor(r) * 1000) / 1000, r.row_vote),
 							score_breakdown: breakdown,
 							state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
 							vote: (r.row_vote as 1 | -1 | null) ?? null,
+							vote_reasons: r.row_vote_reasons ? String(r.row_vote_reasons).split(',') : [],
 						};
 					})
 					.filter((j) => j.score >= min_score);
 
 				if (sort === 'score') {
 					scored.sort((a, b) => b.score - a.score || b.scraped_at.localeCompare(a.scraped_at));
+				} else if (sort === 'comp') {
+					scored.sort(
+						(a, b) => b.score_breakdown.comp_fit - a.score_breakdown.comp_fit || b.score - a.score
+					);
+				} else if (sort === 'interest') {
+					scored.sort(
+						(a, b) =>
+							b.score_breakdown.domain_interest - a.score_breakdown.domain_interest ||
+							b.score - a.score
+					);
+				} else if (sort === 'relevance') {
+					scored.sort(
+						(a, b) => b.score_breakdown.relevance - a.score_breakdown.relevance || b.score - a.score
+					);
 				} else if (sort === 'salary') {
 					scored.sort(bySalaryDesc);
 				} else {

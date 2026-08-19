@@ -381,16 +381,28 @@ export function scoreJob(job: ScorableJob, profile: ScoringProfile): ScoreResult
 	return { score: compose(breakdown, geo.penalty * comp.penalty), breakdown };
 }
 
-/**
- * Optimistic upper bound WITHOUT the description — used by the feed's light
- * pass. Description-independent axes are exact; relevance and interest assume
- * best-case description content. A job excluded from the full-scoring
- * shortlist has a bound below the shortlist's floor, so it could never have
- * out-ranked the shortlist even with a perfect description.
- */
-export function scoreJobUpperBound(job: ScorableJobLight, profile: ScoringProfile): number {
+/** Description-independent axis values plus bounds for the two description-
+ *  dependent ones — the feed's light pass uses these both to shortlist for
+ *  full scoring and to shortlist per-LENS (sort by comp/interest/relevance).
+ *  `penalized` marks the multiplicative sinks (lowball comp, non-Americas
+ *  remote, adjacent discipline) — lens views exclude those outright: they are
+ *  exactly the owner's hard floors. */
+export interface LightAxes {
+	relevance_bound: number;
+	level_match: number;
+	geo_fit: number;
+	comp_fit: number;
+	stack_fit: number;
+	interest_bound: number;
+	discipline_factor: number;
+	penalized: boolean;
+	bound: number;
+}
+
+export function scoreJobLightAxes(job: ScorableJobLight, profile: ScoringProfile): LightAxes {
 	const geo = geoFit(job.location, job.workplace_type, profile.remote_pref);
 	const comp = compFit(job.salary_max, profile.salary_floor);
+	const discipline = classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0;
 	const breakdown: ScoreBreakdown = {
 		relevance: relevanceUpperBound(job.title, profile.keywords),
 		level_match: levelMatch(job.role_level, profile.levels),
@@ -402,7 +414,28 @@ export function scoreJobUpperBound(job: ScorableJobLight, profile: ScoringProfil
 			profile.interests_like,
 			profile.interests_avoid
 		),
-		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
+		discipline_factor: discipline,
 	};
-	return compose(breakdown, geo.penalty * comp.penalty);
+	return {
+		relevance_bound: breakdown.relevance,
+		level_match: breakdown.level_match,
+		geo_fit: geo.fit,
+		comp_fit: comp.fit,
+		stack_fit: breakdown.stack_fit,
+		interest_bound: breakdown.domain_interest,
+		discipline_factor: discipline,
+		penalized: geo.penalty < 1 || comp.penalty < 1 || discipline < 1,
+		bound: compose(breakdown, geo.penalty * comp.penalty),
+	};
+}
+
+/**
+ * Optimistic upper bound WITHOUT the description — used by the feed's light
+ * pass. Description-independent axes are exact; relevance and interest assume
+ * best-case description content. A job excluded from the full-scoring
+ * shortlist has a bound below the shortlist's floor, so it could never have
+ * out-ranked the shortlist even with a perfect description.
+ */
+export function scoreJobUpperBound(job: ScorableJobLight, profile: ScoringProfile): number {
+	return scoreJobLightAxes(job, profile).bound;
 }

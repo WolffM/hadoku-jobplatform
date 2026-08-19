@@ -12,6 +12,7 @@ import {
   type JobStateRead,
   type JobStateWrite,
   type ApplicationExtras,
+  type FeedbackReason,
   type VoteValue
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
@@ -26,7 +27,7 @@ interface Props {
   initialVote?: VoteValue | null
   onClose: () => void
   onStateChange?: (jobId: string, newState: JobStateRead) => void
-  onVoteChange?: (jobId: string, vote: VoteValue | null) => void
+  onVoteChange?: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
 }
 
 // Track and companies are hard filters, not score factors, so they never appear
@@ -131,6 +132,7 @@ export function JobDrawer({
   const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
   const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
   const [vote, setVote] = useState<VoteValue | null>(initialVote ?? null)
+  const [voteReasons, setVoteReasons] = useState<FeedbackReason[]>([])
   // The apply kit, built by "Prepare application" in two waves: résumé + cover
   // letter first, then the extras (which need the résumé as input).
   const [preparing, setPreparing] = useState(false)
@@ -368,11 +370,13 @@ export function JobDrawer({
                   jobId={jobId}
                   auth={auth}
                   vote={vote}
+                  reasons={voteReasons}
                   disabled={!stateButtonsEnabled}
                   align="start"
-                  onVoteChange={(id, next) => {
+                  onVoteChange={(id, next, nextReasons) => {
                     setVote(next)
-                    onVoteChange?.(id, next)
+                    setVoteReasons(nextReasons)
+                    onVoteChange?.(id, next, nextReasons)
                   }}
                 />
               </div>

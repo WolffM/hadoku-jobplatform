@@ -63,6 +63,7 @@ export interface JobSummary {
   // it — the detail endpoint doesn't — so undefined means "unknown", not
   // "unvoted".
   vote?: VoteValue | null
+  vote_reasons?: string[]
 }
 
 export interface JobDetail extends JobSummary {
@@ -93,9 +94,10 @@ export interface ListJobsOptions {
   min_score?: number
   /** View filter only — never a profile criterion. Jobs with no listed salary survive it. */
   min_salary?: number
+  workplace?: 'remote' | 'hybrid' | 'onsite'
 }
 
-export type JobSort = 'score' | 'date' | 'salary'
+export type JobSort = 'score' | 'date' | 'salary' | 'comp' | 'interest' | 'relevance'
 
 interface Wrapped<T> {
   success: boolean
@@ -202,24 +204,24 @@ export async function setJobState(
 
 /**
  * PUT /jobs/:id/feedback — upsert the caller's vote on one posting: +1/-1
- * plus an axis-aligned reason. Same session auth as the state calls.
+ * plus multi-select axis-aligned reasons. Same session auth as the state calls.
  */
 export async function setJobFeedback(
   id: string,
   vote: VoteValue,
-  reason: FeedbackReason | undefined,
+  reasons: FeedbackReason[],
   auth?: Auth
-): Promise<{ job_id: string; vote: VoteValue | null; reason: string | null; updated_at: string }> {
+): Promise<{ job_id: string; vote: VoteValue | null; reasons: string[]; updated_at: string }> {
   const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
     method: 'PUT',
     headers: authHeaders(auth, true),
     credentials: 'include',
-    body: JSON.stringify(reason ? { vote, reason } : { vote })
+    body: JSON.stringify({ vote, reasons })
   })
   return parseWrapped<{
     job_id: string
     vote: VoteValue | null
-    reason: string | null
+    reasons: string[]
     updated_at: string
   }>(response)
 }
@@ -231,7 +233,7 @@ export async function setJobFeedback(
 export async function clearJobFeedback(
   id: string,
   auth?: Auth
-): Promise<{ job_id: string; vote: VoteValue | null; reason: string | null; updated_at: string }> {
+): Promise<{ job_id: string; vote: VoteValue | null; reasons: string[]; updated_at: string }> {
   const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
     method: 'DELETE',
     headers: authHeaders(auth),
@@ -240,7 +242,7 @@ export async function clearJobFeedback(
   return parseWrapped<{
     job_id: string
     vote: VoteValue | null
-    reason: string | null
+    reasons: string[]
     updated_at: string
   }>(response)
 }

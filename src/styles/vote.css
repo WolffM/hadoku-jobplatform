@@ -97,6 +97,13 @@
   border-color: var(--color-primary);
 }
 
+.jp-vote__reason--active {
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
 /* Drawer placement: the vote row sits above the triage state buttons. */
 .jp-drawer__vote {
   margin-bottom: var(--hdk-space-md);
