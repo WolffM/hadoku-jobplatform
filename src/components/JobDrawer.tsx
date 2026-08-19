@@ -11,16 +11,22 @@ import {
   type ScoreBreakdown,
   type JobStateRead,
   type JobStateWrite,
-  type ApplicationExtras
+  type ApplicationExtras,
+  type VoteValue
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
+import { VoteControl } from './VoteControl'
 
 interface Props {
   auth: Auth
   jobId: string
   profileId: string | null
+  // The vote known at open time (from the feed card). The detail endpoint
+  // doesn't return votes, so a deep link opens as unvoted.
+  initialVote?: VoteValue | null
   onClose: () => void
   onStateChange?: (jobId: string, newState: JobStateRead) => void
+  onVoteChange?: (jobId: string, vote: VoteValue | null) => void
 }
 
 // Track and companies are hard filters, not score factors, so they never appear
@@ -109,13 +115,22 @@ function CopyBlock({
   )
 }
 
-export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Props) {
+export function JobDrawer({
+  auth,
+  jobId,
+  profileId,
+  initialVote,
+  onClose,
+  onStateChange,
+  onVoteChange
+}: Props) {
   const [job, setJob] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   // Optimistic local state so the buttons update without a full refetch.
   const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
   const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
+  const [vote, setVote] = useState<VoteValue | null>(initialVote ?? null)
   // The apply kit, built by "Prepare application" in two waves: résumé + cover
   // letter first, then the extras (which need the résumé as input).
   const [preparing, setPreparing] = useState(false)
@@ -136,6 +151,7 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     setError(null)
     setJob(null)
     setCurrentState(null)
+    setVote(initialVote ?? null)
     setPacket(null)
     setPacketError(null)
     setExtras(null)
@@ -162,7 +178,7 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
     return () => {
       cancelled = true
     }
-  }, [auth, jobId, profileId])
+  }, [auth, jobId, profileId, initialVote])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -347,6 +363,19 @@ export function JobDrawer({ auth, jobId, profileId, onClose, onStateChange }: Pr
               {!stateButtonsEnabled && (
                 <p className="jp-muted">Sign in to track your interest in this job.</p>
               )}
+              <div className="jp-drawer__vote">
+                <VoteControl
+                  jobId={jobId}
+                  auth={auth}
+                  vote={vote}
+                  disabled={!stateButtonsEnabled}
+                  align="start"
+                  onVoteChange={(id, next) => {
+                    setVote(next)
+                    onVoteChange?.(id, next)
+                  }}
+                />
+              </div>
               <div className="jp-drawer__actions">
                 {STATE_ACTIONS.map(({ state, label, verb }) => {
                   const isActive = currentState === state

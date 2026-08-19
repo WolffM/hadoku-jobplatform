@@ -1,9 +1,15 @@
-import type { JobSummary } from '../api/jobs'
+import type { JobSummary, VoteValue } from '../api/jobs'
+import type { Auth } from '../api/auth'
+import { VoteControl } from './VoteControl'
 
 interface Props {
   job: JobSummary
   showScore: boolean
+  auth: Auth
+  // The vote to display — feed value merged with any this-session override.
+  vote: VoteValue | null
   onClick: () => void
+  onVote: (jobId: string, vote: VoteValue | null) => void
 }
 
 function formatSalary(min: number | null, max: number | null): string | null {
@@ -29,19 +35,36 @@ function scoreTier(score: number): 'high' | 'mid' | 'low' {
   return 'low'
 }
 
-export function JobCard({ job, showScore, onClick }: Props) {
+export function JobCard({ job, showScore, auth, vote, onClick, onVote }: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
   const tier = showScore ? scoreTier(job.score) : null
   const hasState = job.state && job.state !== 'new'
+  // Voting is per-user; an unauthenticated feed has state: null on every job.
+  const canVote = job.state !== null && job.state !== undefined
 
   const cardClasses = ['jp-jobcard']
   if (tier) cardClasses.push(`jp-jobcard--score-${tier}`)
   if (hasState) cardClasses.push(`jp-jobcard--state-${job.state}`)
+  if (vote === -1) cardClasses.push('jp-jobcard--downvoted')
   const scoreClass = tier ? `jp-jobcard__score jp-jobcard__score--${tier}` : 'jp-jobcard__score'
 
   return (
-    <button type="button" className={cardClasses.join(' ')} onClick={onClick}>
+    // Not a <button>: the vote thumbs live inside the card, and buttons can't
+    // nest. role+tabIndex+keydown keep it clickable and keyboard-activatable.
+    <div
+      role="button"
+      tabIndex={0}
+      className={cardClasses.join(' ')}
+      onClick={onClick}
+      onKeyDown={e => {
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+    >
       <div className="jp-jobcard__top">
         <span className="jp-jobcard__title">{job.title}</span>
         <div className="jp-jobcard__top-right">
@@ -54,6 +77,7 @@ export function JobCard({ job, showScore, onClick }: Props) {
             </span>
           )}
           {showScore && <span className={scoreClass}>{job.score.toFixed(2)}</span>}
+          {canVote && <VoteControl jobId={job.id} auth={auth} vote={vote} onVoteChange={onVote} />}
         </div>
       </div>
       <div className="jp-jobcard__meta">
@@ -72,6 +96,6 @@ export function JobCard({ job, showScore, onClick }: Props) {
         <span className="jp-jobcard__source">{job.source_site}</span>
         {posted && <span>{posted}</span>}
       </div>
-    </button>
+    </div>
   )
 }

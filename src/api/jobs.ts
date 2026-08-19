@@ -23,6 +23,21 @@ export type RoleTrack = 'ic' | 'manager' | 'unknown'
 export type JobStateRead = 'new' | 'interested' | 'dismissed' | 'saved' | 'applied'
 export type JobStateWrite = 'interested' | 'dismissed' | 'saved' | 'applied'
 
+/** A curation vote on a posting: thumbs up or thumbs down. */
+export type VoteValue = 1 | -1
+
+/** Mirrors FEEDBACK_REASONS in worker/src/schemas.ts — one axis per vote. */
+export type FeedbackReason =
+  | 'pay'
+  | 'location'
+  | 'stack'
+  | 'domain'
+  | 'level'
+  | 'company'
+  | 'comp'
+  | 'fit'
+  | 'other'
+
 export interface JobSummary {
   id: string
   title: string
@@ -44,6 +59,10 @@ export interface JobSummary {
   // null when caller is unauthenticated (no per-user join). 'new' when
   // there's no job_states row for the authed user.
   state: JobStateRead | null
+  // The caller's curation vote, when authenticated. Only the feed populates
+  // it — the detail endpoint doesn't — so undefined means "unknown", not
+  // "unvoted".
+  vote?: VoteValue | null
 }
 
 export interface JobDetail extends JobSummary {
@@ -179,6 +198,51 @@ export async function setJobState(
     body: JSON.stringify(variantSlug ? { state, variant_slug: variantSlug } : { state })
   })
   return parseWrapped<{ job_id: string; state: JobStateRead; updated_at: string }>(response)
+}
+
+/**
+ * PUT /jobs/:id/feedback — upsert the caller's vote on one posting: +1/-1
+ * plus an axis-aligned reason. Same session auth as the state calls.
+ */
+export async function setJobFeedback(
+  id: string,
+  vote: VoteValue,
+  reason: FeedbackReason | undefined,
+  auth?: Auth
+): Promise<{ job_id: string; vote: VoteValue | null; reason: string | null; updated_at: string }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
+    method: 'PUT',
+    headers: authHeaders(auth, true),
+    credentials: 'include',
+    body: JSON.stringify(reason ? { vote, reason } : { vote })
+  })
+  return parseWrapped<{
+    job_id: string
+    vote: VoteValue | null
+    reason: string | null
+    updated_at: string
+  }>(response)
+}
+
+/**
+ * DELETE /jobs/:id/feedback — clear the caller's vote on one posting.
+ * Idempotent: safe to call when no vote exists.
+ */
+export async function clearJobFeedback(
+  id: string,
+  auth?: Auth
+): Promise<{ job_id: string; vote: VoteValue | null; reason: string | null; updated_at: string }> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
+    method: 'DELETE',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  return parseWrapped<{
+    job_id: string
+    vote: VoteValue | null
+    reason: string | null
+    updated_at: string
+  }>(response)
 }
 
 /**

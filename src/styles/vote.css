@@ -1,0 +1,103 @@
+/* ============================================================================
+   Posting feedback — thumb votes + reason chips (job cards + drawer)
+   ============================================================================ */
+
+.jp-vote {
+  position: relative;
+  display: inline-flex;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-vote__thumb {
+  padding: 2px var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  font-size: var(--hdk-text-sm);
+  line-height: 1.4;
+  cursor: pointer;
+
+  /* Unvoted thumbs sit quiet until hovered so the emoji doesn't shout on
+     every card in the list. */
+  filter: grayscale(1);
+  opacity: 0.65;
+  transition:
+    border-color 0.15s ease,
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+
+.jp-vote__thumb:hover:not(:disabled),
+.jp-vote__thumb:focus-visible {
+  filter: none;
+  opacity: 1;
+  border-color: var(--color-primary);
+}
+
+.jp-vote__thumb:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.jp-vote__thumb--active {
+  filter: none;
+  opacity: 1;
+}
+
+.jp-vote__thumb--up.jp-vote__thumb--active {
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.jp-vote__thumb--down.jp-vote__thumb--active {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+/* Reason chips: one inline popover per control, anchored under the thumbs.
+   Cards hug the list's right edge, so the default hangs from the right edge
+   of the control; the drawer control anchors from the left instead. */
+.jp-vote__reasons {
+  position: absolute;
+  top: calc(100% + var(--hdk-space-xs));
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-xs);
+  width: max-content;
+  max-width: 260px;
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  box-shadow: var(--hdk-shadow-md);
+}
+
+.jp-vote--start .jp-vote__reasons {
+  right: auto;
+  left: 0;
+}
+
+.jp-vote__reason {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.jp-vote__reason:hover,
+.jp-vote__reason:focus-visible {
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  border-color: var(--color-primary);
+}
+
+/* Drawer placement: the vote row sits above the triage state buttons. */
+.jp-drawer__vote {
+  margin-bottom: var(--hdk-space-md);
+}

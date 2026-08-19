@@ -4,7 +4,8 @@ import {
   JobsApiError,
   type JobSummary,
   type JobStateRead,
-  type JobSort
+  type JobSort,
+  type VoteValue
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
 import { JobCard } from './JobCard'
@@ -12,10 +13,15 @@ import { JobCard } from './JobCard'
 interface Props {
   auth: Auth
   profileId: string | null
-  onSelect: (jobId: string) => void
+  onSelect: (jobId: string, vote: VoteValue | null) => void
   // Bumped by the drawer when the user transitions a job — forces a refetch
   // so the list reflects the new state immediately.
   refreshKey?: number
+  // This-session vote overrides (card thumbs + drawer), keyed by job id.
+  // They shadow the fetched feed value so a vote never forces a refetch —
+  // the feed only re-ranks on the next natural load.
+  voteOverrides: Record<string, VoteValue | null>
+  onVote: (jobId: string, vote: VoteValue | null) => void
 }
 
 const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
@@ -27,7 +33,7 @@ const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
   { value: 'dismissed', label: 'Dismissed' }
 ]
 
-export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
+export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides, onVote }: Props) {
   const [jobs, setJobs] = useState<JobSummary[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -212,11 +218,21 @@ export function JobsList({ auth, profileId, onSelect, refreshKey }: Props) {
         </p>
       ) : (
         <ul className="jp-jobs__list">
-          {filtered.map(job => (
-            <li key={job.id}>
-              <JobCard job={job} showScore={!!profileId} onClick={() => onSelect(job.id)} />
-            </li>
-          ))}
+          {filtered.map(job => {
+            const vote = job.id in voteOverrides ? voteOverrides[job.id] : (job.vote ?? null)
+            return (
+              <li key={job.id}>
+                <JobCard
+                  job={job}
+                  showScore={!!profileId}
+                  auth={auth}
+                  vote={vote}
+                  onClick={() => onSelect(job.id, vote)}
+                  onVote={onVote}
+                />
+              </li>
+            )
+          })}
         </ul>
       )}
 
