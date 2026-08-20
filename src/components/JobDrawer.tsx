@@ -242,6 +242,25 @@ export function JobDrawer({
           (await generateCoverLetter(jobId, auth)).cover_letter_markdown
         setPacket({ resume: resume.resume_markdown, coverLetter })
         setExtras(kit)
+        // Auto-mint: preparing an application IS creating the packet. The mint
+        // is instant (no LLM) and records the slug on the job, so the Packets
+        // view always finds it — the owner generated two kits that vanished
+        // because this was a separate button. Failure is non-fatal; the manual
+        // link button remains.
+        try {
+          const { url, slug } = await mintPacketLink(
+            jobId,
+            {
+              resume_markdown: resume.resume_markdown,
+              ...(coverLetter ? { cover_letter_markdown: coverLetter } : {})
+            },
+            auth
+          )
+          setPacketLink(url)
+          setPacketSlug(slug)
+        } catch {
+          // leave the manual "Create link" path available
+        }
       } catch (err) {
         setExtrasError(
           err instanceof JobsApiError ? err.message : 'Failed to generate the application kit'
