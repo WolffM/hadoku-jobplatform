@@ -215,6 +215,20 @@ describe('POST /jobs/{id}/packet-link', () => {
 		assert.equal(call?.body.ttl_days, 365, 'default retention');
 	});
 
+	it('records the slug on job_states at mint — the Packets view must find it', async () => {
+		await h.json(`${BASE}/jobs/tailor-1/packet-link`, {
+			method: 'POST',
+			...AUTH,
+			body: JSON.stringify({ resume_markdown: '# R' }),
+		});
+		const row = await h.db
+			.prepare('SELECT state, variant_slug FROM job_states WHERE job_id = ?')
+			.bind('tailor-1')
+			.first<{ state: string; variant_slug: string | null }>();
+		assert.equal(row?.variant_slug, 'abc123', 'mint persists the slug without a state click');
+		assert.equal(row?.state, 'saved', 'fresh row lands as saved');
+	});
+
 	it('honours an explicit ttl_days', async () => {
 		await h.json(`${BASE}/jobs/tailor-1/packet-link`, {
 			method: 'POST',
