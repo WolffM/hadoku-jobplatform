@@ -15,7 +15,7 @@
  * method+path first, then the handler.
  */
 import type { AppEnv } from '../../types.js';
-import { gateAuthed, type JobsApp } from './shared.js';
+import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
 
 interface JobTailoringFields {
 	title: string;
@@ -176,6 +176,25 @@ export function registerTailoringRoutes(app: JobsApp): void {
 				502
 			);
 		}
+		// Minting IS the record: link the slug to this job for the caller so the
+		// Packets view finds it without a separate state click. Existing state is
+		// preserved; a fresh row lands as 'saved' (generating a packet implies at
+		// least that much interest). The owner generated two packets that were
+		// unfindable because nothing wrote this row — never again.
+		const userId = await maybeUserId(c);
+		if (userId) {
+			const now = new Date().toISOString();
+			await c.env.JOB_PLATFORM_DB.prepare(
+				`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
+				 VALUES (?, ?, 'saved', NULL, ?, ?)
+				 ON CONFLICT (job_id, user_id) DO UPDATE SET
+				   variant_slug = excluded.variant_slug,
+				   updated_at = excluded.updated_at`
+			)
+				.bind(id, userId, now, variant.slug)
+				.run();
+		}
+
 		const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
 		return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);
 	});
