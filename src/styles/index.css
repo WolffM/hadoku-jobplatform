@@ -24,6 +24,7 @@
 @import './dashboard-shell.css';
 @import './filters.css';
 @import './job-list.css';
+@import './packets.css'; /* after job-list.css: rows reuse its state badge */
 @import './job-drawer.css';
 @import './vote.css';
 @import './companies-page.css';
