@@ -19,9 +19,38 @@ const app = new OpenAPIHono<RouteContext>();
 // HADOKU_SERVICE_KEY — service tier, which outranks friend); /backfill-slugs is
 // an operator tool; /directives is pulled by the scraper each run and read by
 // operators for debugging. None of them needs to enumerate tiers.
+
+// ── 2-month cull (owner directive 2026-08-19) ────────────────────────────────
+// A listing older than CULL_DAYS by its freshest signal — posted date, first
+// scrape, or last time a scrape still saw it — is dead weight. Rows the owner
+// touched are IMMUNE: job_states (triage, packets) and job_feedback (votes) are
+// records and training data, never garbage. Board postings still listed keep
+// last_seen_at advancing, so they never age into the cull while alive.
+const CULL_DAYS = 60;
+const CULL_BATCH = 500;
+
+async function cullExpired(db: AppEnv['JOB_PLATFORM_DB']): Promise<number> {
+	const cutoff = new Date(Date.now() - CULL_DAYS * 86_400_000).toISOString();
+	const res = await db
+		.prepare(
+			`DELETE FROM jobs WHERE id IN (
+				SELECT j.id FROM jobs j
+				WHERE MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
+				  AND NOT EXISTS (SELECT 1 FROM job_states s WHERE s.job_id = j.id)
+				  AND NOT EXISTS (SELECT 1 FROM job_feedback f WHERE f.job_id = j.id)
+				LIMIT ${CULL_BATCH}
+			)`
+		)
+		.bind(cutoff)
+		.run();
+	return res.meta?.changes ?? 0;
+}
+
 app.use('/ingest', requireMinTier('friend'));
 app.use('/ingest/backfill-slugs', requireMinTier('friend'));
 app.use('/ingest/backfill-roles', requireMinTier('friend'));
+app.use('/ingest/backfill-salary', requireMinTier('friend'));
+app.use('/ingest/cull', requireMinTier('friend'));
 app.use('/directives', requireMinTier('friend'));
 
 // Normalize workplace_type values from scraper to our canonical set
@@ -140,10 +169,17 @@ app.openapi(ingestRoute, async (c) => {
 	}
 	if (seenStmts.length) await db.batch(seenStmts);
 
+	// End of a scrape run: sweep one bounded batch of expired listings. Repeated
+	// runs converge; the manual /ingest/cull endpoint exists for full sweeps.
+	let culled = 0;
+	if (is_final) {
+		culled = await cullExpired(db);
+	}
+
 	return c.json(
 		{
 			success: true as const,
-			data: { accepted, skipped, batch_number, is_final },
+			data: { accepted, skipped, batch_number, is_final, culled },
 		},
 		200
 	);
@@ -495,6 +531,34 @@ app.openapi(backfillSalaryRoute, async (c) => {
 			has_more: rows.results.length === limit,
 		},
 	});
+});
+
+// ── POST /ingest/cull — manual full sweep of expired listings ────────────────
+const cullRoute = createRoute({
+	method: 'post',
+	path: '/ingest/cull',
+	tags: ['Ingest'],
+	summary: `Delete listings older than ${CULL_DAYS} days (freshest of posted/first-seen/last-seen), sparing rows with owner activity`,
+	responses: {
+		200: {
+			description: 'Cull batch complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({ culled: z.number(), has_more: z.boolean() }),
+						})
+						.openapi('CullResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(cullRoute, async (c) => {
+	const culled = await cullExpired(c.env.JOB_PLATFORM_DB);
+	return c.json({ success: true as const, data: { culled, has_more: culled === CULL_BATCH } }, 200);
 });
 
 export const ingestRoutes = app;
