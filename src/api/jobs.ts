@@ -347,6 +347,35 @@ export async function generateApplicationExtras(
 }
 
 /**
+ * One generated application packet: a job_states row carrying the resume-api
+ * variant slug minted for it, joined with the job. The slug keys both the
+ * public packet page (hadoku.me/resume?v={slug}) and its PDF.
+ */
+export interface PacketSummary {
+  job_id: string
+  title: string
+  company: string
+  location: string
+  state: JobStateRead
+  variant_slug: string
+  updated_at: string
+}
+
+/**
+ * GET /jobs/packets — every packet the caller has generated, newest first.
+ * Friend-gated: packets are per-user, so this 403s without auth.
+ */
+export async function listPackets(auth?: Auth): Promise<PacketSummary[]> {
+  const response = await fetch(`${BASE_URL}/jobs/packets`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ packets: PacketSummary[] }>(response)
+  return data.packets
+}
+
+/**
  * DELETE /jobs/:id/state — clear the caller's state for one job (returns to
  * implicit 'new'). Idempotent: safe to call when no state row exists.
  */

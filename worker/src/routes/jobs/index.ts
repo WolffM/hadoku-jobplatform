@@ -11,6 +11,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import type { RouteContext } from './shared.js';
 import { registerFeedRoute } from './feed.js';
 import { registerPreflightRoute } from './preflight.js';
+import { registerPacketsRoute } from './packets.js';
 import { registerDetailRoute } from './detail.js';
 import { registerStateRoutes } from './state.js';
 import { registerFeedbackRoutes } from './feedback.js';
@@ -20,6 +21,7 @@ const app = new OpenAPIHono<RouteContext>();
 
 registerFeedRoute(app);
 registerPreflightRoute(app); // before the param route below — see above
+registerPacketsRoute(app); // ditto — /jobs/packets must beat /jobs/{id}
 registerDetailRoute(app);
 registerStateRoutes(app);
 registerFeedbackRoutes(app);

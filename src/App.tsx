@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState, type RefObject } from 'react'
 import {
   HashRouter,
+  Link,
   Navigate,
   Outlet,
   Route,
@@ -17,6 +18,7 @@ import { ProfileSidebar } from './components/ProfileSidebar'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
+import { PacketsList } from './components/PacketsList'
 import type { Auth } from './api/auth'
 import type { FeedbackReason, VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
@@ -76,17 +78,55 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
       <HashRouter>
         <div className="job-platform">
           <AppHeader title="Job Platform" />
+          <TopNav />
 
           <Routes>
             <Route element={<Dashboard auth={auth} />}>
               <Route index element={null} />
               <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
             </Route>
+            <Route path="packets" element={<PacketsPage auth={auth} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </HashRouter>
     </main>
+  )
+}
+
+/**
+ * Section tabs: the feed (everything under '/') and the packets reference
+ * list. Explicit active classes rather than NavLink because the drawer route
+ * (/jobs/:id) lives under the feed and must keep the Feed tab lit.
+ */
+function TopNav() {
+  const { pathname } = useLocation()
+  const onPackets = pathname.startsWith('/packets')
+  return (
+    <nav className="job-platform__nav">
+      <Link to="/" className={onPackets ? undefined : 'active'}>
+        Feed
+      </Link>
+      <Link to="/packets" className={onPackets ? 'active' : undefined}>
+        Packets
+      </Link>
+    </nav>
+  )
+}
+
+/**
+ * The Packets view — every generated application packet, findable again.
+ * Clicking a row jumps to the job's drawer on the feed route.
+ */
+function PacketsPage({ auth }: { auth: Auth }) {
+  const navigate = useNavigate()
+  return (
+    <section className="jp-main">
+      <PacketsList
+        auth={auth}
+        onSelect={jobId => void navigate(`/jobs/${encodeURIComponent(jobId)}`)}
+      />
+    </section>
   )
 }
 

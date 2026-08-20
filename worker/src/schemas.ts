@@ -189,6 +189,26 @@ export const JobStateResponseSchema = S(
 	})
 ).openapi('JobStateResponse');
 
+// GET /jobs/packets — every application packet the caller minted a link for:
+// job_states rows carrying a variant_slug, joined with the job they belong to.
+// The packet itself lives in resume-api; the slug is the key to both the public
+// page (hadoku.me/resume?v={slug}) and the PDF (…/resume/api/resume.pdf?v=).
+export const PacketSummarySchema = z
+	.object({
+		job_id: z.string(),
+		title: z.string(),
+		company: z.string(),
+		location: z.string(),
+		state: JobStateReadSchema,
+		variant_slug: z.string(),
+		updated_at: z.string(),
+	})
+	.openapi('PacketSummary');
+
+export const PacketsResponseSchema = S(z.object({ packets: z.array(PacketSummarySchema) })).openapi(
+	'PacketsResponse'
+);
+
 export const JobsResponseSchema = S(
 	z.object({
 		jobs: z.array(JobSummarySchema),
