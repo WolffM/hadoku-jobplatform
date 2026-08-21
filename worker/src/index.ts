@@ -80,6 +80,7 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 				{ name: 'Ingest', description: 'Scraper webhook receiver' },
 				{ name: 'Profiles', description: 'Role profile management' },
 				{ name: 'Jobs', description: 'Job listing queries' },
+				{ name: 'Applications', description: 'Approve-to-apply queue for the form runner' },
 				{ name: 'Companies', description: 'Per-user company subscriptions' },
 			],
 		})

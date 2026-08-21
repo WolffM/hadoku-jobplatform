@@ -222,6 +222,69 @@ export const JobsResponseSchema = S(
 export const JobResponseSchema = S(z.object({ job: JobDetailSchema })).openapi('JobResponse');
 
 // ============================================================================
+// Applications — the approve-to-apply queue (issue #15)
+// ============================================================================
+
+// 'review' pauses after the runner fills the form (owner approves the
+// screenshot before submit); 'auto' fills and submits in one pass.
+export const ApplicationModeSchema = z.enum(['review', 'auto']).openapi('ApplicationMode');
+
+// queued → filled → approved → submitted, with needs_manual / failed as the
+// honest failure exits. The runner posts transitions via /applications/:id/status;
+// only 'approved' is owner-only (via /applications/:id/approve).
+export const ApplicationStatusSchema = z
+	.enum(['queued', 'filled', 'approved', 'submitted', 'needs_manual', 'failed'])
+	.openapi('ApplicationStatus');
+
+export const ApplyRequestSchema = z
+	.object({
+		mode: ApplicationModeSchema.optional(),
+	})
+	.openapi('ApplyRequest');
+
+export const ApplicationSchema = z
+	.object({
+		id: z.string(),
+		job_id: z.string(),
+		variant_slug: z.string(),
+		mode: ApplicationModeSchema,
+		status: ApplicationStatusSchema,
+		error: z.string().nullable(),
+		// Runner-written JSON blob: screenshot paths, confirmation ids, deep links.
+		evidence: z.record(z.string(), z.unknown()).nullable(),
+		created_at: z.string(),
+		updated_at: z.string(),
+	})
+	.openapi('Application');
+
+// GET /applications joins the job so the dashboard can render the queue
+// without a second round-trip.
+export const ApplicationSummarySchema = ApplicationSchema.extend({
+	title: z.string(),
+	company: z.string(),
+	location: z.string(),
+}).openapi('ApplicationSummary');
+
+export const ApplicationResponseSchema = S(z.object({ application: ApplicationSchema })).openapi(
+	'ApplicationResponse'
+);
+
+export const ApplicationsResponseSchema = S(
+	z.object({ applications: z.array(ApplicationSummarySchema) })
+).openapi('ApplicationsResponse');
+
+export const SetApplicationStatusSchema = z
+	.object({
+		status: ApplicationStatusSchema,
+		// The current status's story: omitted → cleared (a stale error must not
+		// outlive the failure it described). Evidence is the opposite — omitted →
+		// kept, so a bare transition never wipes the runner's screenshots.
+		error: z.string().optional(),
+		evidence: z.record(z.string(), z.unknown()).optional(),
+	})
+	.openapi('SetApplicationStatus');
+
+// ============================================================================
 // V3 — tailored application packets (proxied to resume-api via service binding)
 // ============================================================================
 

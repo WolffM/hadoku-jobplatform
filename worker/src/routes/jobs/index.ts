@@ -16,6 +16,7 @@ import { registerDetailRoute } from './detail.js';
 import { registerStateRoutes } from './state.js';
 import { registerFeedbackRoutes } from './feedback.js';
 import { registerTailoringRoutes } from './tailoring.js';
+import { registerApplicationRoutes } from './applications.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -26,5 +27,8 @@ registerDetailRoute(app);
 registerStateRoutes(app);
 registerFeedbackRoutes(app);
 registerTailoringRoutes(app);
+// The approve-to-apply queue rides on the jobs app for the shared friend gate;
+// its /applications paths have no static/param collision with /jobs routes.
+registerApplicationRoutes(app);
 
 export const jobRoutes = app;
