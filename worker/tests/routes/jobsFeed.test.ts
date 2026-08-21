@@ -353,6 +353,45 @@ describe('GET /jobs — request validation', () => {
 	});
 });
 
+describe('GET /jobs — ghost-posting decay', () => {
+	it('a still-listed req posted 6 months ago decays and leaves lens views', async () => {
+		const fresh = new Date().toISOString();
+		const sixMonthsAgo = new Date(Date.now() - 185 * 86_400_000).toISOString();
+		await seedJob(h.db, {
+			id: 'ghost-1',
+			title: 'Senior Software Engineer, Agent Infrastructure',
+			company: 'Ghosty',
+			ats: 'ashby',
+			slug: 'ghosty',
+			role_track: 'ic',
+			role_level: 'senior',
+			workplace_type: 'remote',
+			description: 'Build distributed systems with Go and Kubernetes.',
+			scraped_at: fresh,
+			posted_date: sixMonthsAgo,
+		});
+		await h.db
+			.prepare('UPDATE jobs SET last_seen_at = ? WHERE id = ?')
+			.bind(fresh, 'ghost-1')
+			.run();
+		await seedProfile(h.db, {
+			id: 'p-ghost',
+			name: 'Ghost check',
+			keywords: ['kubernetes'],
+			track: 'either',
+		});
+
+		const scored = await h.json<FeedBody>(`${BASE}/jobs?profile_id=p-ghost&sort=score&limit=50`);
+		const ghost = scored.body.data.jobs.find((j) => j.id === 'ghost-1');
+		const twin = scored.body.data.jobs.find((j) => j.id === 'g-1');
+		assert.ok(ghost, 'still visible on the score sort');
+		assert.ok(twin && ghost && ghost.score < twin.score, 'ancient posted date decays the score');
+
+		const lens = await h.json<FeedBody>(`${BASE}/jobs?profile_id=p-ghost&sort=relevance&limit=50`);
+		assert.ok(!lens.body.data.jobs.some((j) => j.id === 'ghost-1'), 'lens views exclude ghosts');
+	});
+});
+
 describe('GET /jobs — two-stage scoring', () => {
 	it('description-only keyword matches still reach the feed fully scored', async () => {
 		// 'kubernetes' appears ONLY in descriptions (g-1, g-2), never in titles.

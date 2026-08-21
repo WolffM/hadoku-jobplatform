@@ -102,7 +102,17 @@ export function JobCard({ job, showScore, auth, vote, voteReasons, onClick, onVo
       </div>
       <div className="jp-jobcard__footer">
         {salary && <span className="jp-jobcard__salary">{salary}</span>}
-        <span className="jp-jobcard__source">{job.source_site}</span>
+        <a
+          className="jp-jobcard__source jp-jobcard__source--link"
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          // Inside a clickable card: the origin link must not also open the drawer.
+          onClick={e => e.stopPropagation()}
+          title="Open the original posting"
+        >
+          {job.source_site} ↗
+        </a>
         {posted && <span>{posted}</span>}
       </div>
     </div>
