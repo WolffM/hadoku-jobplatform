@@ -47,6 +47,25 @@ function staleFactor(row: {
 	return 0.25;
 }
 
+// Ghost-posting decay: a req still LISTED (liveness fresh, so the cull rightly
+// spares it) but POSTED many months ago is pipeline-filler risk — a 5-month-old
+// Cohere req topped the owner's feed. Decays by posted age regardless of
+// liveness; lens views exclude the >GHOST_LENS_DAYS tail entirely.
+const GHOST_LENS_DAYS = 120;
+function postedAgeFactor(postedDate: string | null): number {
+	if (!postedDate) return 1.0;
+	const age = (Date.now() - Date.parse(postedDate)) / DAY_MS;
+	if (!Number.isFinite(age) || age <= 60) return 1.0;
+	if (age <= 120) return 0.9;
+	if (age <= 180) return 0.75;
+	return 0.6;
+}
+function postedDaysAgo(postedDate: string | null): number {
+	if (!postedDate) return 0;
+	const age = (Date.now() - Date.parse(postedDate)) / DAY_MS;
+	return Number.isFinite(age) ? age : 0;
+}
+
 interface JobRow {
 	id: string;
 	title: string;
@@ -324,7 +343,11 @@ export function registerFeedRoute(app: JobsApp): void {
 					}));
 					if (isLens) {
 						ranked = ranked.filter(
-							({ r, axes }) => !axes.penalized && r.row_vote !== -1 && staleFactor(r) === 1.0
+							({ r, axes }) =>
+								!axes.penalized &&
+								r.row_vote !== -1 &&
+								staleFactor(r) === 1.0 &&
+								postedDaysAgo(r.posted_date) <= GHOST_LENS_DAYS
 						);
 					}
 					const lensKey = (a: (typeof ranked)[number]) =>
@@ -403,7 +426,10 @@ export function registerFeedRoute(app: JobsApp): void {
 							slug: r.slug,
 							role_track: asRoleTrack(r.role_track),
 							role_level: roleLevel,
-							score: applyVote(Math.round(score * staleFactor(r) * 1000) / 1000, r.row_vote),
+							score: applyVote(
+								Math.round(score * staleFactor(r) * postedAgeFactor(r.posted_date) * 1000) / 1000,
+								r.row_vote
+							),
 							score_breakdown: breakdown,
 							state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
 							vote: (r.row_vote as 1 | -1 | null) ?? null,
