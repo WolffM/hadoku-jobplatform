@@ -52,8 +52,9 @@ const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[] = [
 
 // Greenhouse descriptions are HTML (<p>, <br>, <li>). Lever and LinkedIn are
 // plain text with \n linebreaks. dangerouslySetInnerHTML on plain text collapses
-// \n so everything renders as one paragraph — hence the split.
-function Description({ text }: { text: string }) {
+// \n so everything renders as one paragraph — hence the split. Exported because
+// the packets split view renders the posting the same way.
+export function Description({ text }: { text: string }) {
   if (!text) {
     return (
       <p className="jp-drawer__description jp-muted">

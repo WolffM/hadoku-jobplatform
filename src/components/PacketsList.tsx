@@ -1,22 +1,12 @@
 import { useEffect, useState } from 'react'
 import { listPackets, JobsApiError, type PacketSummary } from '../api/jobs'
+import { packetUrl } from '../api/packets'
 import type { Auth } from '../api/auth'
 
 interface Props {
   auth: Auth
-  // Row click — opens the job in the existing drawer route.
-  onSelect: (jobId: string) => void
-}
-
-// The packet lives in resume-api, not here: the slug keys a minted variant
-// whose public page and PDF are served from hadoku.me/resume. Absolute URLs
-// because this dashboard is mounted under /jobplatform.
-function packetUrl(slug: string): string {
-  return `https://hadoku.me/resume?v=${encodeURIComponent(slug)}`
-}
-
-function packetPdfUrl(slug: string): string {
-  return `https://hadoku.me/resume/api/resume.pdf?v=${encodeURIComponent(slug)}`
+  // Row click — opens the packet's split view (posting left, packet right).
+  onSelect: (packet: PacketSummary) => void
 }
 
 function formatPrepared(iso: string): string {
@@ -27,7 +17,9 @@ function formatPrepared(iso: string): string {
 /**
  * The Packets view: every application packet the owner has generated, findable
  * again. A reference list, not a workflow — each row names the job, shows its
- * triage state and prepared date, and links back to the packet page + PDF.
+ * triage state and prepared date, and opens the split view on click. The only
+ * outbound link on a row is the public tailored-resume page; the PDF button
+ * lives inside the split view (scratch #25).
  */
 export function PacketsList({ auth, onSelect }: Props) {
   const [packets, setPackets] = useState<PacketSummary[]>([])
@@ -80,12 +72,12 @@ export function PacketsList({ auth, onSelect }: Props) {
             role="button"
             tabIndex={0}
             className="jp-packet"
-            onClick={() => onSelect(p.job_id)}
+            onClick={() => onSelect(p)}
             onKeyDown={e => {
               if (e.target !== e.currentTarget) return
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
-                onSelect(p.job_id)
+                onSelect(p)
               }
             }}
           >
@@ -106,15 +98,7 @@ export function PacketsList({ auth, onSelect }: Props) {
                 rel="noreferrer"
                 onClick={e => e.stopPropagation()}
               >
-                View packet
-              </a>
-              <a
-                href={packetPdfUrl(p.variant_slug)}
-                target="_blank"
-                rel="noreferrer"
-                onClick={e => e.stopPropagation()}
-              >
-                PDF
+                Tailored resume
               </a>
             </div>
           </div>

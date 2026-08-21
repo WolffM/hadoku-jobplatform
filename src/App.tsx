@@ -19,6 +19,7 @@ import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
 import { PacketsList } from './components/PacketsList'
+import { PacketDetail } from './components/PacketDetail'
 import type { Auth } from './api/auth'
 import type { FeedbackReason, VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
@@ -86,6 +87,7 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
               <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
             </Route>
             <Route path="packets" element={<PacketsPage auth={auth} />} />
+            <Route path="packets/:jobId/:slug" element={<PacketDetailRoute auth={auth} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -116,7 +118,8 @@ function TopNav() {
 
 /**
  * The Packets view — every generated application packet, findable again.
- * Clicking a row jumps to the job's drawer on the feed route.
+ * Clicking a row opens the packet's split view (posting left, packet right)
+ * inside this route, not the feed's drawer (scratch #25).
  */
 function PacketsPage({ auth }: { auth: Auth }) {
   const navigate = useNavigate()
@@ -124,9 +127,27 @@ function PacketsPage({ auth }: { auth: Auth }) {
     <section className="jp-main">
       <PacketsList
         auth={auth}
-        onSelect={jobId => void navigate(`/jobs/${encodeURIComponent(jobId)}`)}
+        onSelect={p =>
+          void navigate(
+            `/packets/${encodeURIComponent(p.job_id)}/${encodeURIComponent(p.variant_slug)}`
+          )
+        }
       />
     </section>
+  )
+}
+
+/**
+ * One packet's split view. Both keys live in the URL — job id for the posting,
+ * variant slug for the packet — so a packet is deep-linkable and the browser's
+ * back button (like Escape) returns to the list.
+ */
+function PacketDetailRoute({ auth }: { auth: Auth }) {
+  const { jobId, slug } = useParams<{ jobId: string; slug: string }>()
+  const navigate = useNavigate()
+  if (!jobId || !slug) return <Navigate to="/packets" replace />
+  return (
+    <PacketDetail auth={auth} jobId={jobId} slug={slug} onClose={() => void navigate('/packets')} />
   )
 }
 
