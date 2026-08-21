@@ -25,7 +25,11 @@ const ID_CHUNK = 100;
 // upvote boosts it. Applied after scoring so the model itself stays pure.
 function applyVote(score: number, vote: unknown): number {
 	if (vote === -1) return Math.round(score * 0.15 * 1000) / 1000;
-	if (vote === 1) return Math.round(Math.min(1, score * 1.2 + 0.02) * 1000) / 1000;
+	// Upvote boost is ASYMPTOTIC — a quarter of the way toward 1.0, never
+	// reaching it. The old min(1, ×1.2+0.02) clamped any upvoted 0.82+ job to a
+	// flat 1.00, recreating the fake-precision score wall the owner rejected
+	// (his own upvoted Cohere job showed a lone 1.00 over a 0.82 field).
+	if (vote === 1) return Math.round((score + (1 - score) * 0.25) * 1000) / 1000;
 	return score;
 }
 
