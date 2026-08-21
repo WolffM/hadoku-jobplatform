@@ -73,3 +73,134 @@
 .jp-packet__links a:hover {
   color: var(--color-text-secondary);
 }
+
+/* ============================================================================
+   Packet split view (scratch #25) — posting left, packet right. Reuses
+   jp-drawer__cta / jp-drawer__facts / jp-drawer__description from
+   job-drawer.css (no overrides, so its later position in the cascade is fine).
+   ============================================================================ */
+
+.jp-packet-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xl);
+}
+
+.jp-packet-detail__header {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-xl);
+}
+
+.jp-packet-detail__back {
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--hdk-space-md) var(--hdk-space-xl);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.jp-packet-detail__back:hover {
+  border-color: var(--color-primary);
+}
+
+.jp-packet-detail__heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.jp-packet-detail__title {
+  margin: 0;
+  font-size: var(--hdk-text-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.jp-packet-detail__company {
+  margin: var(--hdk-space-xs) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+/* PDF sits top right, per the spec. */
+.jp-packet-detail__links {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+}
+
+.jp-packet-detail__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hdk-space-xl);
+  align-items: start;
+}
+
+/* Each column scrolls on its own, so a long posting and a long packet can be
+   read side by side without dragging each other along. */
+.jp-packet-detail__col {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius-sm);
+  box-shadow: var(--hdk-shadow-sm);
+  padding: var(--hdk-space-xl);
+  max-height: 75vh;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.jp-packet-detail__col-title {
+  margin: 0 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+.jp-packet-detail__job-line {
+  margin: 0 0 var(--hdk-space-md);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+/* A reading pane, not a copy box: the packet markdown pre-wrapped at drawer
+   description sizing. */
+.jp-packet-detail__doc {
+  white-space: pre-wrap;
+  color: var(--color-text);
+  line-height: 1.6;
+  font-size: var(--hdk-text-sm);
+  overflow-wrap: break-word;
+}
+
+.jp-packet-detail__doc-title {
+  margin: var(--hdk-space-xl) 0 var(--hdk-space-md);
+  padding-top: var(--hdk-space-xl);
+  border-top: 1px solid var(--color-border-light);
+  font-size: var(--hdk-text-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text);
+}
+
+/* Same breakpoint as the dashboard shell: stack the columns; each keeps its
+   own (shorter) scroll region. The header wraps so the links stay reachable. */
+@media (max-width: 720px) {
+  .jp-packet-detail__header {
+    flex-wrap: wrap;
+    gap: var(--hdk-space-md);
+  }
+
+  .jp-packet-detail__columns {
+    grid-template-columns: 1fr;
+  }
+
+  .jp-packet-detail__col {
+    max-height: 60vh;
+  }
+}
