@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@wolffm/logger':
-        specifier: ^1.3.2
-        version: 1.3.2
+        specifier: ^1.3.3
+        version: 1.3.3
       '@wolffm/prefs-client':
-        specifier: ^1.0.8
-        version: 1.0.8(react@19.2.4)(zod@4.3.6)
+        specifier: ^1.0.9
+        version: 1.0.9(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1086,12 +1086,12 @@ packages:
     resolution: {integrity: sha512-6MxJ8Z/vhUozc9Q90rYR0YY5YZzuf/9azAPTXd6Iu+V7XIjXrfgs6zoEiEQWwv4VPUGzqpT7NZKW1PBv3EbreQ==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.3.1/de57a6b958ebc88f8870df1dfba626a7fcb028fb}
     engines: {node: '>=18'}
 
-  '@wolffm/logger@1.3.2':
-    resolution: {integrity: sha512-pw4H5YffMIWTvJGHJIUYR+ipbuM/bkkeFSBNIRAiOKyNlTW86PbkvWvWG5Qvn8DZfo2oKT8PJ0T6ZdqqsFmnVQ==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.3.2/1e1697e99c7b66732d7524bce198b10a3dfbf2d9}
+  '@wolffm/logger@1.3.3':
+    resolution: {integrity: sha512-bpLT7LxpAXeFRdL0NLMhBgqABfvCodPACzGt4ZW1mNvdPaG/4EPMxQA0t26gbnB/Iu50zrZ5RTZ+YgVEhteuRg==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.3.3/44fbe5ee39aed1cda9c551e48215b6a7e8136700}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.0.8':
-    resolution: {integrity: sha512-UeI1VKHWURWwNKQ+u+e9YauCny8vcu7yKNLya9u0pnRjZLfTNd79htJoEOWUmfKFaBGdRCQHuxb7ad5lwXUBRg==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.8/abae940316c6dc85fd16cd8576776b96f1decca3}
+  '@wolffm/prefs-client@1.0.9':
+    resolution: {integrity: sha512-aCTQX/SI3Ws8IE36nDKLWZWsq1X1aWcS7A4ADFdK8kNCD8eT4cDpitsejIMu0U6Oefw/gtvOfyzpZMJoxcAVEQ==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.9/bc26958b33b4bb60ec53b21e795c61adca531981}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3511,9 +3511,9 @@ snapshots:
 
   '@wolffm/logger@1.3.1': {}
 
-  '@wolffm/logger@1.3.2': {}
+  '@wolffm/logger@1.3.3': {}
 
-  '@wolffm/prefs-client@1.0.8(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/prefs-client@1.0.9(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
@@ -3525,7 +3525,7 @@ snapshots:
 
   '@wolffm/themes@5.7.8(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': 1.0.8(react@19.2.4)(zod@4.3.6)
+      '@wolffm/prefs-client': 1.0.9(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
       zod: 4.3.6
 
