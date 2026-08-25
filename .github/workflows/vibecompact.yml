@@ -2,8 +2,15 @@ name: vibeCompact
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * *" # daily poll; the activity gate exits in seconds when quiet
+  # Daily schedule disabled 2026-08-24. Every repo carrying this workflow fired at
+  # the SAME minute (06:00 UTC) — a synchronised fleet-wide fan-out onto claws that
+  # each share one pnpm store across ~28 runner instances. That is the concurrency
+  # shape that corrupted the pnpm stores on claw-2 and claw-3 tonight and took the
+  # site's CI down for roughly an hour. Still runnable on demand via the Actions
+  # tab. If it is restored, give each repo a DIFFERENT minute rather than putting
+  # this line back verbatim.
+  # schedule:
+  #   - cron: "0 6 * * *" # daily poll; the activity gate exits in seconds when quiet
 
 permissions:
   contents: write
