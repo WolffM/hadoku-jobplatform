@@ -1,4 +1,41 @@
 #!/bin/sh
+
+# --- worktree preamble ---------------------------------------------------
+# git resolves a relative core.hooksPath against the WORKING TREE ROOT, so a
+# hook only fires in a linked worktree when the directory holding it is tracked.
+# husky's generated .husky/_ is not — its own .gitignore excludes it — so every
+# commit made from a worktree ran no hook at all. Silently: no warning, no
+# non-zero exit. core.hooksPath now points at .husky itself, which is tracked.
+[ "${HUSKY-}" = "0" ] && exit 0
+
+# Firing the hook is only half of it. A fresh worktree is missing everything
+# .gitignore excludes, and the gates below read some of it. Borrow those from
+# the main checkout rather than skipping the gate: same repo, and in the normal
+# case the same artifacts. A branch that genuinely CHANGES dependencies fails
+# loudly on the missing package instead, which is the outcome we want.
+common_dir=$(git rev-parse --git-common-dir)
+case "$common_dir" in /*) ;; *) common_dir="$PWD/$common_dir" ;; esac
+main_checkout=$(dirname "$common_dir")
+
+if [ ! -e node_modules ]; then
+  if [ "$main_checkout" != "$PWD" ] && [ -d "$main_checkout/node_modules" ]; then
+    echo "🔗 No node_modules in this worktree — linking the main checkout's"
+    # pnpm lays node_modules out as a symlink farm over its own .pnpm store, so
+    # pointing at it works. A workspace keeps one PER PACKAGE, and a gate that
+    # shells into one (themes/, worker/, frontend/) fails on a missing
+    # devDependency if only the root is linked — so link every one it has.
+    for nm in $(cd "$main_checkout" && find . -maxdepth 4 -name node_modules -prune | sed 's|^\./||'); do
+      [ -e "$nm" ] && continue
+      [ -d "$(dirname "$nm")" ] || continue
+      ln -s "$main_checkout/$nm" "$nm"
+    done
+  else
+    echo "❌ No node_modules — run 'pnpm install' before committing."
+    exit 1
+  fi
+fi
+# --- end worktree preamble -----------------------------------------------
+
 echo "Running pre-commit checks..."
 
 # Capture originally staged files BEFORE any modifications
