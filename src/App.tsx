@@ -18,6 +18,7 @@ import { ProfileSidebar } from './components/ProfileSidebar'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
+import { ApplicationsList } from './components/ApplicationsList'
 import { PacketsList } from './components/PacketsList'
 import { PacketDetail } from './components/PacketDetail'
 import type { Auth } from './api/auth'
@@ -86,6 +87,7 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
               <Route index element={null} />
               <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
             </Route>
+            <Route path="applications" element={<ApplicationsPage auth={auth} />} />
             <Route path="packets" element={<PacketsPage auth={auth} />} />
             <Route path="packets/:jobId/:slug" element={<PacketDetailRoute auth={auth} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -103,16 +105,38 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
  */
 function TopNav() {
   const { pathname } = useLocation()
-  const onPackets = pathname.startsWith('/packets')
+  // The drawer route (/jobs/:id) lives under the feed, so anything that is not
+  // an explicit section keeps the Feed tab lit.
+  const section = pathname.startsWith('/packets')
+    ? 'packets'
+    : pathname.startsWith('/applications')
+      ? 'applications'
+      : 'feed'
   return (
     <nav className="job-platform__nav">
-      <Link to="/" className={onPackets ? undefined : 'active'}>
+      <Link to="/" className={section === 'feed' ? 'active' : undefined}>
         Feed
       </Link>
-      <Link to="/packets" className={onPackets ? 'active' : undefined}>
+      <Link to="/applications" className={section === 'applications' ? 'active' : undefined}>
+        Applications
+      </Link>
+      <Link to="/packets" className={section === 'packets' ? 'active' : undefined}>
         Packets
       </Link>
     </nav>
+  )
+}
+
+/**
+ * The Applications view — the approve-to-apply queue (issue #15). A workflow
+ * rather than a reference list: its one action is approving a filled row for
+ * submission, after a human has looked at the runner's screenshot.
+ */
+function ApplicationsPage({ auth }: { auth: Auth }) {
+  return (
+    <section className="jp-main">
+      <ApplicationsList auth={auth} />
+    </section>
   )
 }
 

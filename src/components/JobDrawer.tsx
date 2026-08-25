@@ -6,6 +6,7 @@ import {
   generateCoverLetter,
   generateApplicationExtras,
   mintPacketLink,
+  queueApplication,
   JobsApiError,
   type JobDetail,
   type ScoreBreakdown,
@@ -145,6 +146,11 @@ export function JobDrawer({
   const [linking, setLinking] = useState(false)
   const [packetLink, setPacketLink] = useState<string | null>(null)
   const [packetSlug, setPacketSlug] = useState<string | null>(null)
+  // Queue state for the approve-to-apply runner. Local to the drawer: the
+  // Applications tab is where the queue is actually managed.
+  const [queueing, setQueueing] = useState(false)
+  const [queued, setQueued] = useState(false)
+  const [queueError, setQueueError] = useState<string | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -161,6 +167,8 @@ export function JobDrawer({
     setExtrasError(null)
     setPacketLink(null)
     setPacketSlug(null)
+    setQueued(false)
+    setQueueError(null)
     setLinkError(null)
     setCopied(false)
     getJob(jobId, profileId ?? undefined, auth)
@@ -290,6 +298,28 @@ export function JobDrawer({
       setLinkError(err instanceof JobsApiError ? err.message : 'Failed to create link')
     } finally {
       setLinking(false)
+    }
+  }
+
+  /**
+   * Queue this job for the PC-side form runner.
+   *
+   * Clicking this IS the consent step — the runner only ever drains the queue
+   * and never chooses jobs itself. It needs a minted packet, because the
+   * variant_slug is copied onto the row so a later re-tailor cannot change
+   * what an in-flight application sends; the button stays disabled until
+   * "Prepare application" has produced one.
+   */
+  async function handleApply() {
+    setQueueing(true)
+    setQueueError(null)
+    try {
+      await queueApplication(jobId, 'review', auth)
+      setQueued(true)
+    } catch (err) {
+      setQueueError(err instanceof JobsApiError ? err.message : 'Failed to queue the application')
+    } finally {
+      setQueueing(false)
     }
   }
 
@@ -491,6 +521,28 @@ export function JobDrawer({
                     )}
                   </div>
                   {linkError && <p className="jp-error">{linkError}</p>}
+
+                  <div className="jp-drawer__apply">
+                    <button
+                      type="button"
+                      className="jp-drawer__cta jp-drawer__cta--primary"
+                      onClick={() => void handleApply()}
+                      disabled={queueing || queued || !packetSlug}
+                      title={
+                        packetSlug
+                          ? 'Queue this application for the form runner'
+                          : 'Create the shareable link first — the queue pins that packet'
+                      }
+                    >
+                      {queued ? 'Queued ✓' : queueing ? 'Queueing…' : 'Apply'}
+                    </button>
+                    <span className="jp-muted">
+                      {queued
+                        ? 'The runner will fill the form and stop for your review.'
+                        : 'Review mode: the runner fills the form and pauses for approval.'}
+                    </span>
+                  </div>
+                  {queueError && <p className="jp-error">{queueError}</p>}
 
                   {preparing && !extras && (
                     <p className="jp-muted">Preparing the rest of the kit…</p>

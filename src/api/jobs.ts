@@ -390,3 +390,84 @@ export async function clearJobState(
   })
   return parseWrapped<{ job_id: string; deleted: boolean }>(response)
 }
+
+// ============================================================================
+// Approve-to-apply queue (issue #15)
+// ============================================================================
+
+export type ApplicationStatus =
+  | 'queued'
+  | 'filled'
+  | 'approved'
+  | 'submitted'
+  | 'needs_manual'
+  | 'failed'
+
+export interface ApplicationSummary {
+  id: string
+  job_id: string
+  variant_slug: string
+  mode: 'review' | 'auto'
+  status: ApplicationStatus
+  error: string | null
+  evidence: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+  title: string
+  company: string
+  location: string
+}
+
+/**
+ * POST /jobs/:id/apply — queue one application for the PC-side form runner.
+ *
+ * This click IS the consent step: the runner only ever drains this queue and
+ * never picks jobs itself. Requires a minted packet, because the variant_slug
+ * is copied onto the row at queue time so a later re-tailor cannot silently
+ * change what an in-flight application sends.
+ */
+export async function queueApplication(
+  id: string,
+  mode: 'review' | 'auto' = 'review',
+  auth?: Auth
+): Promise<ApplicationSummary> {
+  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(auth) },
+    credentials: 'include',
+    body: JSON.stringify({ mode })
+  })
+  const data = await parseWrapped<{ application: ApplicationSummary }>(response)
+  return data.application
+}
+
+/** GET /applications — the caller's queue, newest first. Friend-gated. */
+export async function listApplications(
+  status?: ApplicationStatus,
+  auth?: Auth
+): Promise<ApplicationSummary[]> {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  const response = await fetch(`${BASE_URL}/applications${query}`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ applications: ApplicationSummary[] }>(response)
+  return data.applications
+}
+
+/**
+ * POST /applications/:id/approve — release a filled application for submission.
+ *
+ * Review mode's whole point: the runner pauses at `filled` with a screenshot,
+ * and nothing is sent until a human has looked at it and called this.
+ */
+export async function approveApplication(id: string, auth?: Auth): Promise<ApplicationSummary> {
+  const response = await fetch(`${BASE_URL}/applications/${encodeURIComponent(id)}/approve`, {
+    method: 'POST',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ application: ApplicationSummary }>(response)
+  return data.application
+}

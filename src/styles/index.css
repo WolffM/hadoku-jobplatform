@@ -18,6 +18,7 @@
  */
 
 @import './base.css';
+@import './applications.css';
 @import './companies-manager.css';
 @import './chips.css';
 @import './company-match.css';
