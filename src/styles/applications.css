@@ -1,0 +1,103 @@
+/* ============================================================================
+   Applications view — the approve-to-apply queue (issue #15).
+
+   A workflow, not a reference list: the status is the loudest thing on a row,
+   because the only question the owner is answering here is "which of these is
+   waiting on me?". `filled` is the one that is, so it gets the accent rule.
+   ============================================================================ */
+
+.jp-applications__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+}
+
+.jp-applications__row {
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border: 1px solid var(--color-border-light);
+  border-left: 3px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  box-shadow: var(--hdk-shadow-sm);
+  color: var(--color-text);
+}
+
+/* The only row that needs a human. */
+.jp-applications__row--filled {
+  border-left-color: var(--color-primary);
+}
+
+.jp-applications__row--needs_manual,
+.jp-applications__row--failed {
+  border-left-color: var(--color-danger);
+}
+
+.jp-applications__row--submitted {
+  border-left-color: var(--color-success);
+}
+
+.jp-applications__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hdk-space-lg);
+  flex-wrap: wrap;
+}
+
+.jp-applications__title {
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-applications__company {
+  color: var(--color-text-secondary);
+}
+
+.jp-applications__status {
+  margin-left: auto;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.jp-applications__status--filled {
+  background-color: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-bg);
+}
+
+.jp-applications__status--submitted {
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+  color: var(--color-on-success-bg);
+}
+
+.jp-applications__status--needs_manual,
+.jp-applications__status--failed {
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+  color: var(--color-on-danger-bg);
+}
+
+.jp-applications__meta,
+.jp-applications__evidence {
+  margin: var(--hdk-space-sm) 0 0;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Apply control inside the job drawer. */
+.jp-drawer__apply {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-lg);
+  flex-wrap: wrap;
+  margin-top: var(--hdk-space-lg);
+}
