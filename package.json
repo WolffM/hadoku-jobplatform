@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.11.4",
+  "version": "3.11.5",
   "description": "Job listings aggregation and tracking dashboard",
   "license": "MIT",
   "type": "module",
@@ -47,8 +47,8 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@wolffm/logger": "^1.3.2",
-    "@wolffm/prefs-client": "^1.0.8",
+    "@wolffm/logger": "^1.3.3",
+    "@wolffm/prefs-client": "^1.0.9",
     "react-router-dom": "^7.14.1",
     "zod": "^4.1.12"
   },
