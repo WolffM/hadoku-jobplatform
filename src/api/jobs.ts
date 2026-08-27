@@ -411,6 +411,12 @@ export interface ApplicationSummary {
   status: ApplicationStatus
   error: string | null
   evidence: Record<string, unknown> | null
+  /**
+   * Digest of the fill this approval refers to, copied off `evidence` when the
+   * owner approves. The runner refuses to submit unless the application it
+   * re-fills matches, so a `filled` row without one cannot be approved.
+   */
+  approved_fingerprint: string | null
   created_at: string
   updated_at: string
   title: string

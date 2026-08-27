@@ -16,7 +16,7 @@ interface Props {
 const STATUS_COPY: Record<ApplicationStatus, string> = {
   queued: 'waiting for the runner',
   filled: 'filled — review the screenshot, then approve',
-  approved: 'approved — the runner will submit it',
+  approved: 'approved — the runner will submit it on its next run with --submit',
   submitted: 'submitted',
   needs_manual: 'needs you: the runner stopped rather than guess',
   failed: 'failed'
@@ -31,6 +31,18 @@ function formatWhen(iso: string): string {
 function evidenceShot(app: ApplicationSummary): string | null {
   const shot = app.evidence?.screenshot
   return typeof shot === 'string' && shot ? shot : null
+}
+
+/**
+ * The digest of the fill on screen — what an approval would actually bind to.
+ *
+ * A `filled` row without one cannot be approved: the runner would have nothing
+ * to check its re-fill against and would send whatever a fresh LLM draft
+ * produced, which is not what the screenshot shows.
+ */
+function fillDigest(app: ApplicationSummary): string | null {
+  const fp = app.evidence?.fingerprint
+  return typeof fp === 'string' && fp ? fp : null
 }
 
 /**
@@ -91,6 +103,7 @@ export function ApplicationsList({ auth }: Props) {
       <ul className="jp-applications__list">
         {apps.map(app => {
           const shot = evidenceShot(app)
+          const digest = fillDigest(app) ?? app.approved_fingerprint
           return (
             <li key={app.id} className={`jp-applications__row jp-applications__row--${app.status}`}>
               <div className="jp-applications__head">
@@ -109,16 +122,28 @@ export function ApplicationsList({ auth }: Props) {
                   Runner screenshot: <code>{shot}</code>
                 </p>
               )}
-              {app.status === 'filled' && (
-                <button
-                  type="button"
-                  className="jp-drawer__cta jp-drawer__cta--primary"
-                  onClick={() => void handleApprove(app)}
-                  disabled={approving === app.id}
-                >
-                  {approving === app.id ? 'Approving…' : 'Approve and submit'}
-                </button>
+              {digest && (
+                <p className="jp-applications__evidence">
+                  {app.approved_fingerprint ? 'Approved fill' : 'This fill'}:{' '}
+                  <code>{digest.slice(0, 12)}</code>
+                </p>
               )}
+              {app.status === 'filled' &&
+                (digest ? (
+                  <button
+                    type="button"
+                    className="jp-drawer__cta jp-drawer__cta--primary"
+                    onClick={() => void handleApprove(app)}
+                    disabled={approving === app.id}
+                  >
+                    {approving === app.id ? 'Approving…' : 'Approve for submission'}
+                  </button>
+                ) : (
+                  <p className="jp-muted">
+                    Filled by a runner that did not record what it filled, so there is nothing to
+                    approve against. Re-run the fill.
+                  </p>
+                ))}
             </li>
           )
         })}

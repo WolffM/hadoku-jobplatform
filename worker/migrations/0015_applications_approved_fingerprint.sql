@@ -1,0 +1,21 @@
+-- Bind an approval to the application that was approved.
+--
+-- Review mode is fill → screenshot → a human looks → submit, but the submit
+-- runs later against a fresh page, so an approved row is re-filled before it is
+-- sent. Nothing connected the two: `approve` only flipped `status`, and the
+-- runner's re-fill regenerated the per-job screening answers with an LLM. The
+-- owner could approve screenshot A and send application B.
+--
+-- The runner now fingerprints what it filled (questions, answers, résumé,
+-- packet variant, identity) and posts the digest as evidence. Approving copies
+-- that digest here, so the value the submit is checked against is recorded by
+-- the side the human clicked on rather than kept by the side about to send the
+-- application. The runner refuses to submit unless its re-fill matches.
+--
+-- Only the digest is stored. The answers themselves stay on the runner's disk:
+-- the canned set holds demographic responses the owner deliberately keeps off
+-- any API a board, proxy or log could see.
+--
+-- NULL means "not approved, or approved before this column existed" — the
+-- runner treats both as unsendable and asks for a fresh fill.
+ALTER TABLE applications ADD COLUMN approved_fingerprint TEXT;

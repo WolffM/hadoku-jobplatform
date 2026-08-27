@@ -8,14 +8,14 @@ Cross-repo orchestration (scraper cadence, resume-bot block pipeline, link-tailo
 
 ### Roadmap
 
-| Phase                          | Status   | Scope                                                                                                                                                 |
-| ------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **V1 — Scrape & Display**      | Shipped  | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                        |
-| **V2 — Triage State**          | Shipped  | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5. |
-| **V3 — Tailored Applications** | Shipped  | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                          |
-| **V4 — Auto Apply**            | Deferred | Automated apply flow (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)                                                                         |
-| **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                          |
-| **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                        |
+| Phase                          | Status    | Scope                                                                                                                                                                                                              |
+| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **V1 — Scrape & Display**      | Shipped   | User subscribes to companies → scraper fetches → ingest → score → browsable UI                                                                                                                                     |
+| **V2 — Triage State**          | Shipped   | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5.                                                              |
+| **V3 — Tailored Applications** | Shipped   | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                                                                                       |
+| **V4 — Auto Apply**            | In review | Approve-to-apply queue + PC-side form runner with Ashby / Greenhouse / Lever adapters. Fills and screenshots today; **nothing has been submitted yet**. LinkedIn is out of scope (account flagged for automation). |
+| **V5 — Tracking & Follow-ups** | Deferred  | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                                                                                       |
+| **V6 — Alerts & Digest**       | Deferred  | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                                                                                     |
 
 ---
 
@@ -84,7 +84,7 @@ The scraper side is operational. 3,000+ jobs across greenhouse / lever / linkedi
 | **Greenhouse** | Company enumeration via resolved `(greenhouse, slug)`                    | No salary field. 2,250+ jobs live. Historical empty-description rows pending KV rehydration (see `project_description_backfill.md`). |
 | **Lever**      | Company enumeration via resolved `(lever, slug)`                         | No salary field. 250+ jobs live.                                                                                                     |
 | **LinkedIn**   | Keyword search; auth via `browser-cookie3` (local Firefox/Chrome cookie) | 240+ jobs live with populated `location` + `workplace_type` after the 2026-04-19 extraction fix.                                     |
-| **Ashby**      | Resolver supported, scraper not yet implemented                          | `IngestPayloadSchema.source` would need `ashby` added before first Ashby jobs can land.                                              |
+| **Ashby**      | Company enumeration via resolved `(ashby, slug)`                         | Live — `ashby` is in `IngestPayloadSchema.source` and Ashby jobs are ingesting.                                                      |
 
 ### Scraper API surface (all live)
 

@@ -19,6 +19,7 @@ interface Application {
 	status: string;
 	error: string | null;
 	evidence: Record<string, unknown> | null;
+	approved_fingerprint: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -362,6 +363,9 @@ describe('POST /applications/:id/status', () => {
 	});
 });
 
+const FP = 'a'.repeat(64);
+const OTHER_FP = 'b'.repeat(64);
+
 describe('POST /applications/:id/approve', () => {
 	it('404s an unknown application id', async () => {
 		const { status } = await approve('nope');
@@ -377,13 +381,96 @@ describe('POST /applications/:id/approve', () => {
 	it("approves from 'filled'", async () => {
 		const { body } = await apply('ap-1');
 		const id = body.data.application.id;
-		await setStatus(id, { status: 'filled', evidence: { screenshot: '/shots/filled.png' } });
+		await setStatus(id, {
+			status: 'filled',
+			evidence: { screenshot: '/shots/filled.png', fingerprint: FP },
+		});
 
 		const { status, body: approved } = await approve(id);
 		assert.equal(status, 200);
 		assert.equal(approved.data.application.status, 'approved');
 		// Approval must not disturb the runner's evidence.
-		assert.deepEqual(approved.data.application.evidence, { screenshot: '/shots/filled.png' });
+		assert.deepEqual(approved.data.application.evidence, {
+			screenshot: '/shots/filled.png',
+			fingerprint: FP,
+		});
+	});
+
+	// The point of the column: an approval has to say WHICH application was
+	// approved, or the runner re-fills from a fresh LLM draft and sends whatever
+	// comes back — approve screenshot A, send application B.
+	it('records the approved fill on the row', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
+
+		const { body: approved } = await approve(id);
+		assert.equal(approved.data.application.approved_fingerprint, FP);
+	});
+
+	it('409s a fill that carries no fingerprint to bind to', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { screenshot: '/shots/filled.png' } });
+
+		const { status, body: b } = await approve(id);
+		assert.equal(status, 409);
+		assert.match(b.message, /fingerprint/);
+	});
+
+	it('409s a fill whose evidence is missing entirely', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled' });
+
+		const { status } = await approve(id);
+		assert.equal(status, 409);
+	});
+
+	it('409s a non-string or empty fingerprint', async () => {
+		for (const bad of [42, '', null, { nested: FP }]) {
+			const { body } = await apply('ap-1');
+			const id = body.data.application.id;
+			await setStatus(id, { status: 'filled', evidence: { fingerprint: bad } });
+			const { status } = await approve(id);
+			assert.equal(status, 409, `fingerprint ${JSON.stringify(bad)}`);
+			await setStatus(id, { status: 'queued' });
+		}
+	});
+
+	it('a re-fill after approval drops the approval', async () => {
+		// Otherwise the re-filled row inherits an approval given to content the
+		// owner has not seen — which is the whole failure, one status apart.
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
+		await approve(id);
+
+		const { body: refilled } = await setStatus(id, {
+			status: 'filled',
+			evidence: { fingerprint: OTHER_FP },
+		});
+		assert.equal(refilled.data.application.approved_fingerprint, null);
+	});
+
+	it('an approved row keeps its fingerprint through submission', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
+		await approve(id);
+
+		const { body: sent } = await setStatus(id, { status: 'submitted' });
+		assert.equal(sent.data.application.approved_fingerprint, FP);
+	});
+
+	it('a failed submit drops the approval rather than leaving it live', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
+		await approve(id);
+
+		const { body: failed } = await setStatus(id, { status: 'failed', error: 'submit failed' });
+		assert.equal(failed.data.application.approved_fingerprint, null);
 	});
 
 	it("409s from any status that is not 'filled'", async () => {
