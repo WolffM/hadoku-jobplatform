@@ -193,6 +193,12 @@ jobs:
       - name: Notify parent about deployment
         if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
         env:
+          # Without this the guard below reads an unset variable, takes the
+          # "skipping notifications" branch and exits 0 — so the publish goes
+          # green while hadoku_site is never told, and the worker (with any D1
+          # migration riding on it) silently never deploys. Every other repo in
+          # the fleet wires it here; this one did not.
+          HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
           HADOKU_NPM_READ_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
         run: |
           if [ -z "$HADOKU_SITE_TOKEN" ]; then
