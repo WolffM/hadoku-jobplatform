@@ -250,8 +250,13 @@ export const ApplicationSchema = z
 		mode: ApplicationModeSchema,
 		status: ApplicationStatusSchema,
 		error: z.string().nullable(),
-		// Runner-written JSON blob: screenshot paths, confirmation ids, deep links.
+		// Runner-written JSON blob: screenshot paths, confirmation ids, deep links,
+		// and the `fingerprint` of the fill (see migration 0015).
 		evidence: z.record(z.string(), z.unknown()).nullable(),
+		// Digest of the fill the owner approved, copied off `evidence` by
+		// POST /applications/:id/approve. The runner will not submit unless the
+		// application it re-fills matches this. Null on anything not approved.
+		approved_fingerprint: z.string().nullable(),
 		created_at: z.string(),
 		updated_at: z.string(),
 	})

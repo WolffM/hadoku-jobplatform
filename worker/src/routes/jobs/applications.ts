@@ -31,6 +31,7 @@ interface ApplicationRow {
 	status: string;
 	error: string | null;
 	evidence: string | null;
+	approved_fingerprint: string | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -64,6 +65,7 @@ function toApplication(row: ApplicationRow) {
 			| 'failed',
 		error: row.error,
 		evidence: parseEvidence(row.evidence),
+		approved_fingerprint: row.approved_fingerprint,
 		created_at: row.created_at,
 		updated_at: row.updated_at,
 	};
@@ -216,7 +218,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			const filter = status ? ' AND a.status = ?' : '';
 			const stmt = c.env.JOB_PLATFORM_DB.prepare(
 				`SELECT a.id, a.job_id, a.variant_slug, a.mode, a.status, a.error,
-				        a.evidence, a.created_at, a.updated_at,
+				        a.evidence, a.approved_fingerprint, a.created_at, a.updated_at,
 				        j.title, j.company, j.location
 				 FROM applications a
 				 INNER JOIN jobs j ON j.id = a.job_id
@@ -297,12 +299,20 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			const now = new Date().toISOString();
 			const evidence =
 				body.evidence !== undefined ? JSON.stringify(body.evidence) : existing.evidence;
+			// An approval describes ONE fill. Any transition that is not the
+			// submission itself means that fill is no longer what would be sent —
+			// a re-fill back to 'filled' most of all — so the approved digest is
+			// dropped and the owner has to approve the new screenshot. Keeping it
+			// would let a re-filled row inherit an approval given to older content.
+			const approvedFingerprint =
+				body.status === 'submitted' ? existing.approved_fingerprint : null;
 			await db
 				.prepare(
-					`UPDATE applications SET status = ?, error = ?, evidence = ?, updated_at = ?
+					`UPDATE applications SET status = ?, error = ?, evidence = ?,
+					        approved_fingerprint = ?, updated_at = ?
 					 WHERE id = ?`
 				)
-				.bind(body.status, body.error ?? null, evidence, now, id)
+				.bind(body.status, body.error ?? null, evidence, approvedFingerprint, now, id)
 				.run();
 
 			return c.json(
@@ -314,6 +324,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 							status: body.status,
 							error: body.error ?? null,
 							evidence,
+							approved_fingerprint: approvedFingerprint,
 							updated_at: now,
 						}),
 					},
@@ -347,7 +358,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				409: {
-					description: "Not in 'filled' — nothing to approve",
+					description: "Not in 'filled', or filled without a fingerprint to bind to",
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 			},
@@ -389,17 +400,52 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				);
 			}
 
+			// Approve WHAT, not merely that something was approved. The runner
+			// fingerprints the fill it screenshotted — questions, answers, résumé,
+			// packet variant, identity — and posts the digest as evidence; copying
+			// it onto the row is what makes this approval refer to specific
+			// content, and it is recorded here rather than kept by the runner so
+			// the value the submit is checked against comes from the side the
+			// human actually clicked on.
+			//
+			// A fill with no digest is refused instead of approved. Letting it
+			// through would hand the runner a blank cheque: it would re-fill from
+			// a fresh LLM draft and send whatever came back, which is the failure
+			// this whole path exists to prevent.
+			const fingerprint = parseEvidence(existing.evidence)?.fingerprint;
+			if (typeof fingerprint !== 'string' || fingerprint.length === 0) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Conflict',
+						message:
+							`Application '${id}' was filled without a fingerprint, so there is ` +
+							'nothing to bind this approval to — re-run the fill and approve the ' +
+							'new screenshot',
+					},
+					409
+				);
+			}
+
 			const now = new Date().toISOString();
 			await db
-				.prepare(`UPDATE applications SET status = 'approved', updated_at = ? WHERE id = ?`)
-				.bind(now, id)
+				.prepare(
+					`UPDATE applications SET status = 'approved', approved_fingerprint = ?,
+					        updated_at = ? WHERE id = ?`
+				)
+				.bind(fingerprint, now, id)
 				.run();
 
 			return c.json(
 				{
 					success: true as const,
 					data: {
-						application: toApplication({ ...existing, status: 'approved', updated_at: now }),
+						application: toApplication({
+							...existing,
+							status: 'approved',
+							approved_fingerprint: fingerprint,
+							updated_at: now,
+						}),
 					},
 				},
 				200
