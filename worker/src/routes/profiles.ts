@@ -18,7 +18,7 @@ import { DEFAULT_PROFILE, DEFAULT_PROFILE_COMPANIES } from '../defaultProfile.js
 import type { ProfileTrack } from '../profileScore.js';
 import type { RoleLevel } from '../roleClassify.js';
 import { triggerSearch } from '../clients/scraper.js';
-import { resolveUserId } from '../userId.js';
+import { NoIdentityError, resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
 
 interface RouteContext {
@@ -31,9 +31,42 @@ const app = new OpenAPIHono<RouteContext>();
 app.use('/profiles', requireMinTier('friend'));
 app.use('/profiles/*', requireMinTier('friend'));
 
-// Identity for D1 row scoping. Prefers the edge-injected X-User-Id (stable
-// across key rotation); falls back to the legacy credential hash only for
-// non-edge callers. See userId.ts.
+/**
+ * Every route below scopes its rows to the caller, so a caller with no
+ * established identity has no rows to scope to — a 401, not a 500.
+ *
+ * The tier gate above is not the same check. `requireMinTier` says the caller
+ * presented a key good enough to be here; this says edge-router resolved that
+ * key to somebody. They come apart for a legacy registry row that has never
+ * been assigned a userId: it authenticates, and it cannot own anything (R2).
+ */
+app.use('/profiles', requireIdentity);
+app.use('/profiles/*', requireIdentity);
+
+async function requireIdentity(
+	c: {
+		req: { header: (n: string) => string | undefined };
+		json: (b: unknown, s?: 401) => Response;
+	},
+	next: () => Promise<void>
+) {
+	if (!c.req.header('X-User-Id')?.trim()) {
+		return c.json(
+			{
+				success: false,
+				error: 'Unauthorized',
+				message: new NoIdentityError().message,
+			},
+			401
+		);
+	}
+	await next();
+}
+
+// Identity for D1 row scoping: the edge-injected X-User-Id, which is stable
+// across key rotation and is the only thing that establishes who is calling
+// (R1). There is no fallback — see userId.ts for why the credential hash that
+// used to be one was worse than an error.
 async function currentUserId(c: Parameters<typeof resolveUserId>[0]): Promise<string> {
 	return resolveUserId(c);
 }

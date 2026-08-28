@@ -10,6 +10,16 @@ import assert from 'node:assert/strict';
 import { BASE, createHarness, type Harness } from '../helpers/harness.ts';
 import { seedJob } from '../helpers/seed.ts';
 
+/**
+ * userIds are v4 UUIDs minted by the key registry (R2). These fixtures used to
+ * read 'alice' and 'bob' — bare words, which is exactly the shape a DISPLAY
+ * NAME has, and mistaking the two is what put `hadoku` in an ownership column
+ * on 2026-08-25. `check:identity-model` (G4) flags them for that reason.
+ * See docs/architecture/IDENTITY_MODEL.md in hadoku_site.
+ */
+const ALICE = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const BOB = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+
 interface StateBody {
 	success: boolean;
 	data: { job_id: string; state: string; updated_at: string };
@@ -130,16 +140,16 @@ describe('PUT /jobs/{id}/state — writes', () => {
 	});
 
 	it('keeps two users independent on the same job', async () => {
-		await put('state-1', { state: 'saved' }, 'alice');
-		await put('state-1', { state: 'dismissed' }, 'bob');
+		await put('state-1', { state: 'saved' }, ALICE);
+		await put('state-1', { state: 'dismissed' }, BOB);
 
 		const rows = await h.db
 			.prepare('SELECT user_id, state FROM job_states WHERE job_id = ? ORDER BY user_id')
 			.bind('state-1')
 			.all<{ user_id: string; state: string }>();
 		assert.deepEqual(rows.results, [
-			{ user_id: 'alice', state: 'saved' },
-			{ user_id: 'bob', state: 'dismissed' },
+			{ user_id: ALICE, state: 'saved' },
+			{ user_id: BOB, state: 'dismissed' },
 		]);
 	});
 
@@ -210,12 +220,12 @@ describe('DELETE /jobs/{id}/state', () => {
 	});
 
 	it("clears only the caller's row", async () => {
-		await put('state-1', { state: 'saved' }, 'alice');
-		await put('state-1', { state: 'saved' }, 'bob');
+		await put('state-1', { state: 'saved' }, ALICE);
+		await put('state-1', { state: 'saved' }, BOB);
 		await h.json<ClearBody>(`${BASE}/jobs/state-1/state`, {
 			method: 'DELETE',
 			tier: 'friend',
-			userId: 'alice',
+			userId: ALICE,
 		});
 		const rows = await h.db
 			.prepare('SELECT user_id FROM job_states WHERE job_id = ?')
@@ -223,7 +233,7 @@ describe('DELETE /jobs/{id}/state', () => {
 			.all<{ user_id: string }>();
 		assert.deepEqual(
 			rows.results.map((r) => r.user_id),
-			['bob']
+			[BOB]
 		);
 	});
 
