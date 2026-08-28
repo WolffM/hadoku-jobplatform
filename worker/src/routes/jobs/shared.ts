@@ -1,7 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import type { AppEnv } from '../../types.js';
-import { resolveUserId } from '../../userId.js';
+import { NoIdentityError, resolveUserId } from '../../userId.js';
 import { ALL_LEVELS, type RoleLevel } from '../../roleClassify.js';
 
 export interface RouteContext {
@@ -28,17 +28,27 @@ export function asRoleTrack(v: string): 'ic' | 'manager' | 'unknown' {
 //
 // Prefers the edge-injected X-User-Id (the registry UUID that survives key
 // rotation, and the identity job_states rows are keyed by after the one-time
-// migration). Falls back to the legacy credential hash only for callers that
-// bypass the edge. See userId.ts.
+// migration).
+//
+// Returns null when there is no identity to have — a public caller, or an
+// authenticated one whose request never passed through the edge. The legacy
+// credential-hash fallback that used to fill that gap is gone: it MINTED an id
+// nothing could authenticate as, and derived it from the credential, so a
+// rotation orphaned every row. See userId.ts.
 export async function maybeUserId(c: {
 	req: { header: (name: string) => string | undefined };
 	get: (k: 'authContext') => HadokuAuthContext;
 }): Promise<string | null> {
 	const auth = c.get('authContext');
-	if (tierAtLeast(auth, 'friend') && auth.credential) {
-		return resolveUserId(c);
+	if (!tierAtLeast(auth, 'friend') || !auth.credential) return null;
+	try {
+		return await resolveUserId(c);
+	} catch (err) {
+		// "maybe" is exactly what this means: authenticated, but nobody
+		// established WHO, so there is no identity to scope rows to.
+		if (err instanceof NoIdentityError) return null;
+		throw err;
 	}
-	return null;
 }
 
 /** Middleware for the mutating routes: admin/friend and above only. */
