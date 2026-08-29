@@ -46,10 +46,10 @@ after(async () => {
 	await h.dispose();
 });
 
-function put(id: string, body: unknown, userId = 'user-one') {
+function put(id: string, body: unknown, userId = 'user-one', tier = 'friend') {
 	return h.json<StateBody>(`${BASE}/jobs/${id}/state`, {
 		method: 'PUT',
-		tier: 'friend',
+		tier,
 		userId,
 		body: JSON.stringify(body),
 	});
@@ -75,8 +75,17 @@ describe('PUT /jobs/{id}/state — auth', () => {
 	});
 
 	it('admits tiers above friend, since tiers rank', async () => {
-		for (const tier of ['friend', 'service', 'admin']) {
-			const { status } = await put('state-1', { state: 'saved' }, `ranked-${tier}`);
+		// THIS TEST DID NOT TEST TIERS. `put()` hardcoded `tier: 'friend'` and the
+		// loop varied only the userId, so all three iterations sent the same
+		// friend-tier request and the assertion could never have failed for the
+		// reason its name gives. check:tier-fleet flagged the list for omitting
+		// `wife`; the omission was the visible end of a test that was vacuous.
+		//
+		// `wife` belongs in the list on its own merits: it ranks between service
+		// and admin, so a gate admitting service must admit it, and it is the
+		// newest tier and therefore the one a regression would most plausibly drop.
+		for (const tier of ['friend', 'service', 'wife', 'admin']) {
+			const { status } = await put('state-1', { state: 'saved' }, `ranked-${tier}`, tier);
 			assert.equal(status, 200, `${tier} should outrank the friend gate`);
 		}
 	});
