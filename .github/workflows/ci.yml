@@ -61,7 +61,7 @@ jobs:
     # keeps it always-running while an unauthorized fork PR lands on
     # GitHub-hosted (free here) instead of a claw — a persistent machine on a
     # home LAN. author_association is computed by GitHub, not the submitter.
-    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
@@ -130,7 +130,7 @@ jobs:
     # keeps it always-running while an unauthorized fork PR lands on
     # GitHub-hosted (free here) instead of a claw — a persistent machine on a
     # home LAN. author_association is computed by GitHub, not the submitter.
-    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
     timeout-minutes: 15
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a

@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     steps:
       - name: Checkout (full history — the audit reads git forensics)
         uses: actions/checkout@v6
