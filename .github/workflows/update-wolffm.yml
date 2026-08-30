@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   update:
-    runs-on: ${{ fromJSON(vars.CI_RUNNER || '["self-hosted","hadoku-builder"]') }}
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
