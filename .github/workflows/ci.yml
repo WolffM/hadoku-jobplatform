@@ -90,22 +90,9 @@ jobs:
       # setup-node BEFORE corepack: `corepack enable` symlinks its shims next
       # to the active node, and without setup-node that is the host's /usr/bin,
       # which the runner user cannot write.
-      - uses: actions/setup-node@v6
-        if: steps.scope.outputs.run == 'true'
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
         with:
-          node-version: '22'
-          registry-url: https://npm.pkg.github.com
-          scope: '@wolffm'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
-
-      # corepack, not pnpm/action-setup — the self-installer intermittently
-      # dies on this runner with `ENOENT ... uv_cwd`.
-      - name: Enable pnpm
-        if: steps.scope.outputs.run == 'true'
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.5.0 --activate
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Install
         if: steps.scope.outputs.run == 'true'
