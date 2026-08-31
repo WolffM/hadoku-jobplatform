@@ -30,21 +30,9 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: actions/setup-node@v6
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
         with:
-          node-version: "22"
-          registry-url: https://npm.pkg.github.com
-          scope: "@wolffm"
-
-      # pnpm via corepack, pinned by the `packageManager` field in package.json.
-      # Replaces pnpm/action-setup, whose self-installer shares one directory
-      # across every runner instance on the host and dies with
-      # `ENOENT ... uv_cwd` when concurrent jobs race it.
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.5.0 --activate
-          pnpm --version
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
 
       - name: Install dependencies
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
