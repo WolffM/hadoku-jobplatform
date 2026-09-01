@@ -23,6 +23,24 @@ interface Entry<T> {
 
 const store = new Map<string, Entry<unknown>>()
 
+/**
+ * Cap on cached entries. A job posting carries its full description (~7.5KB
+ * average), so a long browsing session would otherwise accumulate megabytes
+ * that nothing ever drops. Map preserves insertion order, so evicting from the
+ * front sheds the least recently ADDED — good enough here, where the entries
+ * worth keeping (the current feed page) are also the ones most recently
+ * written by a refresh.
+ */
+const MAX_ENTRIES = 120
+
+function evictIfFull(): void {
+  while (store.size > MAX_ENTRIES) {
+    const oldest = store.keys().next()
+    if (oldest.done) return
+    store.delete(oldest.value)
+  }
+}
+
 /** Below this age a cached value is served without a background refresh. */
 export const FRESH_MS = 30_000
 
@@ -60,7 +78,11 @@ export function fetchResource<T>(
 
   const inflight = fetcher()
     .then(value => {
+      // Re-insert rather than mutate, so a refreshed entry moves to the back
+      // of the eviction order.
+      store.delete(key)
       store.set(key, { value, at: Date.now() })
+      evictIfFull()
       return value
     })
     .catch((err: unknown) => {
@@ -80,11 +102,6 @@ export function fetchResource<T>(
 export function peekResource<T>(key: string): T | undefined {
   const hit = store.get(key) as Entry<T> | undefined
   return hit && 'value' in hit ? hit.value : undefined
-}
-
-/** Overwrite a cached value in place — for a mutation whose response IS the new state. */
-export function primeResource<T>(key: string, value: T): void {
-  store.set(key, { value, at: Date.now() })
 }
 
 /**
