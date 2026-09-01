@@ -486,3 +486,69 @@ export async function approveApplication(id: string, auth?: Auth): Promise<Appli
   const data = await parseWrapped<{ application: ApplicationSummary }>(response)
   return data.application
 }
+
+// ============================================================================
+// Standing answers, and the queue of questions still missing one
+// ============================================================================
+
+export interface StandingAnswer {
+  /** Normalized question — what the runner matches on. */
+  question_key: string
+  /** As the board worded it. */
+  question: string
+  answer: string
+  updated_at: string
+}
+
+export interface UnansweredQuestion {
+  question_key: string
+  question: string
+  companies: string[]
+  applications: number
+  /** How many applications this actually stopped. */
+  blocking: number
+}
+
+export async function listUnansweredQuestions(auth: Auth): Promise<UnansweredQuestion[]> {
+  const response = await fetch(`${BASE_URL}/unanswered-questions`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ questions: UnansweredQuestion[] }>(response)
+  return data.questions
+}
+
+export async function listAnswers(auth: Auth): Promise<StandingAnswer[]> {
+  const response = await fetch(`${BASE_URL}/application-answers`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ answers: StandingAnswer[] }>(response)
+  return data.answers
+}
+
+export async function saveAnswer(
+  question: string,
+  answer: string,
+  auth: Auth
+): Promise<StandingAnswer> {
+  const response = await fetch(`${BASE_URL}/application-answers`, {
+    method: 'PUT',
+    headers: { ...authHeaders(auth), 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ question, answer })
+  })
+  const data = await parseWrapped<{ answer: StandingAnswer }>(response)
+  return data.answer
+}
+
+export async function forgetAnswer(questionKey: string, auth: Auth): Promise<StandingAnswer[]> {
+  const response = await fetch(
+    `${BASE_URL}/application-answers/${encodeURIComponent(questionKey)}`,
+    { method: 'DELETE', headers: authHeaders(auth), credentials: 'include' }
+  )
+  const data = await parseWrapped<{ answers: StandingAnswer[] }>(response)
+  return data.answers
+}
