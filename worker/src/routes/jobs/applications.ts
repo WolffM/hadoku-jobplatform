@@ -1,3 +1,4 @@
+import type { D1Database } from '@cloudflare/workers-types';
 import { createRoute, z } from '@hono/zod-openapi';
 import {
 	ApplicationsResponseSchema,
@@ -62,13 +63,65 @@ function toApplication(row: ApplicationRow) {
 			| 'approved'
 			| 'submitted'
 			| 'needs_manual'
-			| 'failed',
+			| 'failed'
+			| 'job_closed',
 		error: row.error,
 		evidence: parseEvidence(row.evidence),
 		approved_fingerprint: row.approved_fingerprint,
 		created_at: row.created_at,
 		updated_at: row.updated_at,
 	};
+}
+
+/**
+ * How far a posting's `last_seen_at` may lag its board's newest before we call
+ * it taken down.
+ *
+ * Ingest bumps `last_seen_at` on every job a scrape re-encounters, so a posting
+ * still on the board keeps pace with its siblings and one that has been pulled
+ * falls behind. The comparison is against THE SAME BOARD's newest stamp rather
+ * than wall-clock age, which is what makes it safe: if the scraper breaks, a
+ * target is disabled, or auth lapses, every job on that board stops advancing
+ * together and none of them looks dead. "Our scraper is broken" must never read
+ * as "every job closed".
+ *
+ * The window exists because one scrape run is not instantaneous — it arrives as
+ * batches of 25, each stamped when it lands, so jobs from a single run differ by
+ * minutes. Runs are daily. Twelve hours is comfortably wider than any one run
+ * and comfortably narrower than a missed one.
+ */
+const DELISTED_LAG_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Has this posting stopped appearing in scrapes of its own board?
+ *
+ * Only board-sourced jobs can be judged: keyword-feed sources (LinkedIn,
+ * RemoteOK) have no board to be absent from, so `ats`/`slug` are empty and this
+ * declines to guess.
+ */
+async function delistedReason(db: D1Database, jobId: string): Promise<string | null> {
+	const job = await db
+		.prepare('SELECT ats, slug, last_seen_at FROM jobs WHERE id = ?')
+		.bind(jobId)
+		.first<{ ats: string | null; slug: string | null; last_seen_at: string | null }>();
+	if (!job?.ats || !job.slug || !job.last_seen_at) return null;
+
+	const board = await db
+		.prepare('SELECT MAX(last_seen_at) AS newest FROM jobs WHERE ats = ? AND slug = ?')
+		.bind(job.ats, job.slug)
+		.first<{ newest: string | null }>();
+	if (!board?.newest) return null;
+
+	const seen = Date.parse(job.last_seen_at);
+	const newest = Date.parse(board.newest);
+	if (Number.isNaN(seen) || Number.isNaN(newest)) return null;
+	if (newest - seen <= DELISTED_LAG_MS) return null;
+
+	return (
+		`this posting has not appeared in a scrape of the ${job.ats} board ` +
+		`'${job.slug}' since ${job.last_seen_at}, while other jobs on that board ` +
+		`were seen as recently as ${board.newest} — it looks taken down`
+	);
 }
 
 const FORBIDDEN = {
@@ -125,7 +178,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			const { id } = c.req.valid('param');
 			// Body is optional; zod-openapi validates {} for a body-less POST, which
 			// skips schema defaults — so the 'review' default lives here.
-			const body = c.req.valid('json') as { mode?: 'review' | 'auto' } | undefined;
+			const body = c.req.valid('json') as { mode?: 'review' | 'auto'; force?: boolean } | undefined;
 			const mode = body?.mode ?? 'review';
 			const db = c.env.JOB_PLATFORM_DB;
 
@@ -138,6 +191,23 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
 					404
 				);
+			}
+
+			// Don't queue work against a posting the board has stopped listing.
+			// Overridable, because this is an inference and the owner can see
+			// the page: `force` is how they say "I checked, it is still open".
+			if (!body?.force) {
+				const delisted = await delistedReason(db, id);
+				if (delisted) {
+					return c.json(
+						{
+							success: false as const,
+							error: 'Conflict',
+							message: `${delisted}. Re-apply with {"force": true} if it is still open.`,
+						},
+						409
+					);
+				}
 			}
 
 			const state = await db
@@ -171,6 +241,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					   status = 'queued',
 					   error = NULL,
 					   evidence = NULL,
+					   approved_fingerprint = NULL,
 					   updated_at = excluded.updated_at`
 				)
 				.bind(crypto.randomUUID(), userId, id, state.variant_slug, mode, now, now)

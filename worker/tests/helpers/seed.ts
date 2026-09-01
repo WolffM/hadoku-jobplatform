@@ -28,6 +28,8 @@ export interface JobSeed {
 	run_id?: string | null;
 	ats?: string | null;
 	slug?: string | null;
+	/** Liveness stamp (migration 0013). Defaults to scraped_at, as ingest does. */
+	last_seen_at?: string | null;
 	role_track?: string;
 	role_level?: string | null;
 }
@@ -39,8 +41,8 @@ export async function seedJob(db: D1Database, job: JobSeed): Promise<void> {
 				id, url, source_site, title, company, location, job_type, workplace_type,
 				salary_min, salary_max, description, posted_date, application_url,
 				department, scraper_used, raw, scraped_at, run_id, ats, slug,
-				role_track, role_level
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?)`
+				role_track, role_level, last_seen_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?, ?, ?, ?, ?)`
 		)
 		.bind(
 			job.id,
@@ -60,10 +62,13 @@ export async function seedJob(db: D1Database, job: JobSeed): Promise<void> {
 			job.scraper_used ?? null,
 			job.scraped_at ?? '2026-08-01T00:00:00.000Z',
 			job.run_id ?? null,
-			job.ats ?? 'greenhouse',
-			job.slug ?? 'acme',
+			// `??` would swallow an explicit null, and a keyword-feed job (no
+			// board, hence no ats/slug) is a case the tests must be able to build.
+			job.ats !== undefined ? job.ats : 'greenhouse',
+			job.slug !== undefined ? job.slug : 'acme',
 			job.role_track ?? 'ic',
-			job.role_level ?? null
+			job.role_level ?? null,
+			job.last_seen_at !== undefined ? job.last_seen_at : (job.scraped_at ?? null)
 		)
 		.run();
 }

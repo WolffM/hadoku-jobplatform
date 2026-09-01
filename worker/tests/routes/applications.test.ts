@@ -48,13 +48,21 @@ const OWNER = 'queue-owner';
 
 function apply(
 	jobId: string,
-	opts: { userId?: string; mode?: 'review' | 'auto'; noBody?: boolean } = {}
+	opts: {
+		userId?: string;
+		mode?: 'review' | 'auto';
+		noBody?: boolean;
+		force?: boolean;
+	} = {}
 ) {
+	const payload: Record<string, unknown> = {};
+	if (opts.mode) payload.mode = opts.mode;
+	if (opts.force !== undefined) payload.force = opts.force;
 	return h.json<ApplicationBody & ErrorBody>(`${BASE}/jobs/${jobId}/apply`, {
 		method: 'POST',
 		tier: 'friend',
 		userId: opts.userId ?? OWNER,
-		...(opts.noBody ? {} : { body: JSON.stringify(opts.mode ? { mode: opts.mode } : {}) }),
+		...(opts.noBody ? {} : { body: JSON.stringify(payload) }),
 	});
 }
 
@@ -482,5 +490,110 @@ describe('POST /applications/:id/approve', () => {
 			assert.equal(status, 409, `from ${s}`);
 			assert.match(b.message, /filled/);
 		}
+	});
+});
+
+/**
+ * Queueing an application against a posting that has already been taken down.
+ *
+ * The signal is not age. It is that a posting stopped appearing in scrapes of
+ * its own board while its siblings kept being seen — which is why every test
+ * here fixes both stamps rather than leaning on wall-clock time.
+ */
+describe('POST /jobs/:id/apply — delisted postings', () => {
+	const RECENT = '2026-09-01T06:00:00.000Z';
+	const STALE = '2026-08-14T06:00:00.000Z';
+
+	async function seedBoard(
+		jobId: string,
+		lastSeen: string | null,
+		opts: { ats?: string | null; slug?: string | null; siblingSeen?: string } = {}
+	) {
+		const ats = opts.ats === undefined ? 'greenhouse' : opts.ats;
+		// One board per test. Rows persist across tests in this describe, so a
+		// shared slug lets an earlier test's freshly-seen sibling set the board's
+		// newest stamp — which is precisely the input under test.
+		const slug = opts.slug === undefined ? `board-${jobId}` : opts.slug;
+		await seedJob(h.db, { id: jobId, ats, slug, last_seen_at: lastSeen });
+		await seedJob(h.db, {
+			id: `${jobId}-sibling`,
+			ats,
+			slug,
+			last_seen_at: opts.siblingSeen ?? RECENT,
+		});
+		await seedJobState(h.db, {
+			job_id: jobId,
+			user_id: OWNER,
+			state: 'interested',
+			variant_slug: 'v-delisted',
+		});
+	}
+
+	it('refuses a posting its board has stopped listing', async () => {
+		await seedBoard('gone-1', STALE);
+		const { status, body } = await apply('gone-1');
+		assert.equal(status, 409);
+		assert.match(body.message, /taken down/);
+	});
+
+	it('queues it anyway when the owner overrules', async () => {
+		// The owner can open the page; this is an inference, and they win.
+		await seedBoard('gone-2', STALE);
+		const { status, body } = await apply('gone-2', { force: true });
+		assert.equal(status, 200);
+		assert.equal(body.data.application.status, 'queued');
+	});
+
+	it('queues a posting still being seen', async () => {
+		await seedBoard('live-1', RECENT);
+		assert.equal((await apply('live-1')).status, 200);
+	});
+
+	it('does not call every job dead when the whole board went quiet', async () => {
+		// The failure that would matter most: a disabled target, a broken
+		// scraper or lapsed auth freezes EVERY job on the board together. None
+		// of them has fallen behind its siblings, so none is delisted.
+		await seedBoard('quiet-1', STALE, { siblingSeen: STALE });
+		assert.equal((await apply('quiet-1')).status, 200);
+	});
+
+	it('does not judge keyword-feed jobs, which have no board', async () => {
+		await seedBoard('kw-1', STALE, { ats: null, slug: null });
+		assert.equal((await apply('kw-1')).status, 200);
+	});
+
+	it('does not judge a job that has never been stamped', async () => {
+		await seedBoard('nostamp-1', null);
+		assert.equal((await apply('nostamp-1')).status, 200);
+	});
+
+	it('tolerates the spread of stamps within one scrape run', async () => {
+		// A run arrives as batches of 25, each stamped as it lands, so jobs from
+		// the same run differ by minutes. Those are not delisted.
+		await seedBoard('batch-1', '2026-09-01T05:58:00.000Z');
+		assert.equal((await apply('batch-1')).status, 200);
+	});
+});
+
+describe('job_closed', () => {
+	it('is an accepted terminal status', async () => {
+		const { body } = await apply('ap-1');
+		const { status, body: closed } = await setStatus(body.data.application.id, {
+			status: 'job_closed',
+			error: 'the posting is no longer listed on its board',
+		});
+		assert.equal(status, 200);
+		assert.equal(closed.data.application.status, 'job_closed');
+	});
+
+	it('re-queueing drops an approval given to the previous fill', async () => {
+		const { body } = await apply('ap-1');
+		const id = body.data.application.id;
+		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
+		await approve(id);
+
+		const { body: requeued } = await apply('ap-1');
+		assert.equal(requeued.data.application.status, 'queued');
+		assert.equal(requeued.data.application.approved_fingerprint, null);
 	});
 });

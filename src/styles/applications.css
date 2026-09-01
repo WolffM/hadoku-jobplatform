@@ -86,6 +86,10 @@
   color: var(--color-on-danger-bg);
 }
 
+/* `job_closed` has no rule ON PURPOSE and keeps the neutral base style. It is
+   not a failure — the posting was taken down, which is ordinary — so it should
+   recede rather than compete with the rows that actually need the owner. */
+
 .jp-applications__meta,
 .jp-applications__evidence {
   margin: var(--hdk-space-sm) 0 0;
