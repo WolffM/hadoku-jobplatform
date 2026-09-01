@@ -507,6 +507,12 @@ export interface UnansweredQuestion {
   applications: number
   /** How many applications this actually stopped. */
   blocking: number
+  /**
+   * The choices the form offers; empty when it is free text. An answer must
+   * match one of these verbatim to land, so these are the only answers that
+   * work — not suggestions.
+   */
+  options: string[]
 }
 
 export async function listUnansweredQuestions(auth: Auth): Promise<UnansweredQuestion[]> {

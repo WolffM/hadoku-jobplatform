@@ -20,6 +20,7 @@ interface Answer {
 	updated_at: string;
 }
 interface Unanswered {
+	options: string[];
 	question_key: string;
 	question: string;
 	companies: string[];
@@ -55,7 +56,8 @@ async function seedFill(
 	jobId: string,
 	company: string,
 	unmatched: string[],
-	status = 'needs_manual'
+	status = 'needs_manual',
+	options: Record<string, string[]> = {}
 ) {
 	await seedJob(h.db, { id: jobId, company });
 	await seedJobState(h.db, {
@@ -71,7 +73,15 @@ async function seedFill(
 			   (id, user_id, job_id, variant_slug, mode, status, evidence, created_at, updated_at)
 			 VALUES (?, ?, ?, 'v1', 'review', ?, ?, ?, ?)`
 		)
-		.bind(`app-${jobId}`, OWNER, jobId, status, JSON.stringify({ unmatched, filled: [] }), now, now)
+		.bind(
+			`app-${jobId}`,
+			OWNER,
+			jobId,
+			status,
+			JSON.stringify({ unmatched, filled: [], options }),
+			now,
+			now
+		)
 		.run();
 }
 
@@ -250,5 +260,67 @@ describe('the common-question seed', () => {
 		const veteran = body.data.questions.filter((q) => q.question_key === 'veteran status');
 		assert.equal(veteran.length, 1, 'seed and reality must not both appear');
 		assert.deepEqual(veteran[0].companies, ['Coinbase']);
+	});
+});
+
+describe('question options', () => {
+	/**
+	 * An answer only lands if it matches the board's option text verbatim, so a
+	 * question with choices must be answered by picking. Real Coinbase options
+	 * captured 2026-09-01 include "No, I am not a current or former Government
+	 * Official" and "Confirmed" — typing "No" or "Yes" does nothing, silently,
+	 * and the question comes straight back looking unanswered.
+	 */
+	it('hands the form choices to whoever has to answer', async () => {
+		await seedFill('j1', 'Coinbase', ['Are you a current government official?'], 'needs_manual', {
+			'are you a current government official': [
+				'No, I am not a current or former Government Official',
+				'Yes, I am a current Government Official',
+			],
+		});
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions)[0];
+		assert.equal(q.options.length, 2);
+		assert.match(q.options[0], /^No, I am not/);
+	});
+
+	it('reports no options for a genuinely free-text question', async () => {
+		await seedFill('j2', 'Acme', ['Why do you want to work here?']);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		assert.deepEqual(met(body.data.questions)[0].options, []);
+	});
+
+	it('keeps one wording rather than blending two employers', async () => {
+		// Two boards asking "the same" question offer different option TEXT. A
+		// merged list would be verbatim for neither, which is the one property
+		// an option list has to have.
+		await seedFill('j3', 'Coinbase', ['Do you require sponsorship?'], 'needs_manual', {
+			'do you require sponsorship': ['Yes', 'No'],
+		});
+		await seedFill('j4', 'Globex', ['Do you require sponsorship?'], 'needs_manual', {
+			'do you require sponsorship': ['Yes, I will need sponsorship', 'No, I will not'],
+		});
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions).find((x) => x.question_key === 'do you require sponsorship');
+		assert.equal(q?.options.length, 2);
+		const blended =
+			q!.options.includes('Yes') && q!.options.includes('Yes, I will need sponsorship');
+		assert.equal(blended, false, 'one employer’s wording, not a mixture');
+	});
+
+	it('a seeded question claims nothing about what it accepts', async () => {
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const seeded = body.data.questions.filter((q) => q.companies.length === 0);
+		assert.ok(seeded.length > 0);
+		assert.ok(seeded.every((q) => q.options.length === 0));
+	});
+
+	it('survives options that are not a string array', async () => {
+		await seedFill('j5', 'Acme', ['Odd question'], 'needs_manual', {
+			'odd question': [1, null, 'Fine'] as unknown as string[],
+		});
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions).find((x) => x.question_key === 'odd question');
+		assert.deepEqual(q?.options, ['Fine']);
 	});
 });

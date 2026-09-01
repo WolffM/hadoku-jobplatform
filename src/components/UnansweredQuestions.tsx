@@ -149,15 +149,33 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
                 </p>
               )}
               <div className="jp-questions__answer">
-                <input
-                  type="text"
-                  value={drafts[q.question_key] ?? ''}
-                  placeholder="Answer"
-                  onChange={e => setDrafts(d => ({ ...d, [q.question_key]: e.target.value }))}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') void handleSave(q)
-                  }}
-                />
+                {q.options.length > 0 ? (
+                  /* Never a text box for a question with choices: the answer
+                     has to match the board's option text verbatim to land, so
+                     typing "No" where the option reads "No, I am not a current
+                     or former Government Official" does nothing at all. */
+                  <select
+                    value={drafts[q.question_key] ?? ''}
+                    onChange={e => setDrafts(d => ({ ...d, [q.question_key]: e.target.value }))}
+                  >
+                    <option value="">Pick an answer…</option>
+                    {q.options.map(opt => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={drafts[q.question_key] ?? ''}
+                    placeholder="Answer"
+                    onChange={e => setDrafts(d => ({ ...d, [q.question_key]: e.target.value }))}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') void handleSave(q)
+                    }}
+                  />
+                )}
                 <button
                   type="button"
                   className="jp-drawer__cta jp-drawer__cta--primary"
