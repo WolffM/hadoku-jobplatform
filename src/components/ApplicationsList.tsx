@@ -7,6 +7,7 @@ import {
   type ApplicationSummary
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
+import { useResource } from '../api/useResource'
 import { UnansweredQuestions } from './UnansweredQuestions'
 
 interface Props {
