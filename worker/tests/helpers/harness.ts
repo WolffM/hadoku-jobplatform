@@ -116,6 +116,9 @@ const DEFAULT_REPLIES: Record<string, unknown> = {
 		screening_answers: [],
 	},
 	'/resume/api/variants': { slug: 'abc123' },
+	// Reading a minted variant back. `variant` present = the slug still resolves;
+	// resume-api omits it (and serves the canonical résumé) once one has expired.
+	'/resume/api/resume': { content: '# Minted Resume', variant: 'abc123' },
 };
 
 export async function startResumeService(): Promise<ResumeService> {
