@@ -10,7 +10,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { BASE, EDGE_SECRET, createHarness, type Harness } from '../helpers/harness.ts';
-import { seedJob } from '../helpers/seed.ts';
+import { seedJob, seedJobState } from '../helpers/seed.ts';
 
 let h: Harness;
 
@@ -26,8 +26,9 @@ before(async () => {
 	});
 });
 
-beforeEach(() => {
+beforeEach(async () => {
 	h.resume.reset();
+	await h.db.prepare('DELETE FROM job_states').run();
 });
 
 after(async () => {
@@ -146,13 +147,78 @@ describe('POST /jobs/{id}/application-extras', () => {
 		assert.equal(res.status, 403);
 	});
 
-	it('400s without resume_markdown', async () => {
+	it('400s without resume_markdown when no packet has been minted either', async () => {
 		const { status, body } = await h.json<{ success: boolean; message: string }>(
 			`${BASE}/jobs/tailor-1/application-extras`,
 			{ method: 'POST', ...AUTH, body: JSON.stringify({}) }
 		);
 		assert.equal(status, 400);
 		assert.match(body.message, /resume_markdown/);
+	});
+
+	// The apply runner posts `{}` — it is asking what the drafted answers are,
+	// not supplying the résumé. It got a 400 on every call and swallowed it as
+	// "no drafted answers", so the whole prefetch was dead without ever failing
+	// loudly. The minted packet is the résumé that was actually prepared here.
+	it('falls back to the packet minted for this job when the body carries no résumé', async () => {
+		await seedJobState(h.db, {
+			job_id: 'tailor-1',
+			user_id: 'runner',
+			state: 'saved',
+			variant_slug: 'abc123',
+		});
+		const { status } = await h.json(`${BASE}/jobs/tailor-1/application-extras`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'runner',
+			body: JSON.stringify({}),
+		});
+		assert.equal(status, 200);
+
+		const read = h.resume.calls.find((c) => c.path === '/resume/api/resume');
+		assert.ok(read, 'read the minted variant back');
+		const kit = h.resume.calls.at(-1);
+		assert.equal(kit?.path, '/resume/api/application-extras');
+		assert.equal(kit?.body.resume_markdown, '# Minted Resume');
+	});
+
+	it("does not reach for another user's packet", async () => {
+		await seedJobState(h.db, {
+			job_id: 'tailor-1',
+			user_id: 'someone-else',
+			state: 'saved',
+			variant_slug: 'abc123',
+		});
+		const { status } = await h.json(`${BASE}/jobs/tailor-1/application-extras`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'runner',
+			body: JSON.stringify({}),
+		});
+		assert.equal(status, 400);
+	});
+
+	// resume-api answers an unknown slug with the CANONICAL résumé and no
+	// `variant` field rather than a 404. Taking that would tailor the kit to the
+	// generic résumé and present it as job-specific — worse than refusing.
+	it('refuses an expired packet instead of tailoring the canonical résumé', async () => {
+		await seedJobState(h.db, {
+			job_id: 'tailor-1',
+			user_id: 'runner',
+			state: 'saved',
+			variant_slug: 'gone',
+		});
+		h.resume.respondWith(200, { content: '# Canonical Resume' });
+		const { status, body } = await h.json<{ message: string }>(
+			`${BASE}/jobs/tailor-1/application-extras`,
+			{ method: 'POST', tier: 'friend', userId: 'runner', body: JSON.stringify({}) }
+		);
+		assert.equal(status, 400);
+		assert.match(body.message, /expired/);
+		assert.ok(
+			!h.resume.calls.some((c) => c.path === '/resume/api/application-extras'),
+			'never built a kit from the canonical résumé'
+		);
 	});
 
 	it("sends this job's location and workplace type, not a candidate default", async () => {

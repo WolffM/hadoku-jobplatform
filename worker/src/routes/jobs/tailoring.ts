@@ -54,6 +54,38 @@ async function callResumeBinding(
 	});
 }
 
+/**
+ * Read back a variant resume-api already minted.
+ *
+ * The `variant` field is load-bearing: on an unknown or expired slug resume-api
+ * does NOT 404 — it falls back to the canonical résumé and omits `variant`. So
+ * its absence is the "this packet is gone" signal, and taking `content` without
+ * checking would quietly tailor a kit to the generic résumé and present the
+ * result as job-specific.
+ */
+async function fetchMintedResume(
+	env: AppEnv,
+	slug: string
+): Promise<{ markdown: string } | { expired: true }> {
+	if (!env.RESUME) {
+		throw new Error('RESUME service binding not configured');
+	}
+	const res = await env.RESUME.fetch(
+		`https://resume-api/resume/api/resume?v=${encodeURIComponent(slug)}`,
+		{
+			method: 'GET',
+			headers: {
+				'X-Edge-Auth': env.EDGE_AUTH_SECRET ?? '',
+				'X-Hadoku-Tier': 'service',
+			},
+		}
+	);
+	if (!res.ok) return { expired: true };
+	const body: { content?: string; variant?: string } = await res.json();
+	if (!body.variant || !body.content) return { expired: true };
+	return { markdown: body.content };
+}
+
 /** Body parsing for these routes is lenient — a missing/!JSON body is `{}`. */
 async function readOptions(c: { req: { json: () => Promise<unknown> } }) {
 	try {
@@ -201,21 +233,58 @@ export function registerTailoringRoutes(app: JobsApp): void {
 
 	// POST /jobs/:id/application-extras — the non-résumé half of the apply kit.
 	//
-	// The client generates the tailored résumé first (POST /jobs/:id/resume) and
-	// posts its markdown here; we proxy title/company/description + that résumé to
-	// resume-api over the service binding, which returns intro email, why-hook,
-	// screening answers, salary line, LinkedIn note, talking points and the
-	// standard-fields block. Its own edge carve-out, like the other tailoring calls.
+	// We proxy title/company/description + the tailored résumé to resume-api over
+	// the service binding, which returns intro email, why-hook, screening answers,
+	// salary line, LinkedIn note, talking points and the standard-fields block.
+	// Its own edge carve-out, like the other tailoring calls.
+	//
+	// The résumé can arrive two ways. The dashboard has just generated one and
+	// posts it inline. The apply runner has not: it is asking "what are the
+	// drafted answers for this job?", and requiring it to carry the résumé to ask
+	// that meant it posted `{}` and got a 400 every time — silently, because it
+	// treats a failure here as "no drafted answers" and falls back to standing
+	// ones. So an absent résumé now resolves from the packet already minted for
+	// this job, which is the record of what was actually prepared for it.
 	app.post('/jobs/:id/application-extras', gateAuthed);
 	app.post('/jobs/:id/application-extras', async (c) => {
 		const id = c.req.param('id');
 		const opts = await readOptions(c);
-		const resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
+		let resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
+
 		if (!resumeMarkdown) {
-			return c.json(
-				{ success: false as const, error: 'Bad request', message: 'resume_markdown is required' },
-				400
-			);
+			const userId = await maybeUserId(c);
+			const row = userId
+				? await c.env.JOB_PLATFORM_DB.prepare(
+						'SELECT variant_slug FROM job_states WHERE job_id = ? AND user_id = ?'
+					)
+						.bind(id, userId)
+						.first<{ variant_slug: string | null }>()
+				: null;
+			const slug = row?.variant_slug ?? null;
+			if (!slug) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Bad request',
+						message:
+							'resume_markdown is required, or prepare a packet for this job first — ' +
+							'no minted packet was found for this caller.',
+					},
+					400
+				);
+			}
+			const minted = await fetchMintedResume(c.env, slug);
+			if ('expired' in minted) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Bad request',
+						message: `The packet for this job ('${slug}') has expired; re-prepare it or post resume_markdown.`,
+					},
+					400
+				);
+			}
+			resumeMarkdown = minted.markdown;
 		}
 
 		const job = await loadTailoringFields(c.env.JOB_PLATFORM_DB, id);
