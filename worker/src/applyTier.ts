@@ -35,6 +35,11 @@ export type ApplyTier = 'supported' | 'embedded' | 'unsupported' | 'unknown';
 const SUPPORTED_HOSTS = [
 	'jobs.ashbyhq.com',
 	'job-boards.greenhouse.io',
+	// Greenhouse's EU host. Not a variant of the line above — `endsWith` on
+	// `.job-boards.greenhouse.io` does not match it — so it needs its own entry.
+	// 138 postings in the sampled corpus use it, and every one was being written
+	// off as an unrecognised ATS.
+	'job-boards.eu.greenhouse.io',
 	'boards.greenhouse.io',
 	'jobs.lever.co',
 ];
