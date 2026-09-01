@@ -113,6 +113,19 @@ describe('GET /unanswered-questions', () => {
 		assert.deepEqual(met(body.data.questions)[0].companies, ['Coinbase', 'Pinterest']);
 	});
 
+	it('counts applications, not employers', async () => {
+		// Two postings at ONE employer are two applications held up. Counting
+		// distinct companies reported "1 application" next to "blocking 2" — the
+		// same row disagreeing with itself, seen on the first real drain.
+		await seedFill('j1', 'Coinbase', ['Are you at least 18 years of age?']);
+		await seedFill('j2', 'Coinbase', ['Are you at least 18 years of age?']);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions)[0];
+		assert.equal(q.applications, 2);
+		assert.equal(q.blocking, 2);
+		assert.deepEqual(q.companies, ['Coinbase']);
+	});
+
 	it('ranks by what it is actually costing', async () => {
 		await seedFill('j1', 'Acme', ['Cheap question'], 'filled');
 		await seedFill('j2', 'Globex', ['Expensive question']);

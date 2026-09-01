@@ -58,7 +58,10 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 	const known = new Set(answered.results.map((r) => r.question_key));
 
 	// key -> the question as last seen, plus who is waiting on it
-	const pending = new Map<string, { question: string; companies: Set<string>; blocking: number }>();
+	const pending = new Map<
+		string,
+		{ question: string; companies: Set<string>; applications: number; blocking: number }
+	>();
 
 	for (const row of rows.results) {
 		let unmatched: unknown;
@@ -77,9 +80,15 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			const entry = pending.get(key) ?? {
 				question: raw.trim(),
 				companies: new Set<string>(),
+				applications: 0,
 				blocking: 0,
 			};
 			entry.companies.add(row.company);
+			// Per APPLICATION, not per company. Two postings at one employer are
+			// two applications held up; counting distinct companies reported
+			// "1 application" beside "blocking 2" — the same row disagreeing with
+			// itself, which is exactly what the first real drain showed.
+			entry.applications += 1;
 			// `needs_manual` is the status that actually costs an application; a
 			// question that merely went unanswered on an otherwise-fine fill is
 			// worth surfacing but is not holding anything up.
@@ -96,7 +105,12 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 	for (const { question } of COMMON_QUESTIONS) {
 		const key = questionKey(question);
 		if (!key || known.has(key) || pending.has(key)) continue;
-		pending.set(key, { question, companies: new Set<string>(), blocking: 0 });
+		pending.set(key, {
+			question,
+			companies: new Set<string>(),
+			applications: 0,
+			blocking: 0,
+		});
 	}
 
 	return (
@@ -105,7 +119,7 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				question_key: key,
 				question: v.question,
 				companies: [...v.companies].sort(),
-				applications: v.companies.size,
+				applications: v.applications,
 				blocking: v.blocking,
 			}))
 			// Most blocking first: the queue is a work list, so what is costing the
