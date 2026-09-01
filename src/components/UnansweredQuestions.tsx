@@ -38,6 +38,9 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAnswered, setShowAnswered] = useState(false)
+  const [newQuestion, setNewQuestion] = useState('')
+  const [newAnswer, setNewAnswer] = useState('')
+  const [adding, setAdding] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -69,6 +72,33 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
       setError(err instanceof JobsApiError ? err.message : 'Failed to save')
     } finally {
       setSaving(null)
+    }
+  }
+
+  /**
+   * Answer a question before the runner has ever met it.
+   *
+   * Without this the store could only be filled by first FAILING an
+   * application: a question had to block a fill before there was anywhere to
+   * put its answer. That is backwards whenever the owner already knows what a
+   * board is going to ask — which is most of the time, since the compliance and
+   * demographic blocks are near-identical across employers.
+   */
+  async function handleAdd() {
+    if (!newQuestion.trim()) return
+    setAdding(true)
+    setError(null)
+    try {
+      const saved = await saveAnswer(newQuestion, newAnswer, auth)
+      setAnswers(prev => [saved, ...prev.filter(a => a.question_key !== saved.question_key)])
+      setQuestions(prev => prev.filter(q => q.question_key !== saved.question_key))
+      setNewQuestion('')
+      setNewAnswer('')
+      setShowAnswered(true)
+    } catch (err) {
+      setError(err instanceof JobsApiError ? err.message : 'Failed to save')
+    } finally {
+      setAdding(false)
     }
   }
 
@@ -141,6 +171,40 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
           ))}
         </ul>
       )}
+
+      <details className="jp-questions__add">
+        <summary>Add an answer ahead of time</summary>
+        <p className="jp-muted">
+          Paste the question exactly as the form words it. Matching ignores case, punctuation and a
+          trailing <code>*</code>, so one entry covers the boards that word it slightly differently.
+          For a dropdown the answer must match the option text verbatim.
+        </p>
+        <input
+          type="text"
+          value={newQuestion}
+          placeholder="Question, e.g. Are you at least 18 years of age?"
+          onChange={e => setNewQuestion(e.target.value)}
+        />
+        <div className="jp-questions__answer">
+          <input
+            type="text"
+            value={newAnswer}
+            placeholder="Answer (leave empty to mean “leave this blank”)"
+            onChange={e => setNewAnswer(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') void handleAdd()
+            }}
+          />
+          <button
+            type="button"
+            className="jp-drawer__cta"
+            onClick={() => void handleAdd()}
+            disabled={adding || !newQuestion.trim()}
+          >
+            {adding ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </details>
 
       {showAnswered && (
         <ul className="jp-questions__saved">

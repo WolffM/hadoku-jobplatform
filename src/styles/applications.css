@@ -190,3 +190,34 @@
   margin-left: auto;
   color: var(--color-text-secondary);
 }
+
+/* Answering ahead of a fill. Collapsed by default: the queue is the primary
+   path, and this is for when the owner already knows what will be asked. */
+.jp-questions__add {
+  margin-top: var(--hdk-space-md);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--hdk-space-sm);
+}
+
+.jp-questions__add summary {
+  cursor: pointer;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-questions__add input {
+  width: 100%;
+  margin-bottom: var(--hdk-space-sm);
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* The row inside already lays itself out; keep its input from inheriting the
+   full-width rule above and pushing the button off the edge. */
+.jp-questions__add .jp-questions__answer input {
+  width: auto;
+  margin-bottom: 0;
+}
