@@ -31,7 +31,9 @@ jobs:
 
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 2
+          # The whole history, because "what changed" is measured across the
+          # PUSH and a push can be any number of commits. See the range step.
+          fetch-depth: 0
 
       - uses: WolffM/hadoku-actions/setup-pnpm@v1
         with:
@@ -48,10 +50,45 @@ jobs:
       - name: Build worker package
         run: pnpm --filter @wolffm/jobplatform-worker run build
 
+      # What this PUSH introduced, as a diff range.
+      #
+      # `HEAD~1 HEAD` is the last COMMIT, and a push is not one commit. Push
+      # two commits where the worker changes in the first and a chore lands
+      # second, and the worker publish is silently skipped — the UI ships the
+      # new feature and the worker that implements it never leaves the runner.
+      #
+      # It fails QUIETLY by construction: the publish, the registry
+      # verification and the dispatch to hadoku_site are all gated on the two
+      # outputs below, so they agree with each other and none of them agrees
+      # with the push. Green run, published UI, an API that 400s on the thing
+      # the UI now offers. Seen for real in hadoku-meet (2026-08-18) and
+      # hadoku-hopper (2026-09-01), whose worker sat unpublished while the site
+      # ran a new client against it.
+      #
+      # `github.event.before` is the tip before the push, the only base that
+      # covers every commit in it.
+      - name: Resolve the range this push introduced
+        id: range
+        run: |
+          base="${{ github.event.before }}"
+          # workflow_dispatch sends no `before`; a branch's first push sends the
+          # all-zero sha; a force-push can name a commit that is no longer
+          # reachable. Fall back to the last commit in all three cases — a
+          # narrower range than the truth, but never a broken one.
+          if [ -z "$base" ] \
+            || [ "$base" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "No usable push base ('$base'); falling back to HEAD~1"
+            base="HEAD~1"
+          fi
+          echo "base=$base" >> $GITHUB_OUTPUT
+          echo "Comparing ${base}..HEAD:"
+          git diff --name-only "$base" HEAD
+
       - name: Check if UI package changed
         id: ui_changed
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qv '^worker/'; then
+          if git diff --name-only ${{ steps.range.outputs.base }} HEAD | grep -qv '^worker/'; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -60,7 +97,7 @@ jobs:
       - name: Check if worker package changed
         id: worker_changed
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q '^worker/'; then
+          if git diff --name-only ${{ steps.range.outputs.base }} HEAD | grep -q '^worker/'; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
