@@ -92,10 +92,29 @@ function escapeRegExp(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Compiled word-boundary matchers, keyed by phrase.
+//
+// wordHit is the hottest function in the worker: the feed's light pass calls it
+// once per (job × keyword/interest) pair, so a 30k-row corpus scored against a
+// profile with 6 keywords and 37 interest phrases rebuilt the SAME few dozen
+// patterns two and a half million times per request. The distinct phrases are
+// the union of every profile's criteria plus TITLE_TECH — low hundreds — so
+// they are worth compiling once and keeping.
+const WORD_RE = new Map<string, RegExp>();
+
+function wordRe(phrase: string): RegExp {
+	let re = WORD_RE.get(phrase);
+	if (!re) {
+		re = new RegExp(`\\b${escapeRegExp(phrase)}\\b`, 'i');
+		WORD_RE.set(phrase, re);
+	}
+	return re;
+}
+
 function wordHit(text: string, phrase: string): boolean {
 	const trimmed = phrase.trim();
 	if (!trimmed) return false;
-	return new RegExp(`\\b${escapeRegExp(trimmed)}\\b`, 'i').test(text);
+	return wordRe(trimmed).test(text);
 }
 
 // ── relevance ────────────────────────────────────────────────────────────────
@@ -293,12 +312,17 @@ const TITLE_TECH = [
 	'node',
 ] as const;
 
+// TITLE_TECH is a module constant, so its 39 matchers are built once at load
+// rather than per job — the light pass called this for every row in the corpus.
+const TITLE_TECH_RE: [RegExp, string][] = TITLE_TECH.map((tech) => [
+	new RegExp(`(?:^|[^a-z0-9+#.])${tech}(?:[^a-z0-9+#]|$)`, 'i'),
+	tech.replace(/\\/g, ''),
+]);
+
 function titleTechs(title: string): string[] {
 	const hits: string[] = [];
-	for (const tech of TITLE_TECH) {
-		if (new RegExp(`(?:^|[^a-z0-9+#.])${tech}(?:[^a-z0-9+#]|$)`, 'i').test(title)) {
-			hits.push(tech.replace(/\\/g, ''));
-		}
+	for (const [re, name] of TITLE_TECH_RE) {
+		if (re.test(title)) hits.push(name);
 	}
 	return hits;
 }
