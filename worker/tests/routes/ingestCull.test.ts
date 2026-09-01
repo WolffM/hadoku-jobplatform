@@ -65,3 +65,89 @@ describe('POST /ingest/cull', () => {
 		);
 	});
 });
+
+/** One minimal job as the scraper posts it. */
+function job(over: { id: string; url: string }) {
+	return {
+		id: over.id,
+		url: over.url,
+		source_site: 'greenhouse',
+		title: 'Engineer',
+		company: 'Example',
+		location: 'Remote',
+		description: 'We build things.',
+	};
+}
+
+async function ingest(
+	jobs: ReturnType<typeof job>[],
+	extra: { source: string; board_slug?: string }
+) {
+	return h.fetch(`${BASE}/ingest`, {
+		method: 'POST',
+		...AUTH,
+		body: JSON.stringify({ jobs, batch_number: 1, is_final: false, ...extra }),
+	});
+}
+
+describe('board_slug — the scraper knows which board it fetched', () => {
+	/**
+	 * `parseAtsSlug` guesses the slug from the hostname whenever an employer
+	 * hosts its own careers site. Measured 2026-09-01, that guess is wrong for
+	 * 12 of 37 employer-hosted Greenhouse boards — 1,633 postings — and the
+	 * failure is silent: a wrong slug still looks like a slug, and only shows up
+	 * when something tries to USE it (a derived apply URL 404s).
+	 */
+	it('prefers the scraper slug over the hostname guess', async () => {
+		await ingest(
+			[
+				job({
+					id: 'pin-1',
+					url: 'https://www.pinterestcareers.com/jobs/?gh_jid=7888329',
+				}),
+			],
+			{ source: 'greenhouse', board_slug: 'pinterest' }
+		);
+		const row = await h.db
+			.prepare('SELECT ats, slug FROM jobs WHERE id = ?')
+			.bind('pin-1')
+			.first<{ ats: string; slug: string }>();
+		assert.equal(row?.slug, 'pinterest', 'hostname says pinterestcareers; the board is pinterest');
+		assert.equal(row?.ats, 'greenhouse');
+	});
+
+	it('still parses the URL when no board slug is sent', async () => {
+		await ingest([job({ id: 'gh-1', url: 'https://boards.greenhouse.io/anthropic/jobs/123456' })], {
+			source: 'greenhouse',
+		});
+		const row = await h.db
+			.prepare('SELECT ats, slug FROM jobs WHERE id = ?')
+			.bind('gh-1')
+			.first<{ ats: string; slug: string }>();
+		assert.equal(row?.slug, 'anthropic');
+		assert.equal(row?.ats, 'greenhouse');
+	});
+
+	it('heals a row already carrying the hostname guess', async () => {
+		// Otherwise the rows written before this change keep a slug that derives
+		// a 404 apply URL until someone runs a backfill.
+		await ingest([job({ id: 'pin-2', url: 'https://www.pinterestcareers.com/jobs/?gh_jid=1' })], {
+			source: 'greenhouse',
+		});
+		const before = await h.db
+			.prepare('SELECT slug FROM jobs WHERE id = ?')
+			.bind('pin-2')
+			.first<{ slug: string }>();
+		assert.equal(before?.slug, 'pinterestcareers');
+
+		await ingest([job({ id: 'pin-2', url: 'https://www.pinterestcareers.com/jobs/?gh_jid=1' })], {
+			source: 'greenhouse',
+			board_slug: 'pinterest',
+		});
+		const after = await h.db
+			.prepare('SELECT slug FROM jobs WHERE id = ?')
+			.bind('pin-2')
+			.first<{ slug: string }>();
+		assert.equal(after?.slug, 'pinterest', 'a re-scrape corrects it');
+	});
+});

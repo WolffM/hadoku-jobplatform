@@ -85,7 +85,7 @@ const ingestRoute = createRoute({
 const INGEST_BATCH_CHUNK = 100;
 
 app.openapi(ingestRoute, async (c) => {
-	const { jobs, batch_number, is_final } = c.req.valid('json');
+	const { jobs, batch_number, is_final, source, board_slug } = c.req.valid('json');
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
 
@@ -104,7 +104,11 @@ app.openapi(ingestRoute, async (c) => {
 			structuredMin === null && structuredMax === null ? parseSalaryRange(job.description) : null;
 		const salaryMin = structuredMin ?? prose?.min ?? null;
 		const salaryMax = structuredMax ?? prose?.max ?? null;
-		const { ats, slug } = parseAtsSlug(job.url);
+		// The scraper's own board slug beats anything parsed out of the URL: it
+		// is what it actually fetched, where the parse is a hostname guess.
+		const parsed = parseAtsSlug(job.url);
+		const ats = parsed.ats ?? (board_slug ? source : null);
+		const slug = board_slug ?? parsed.slug;
 		// No ATS publishes a track or a level, so we infer both here — once, at
 		// write time — rather than re-deriving them from the title on every read.
 		const role = classifyRole(job.title, job.description);
@@ -160,11 +164,23 @@ app.openapi(ingestRoute, async (c) => {
 	for (let i = 0; i < urls.length; i += 90) {
 		const chunk = urls.slice(i, i + 90);
 		seenStmts.push(
-			db
-				.prepare(
-					`UPDATE jobs SET last_seen_at = ? WHERE url IN (${chunk.map(() => '?').join(',')})`
-				)
-				.bind(now, ...chunk)
+			board_slug
+				? // Correct the slug on rows written before the scraper sent an
+					// authoritative one, so the ~1,633 postings carrying a
+					// hostname guess heal on their next scrape instead of needing
+					// a backfill. Only ever narrows to the truth: this runs solely
+					// when the scraper told us which board it fetched.
+					db
+						.prepare(
+							`UPDATE jobs SET last_seen_at = ?, slug = ?
+							 WHERE url IN (${chunk.map(() => '?').join(',')})`
+						)
+						.bind(now, board_slug, ...chunk)
+				: db
+						.prepare(
+							`UPDATE jobs SET last_seen_at = ? WHERE url IN (${chunk.map(() => '?').join(',')})`
+						)
+						.bind(now, ...chunk)
 		);
 	}
 	if (seenStmts.length) await db.batch(seenStmts);

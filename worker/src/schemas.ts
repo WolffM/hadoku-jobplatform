@@ -436,6 +436,19 @@ export const IngestPayloadSchema = z
 		// would otherwise 400 the whole batch here (this silently dropped ashby
 		// and all keyword-source jobs). Per-job `source_site` is authoritative.
 		source: z.string(),
+		/**
+		 * The board slug the scraper actually fetched, e.g. "pinterest".
+		 *
+		 * Authoritative, and the reason this exists: `parseAtsSlug` has to GUESS
+		 * the slug from the URL when an employer hosts its own careers site, and
+		 * the guess is the hostname. That is right often enough to look fine —
+		 * stripe.com→stripe, coinbase.com→coinbase — and wrong for 12 of 37
+		 * employer-hosted boards measured 2026-09-01 (1,633 postings):
+		 * pinterestcareers→pinterest, careers.datadoghq.com→datadog,
+		 * withwaymo→waymo, and app.careerpuck.com→lyft, where the host carries
+		 * no company name at all.
+		 */
+		board_slug: z.string().optional(),
 		batch_number: z.number().int().positive(),
 		is_final: z.boolean(),
 		search_term: z.string().optional(),
