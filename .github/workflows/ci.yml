@@ -192,9 +192,23 @@ jobs:
   # already invisible. This closes that without opening the clobber.
   #
   # No checkout: report-job is REFERENCED, not vendored, so the runner fetches
-  # it before the first step. Hosted, because this is one curl and a claw is a
-  # scarce shared resource. On a fork PR the service key is absent and the
-  # action warns and skips, which is the intended behaviour.
+  # it before the first step.
+  #
+  # SELF-HOSTED, and that is load-bearing. Run this on `ubuntu-latest` and the
+  # POST comes back 403 with a valid key -- measured on run 33570360877, same
+  # repo, same KEY_SERVICE_JOBPLATFORM, same payload, minutes after the claw
+  # reported the identical job fine. It is not the Cloudflare UA block: from a
+  # LAN host the same curl and a deliberately bogus key still reaches
+  # edge-router and is answered `{"error":"Unauthorized"}`, so the zone is not
+  # refusing curl. Whatever the discriminator is, a GitHub-hosted runner cannot
+  # deliver this report, and a reporter that cannot report is the failure it
+  # exists to prevent -- it fails as a WARNING, so it goes unnoticed exactly
+  # like the gap this job was added to close.
+  #
+  # Same runner-selection expression as the jobs above, so an unauthorized fork
+  # PR still lands on hosted. It executes no repo code either way (no checkout,
+  # and a `uses:` on a pull_request comes from the BASE branch), and a fork has
+  # no access to the secret, so there it warns and skips as intended.
   report:
     name: report
     needs: [typecheck, lint]
@@ -202,7 +216,7 @@ jobs:
     # state stays broken and the next real failure arrives as a suppressed
     # reminder rather than a new alert.
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
     timeout-minutes: 5
     steps:
       - name: Report the outcome so a silent failure can't hide
