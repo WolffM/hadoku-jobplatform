@@ -314,6 +314,54 @@ export const SetApplicationStatusSchema = z
 	.openapi('SetApplicationStatus');
 
 // ============================================================================
+// Standing answers, and the queue of questions still missing one
+// ============================================================================
+
+export const AnswerSchema = z
+	.object({
+		/** Normalized question — what the runner matches on. See questionKey.ts. */
+		question_key: z.string(),
+		/** As the board worded it, so the owner recognises what they answered. */
+		question: z.string(),
+		answer: z.string(),
+		updated_at: z.string(),
+	})
+	.openapi('Answer');
+
+export const SetAnswerSchema = z
+	.object({
+		question: z.string().min(1),
+		/**
+		 * Deliberately allowed to be empty: "" is a real answer meaning "leave
+		 * this blank", and forbidding it would leave the question in the queue
+		 * forever with no way to dismiss it.
+		 */
+		answer: z.string(),
+	})
+	.openapi('SetAnswer');
+
+export const AnswerResponseSchema = S(z.object({ answer: AnswerSchema })).openapi('AnswerResponse');
+export const AnswersResponseSchema = S(z.object({ answers: z.array(AnswerSchema) })).openapi(
+	'AnswersResponse'
+);
+
+export const UnansweredQuestionSchema = z
+	.object({
+		question_key: z.string(),
+		question: z.string(),
+		/** Companies whose forms asked it. */
+		companies: z.array(z.string()),
+		applications: z.number(),
+		/** How many applications it actually stopped (status needs_manual). */
+		blocking: z.number(),
+	})
+	.openapi('UnansweredQuestion');
+
+export const UnansweredResponseSchema = S(
+	z.object({ questions: z.array(UnansweredQuestionSchema) })
+).openapi('UnansweredResponse');
+
+// ============================================================================
 // V3 — tailored application packets (proxied to resume-api via service binding)
 // ============================================================================
 

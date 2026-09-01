@@ -7,6 +7,7 @@ import {
   type ApplicationSummary
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
+import { UnansweredQuestions } from './UnansweredQuestions'
 
 interface Props {
   auth: Auth
@@ -90,16 +91,25 @@ export function ApplicationsList({ auth }: Props) {
 
   if (needsAuth) return <p className="jp-muted">Sign in to see your applications.</p>
   if (loading) return <p className="jp-muted">Loading applications…</p>
+
+  // The questions section sits ABOVE the queue and outside the empty-state
+  // early return. An unanswered question is usually WHY the rows below are
+  // stuck, so it is the thing to act on first — and with an empty queue it is
+  // still the only way to reach saved answers.
   if (!apps.length) {
     return (
-      <p className="jp-muted">
-        No applications queued. Open a job, prepare its application, then hit Apply.
-      </p>
+      <div className="jp-applications">
+        <UnansweredQuestions auth={auth} />
+        <p className="jp-muted">
+          No applications queued. Open a job, prepare its application, then hit Apply.
+        </p>
+      </div>
     )
   }
 
   return (
     <div className="jp-applications">
+      <UnansweredQuestions auth={auth} />
       {error && <p className="jp-error">{error}</p>}
       <ul className="jp-applications__list">
         {apps.map(app => {

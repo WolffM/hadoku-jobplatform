@@ -105,3 +105,88 @@
   flex-wrap: wrap;
   margin-top: var(--hdk-space-lg);
 }
+
+/* Unanswered questions — the work list that unblocks the queue below it. */
+.jp-questions {
+  margin-bottom: var(--hdk-space-lg);
+  padding: var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+}
+
+.jp-questions__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-questions__head h3 {
+  margin: 0;
+}
+
+.jp-questions__toggle,
+.jp-questions__forget {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.jp-questions__list,
+.jp-questions__saved {
+  list-style: none;
+  margin: var(--hdk-space-md) 0 0;
+  padding: 0;
+}
+
+.jp-questions__row {
+  padding: var(--hdk-space-sm) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.jp-questions__q {
+  margin: 0;
+  font-weight: 600;
+}
+
+.jp-questions__meta {
+  margin: var(--hdk-space-xs) 0 var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-questions__answer {
+  display: flex;
+  gap: var(--hdk-space-sm);
+}
+
+/* The input takes the room; min-width:0 so a long placeholder cannot push the
+   button out of a narrow column. */
+.jp-questions__answer input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+.jp-questions__saved li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hdk-space-sm);
+  padding: var(--hdk-space-xs) 0;
+  border-top: 1px solid var(--color-border);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-questions__saved-value {
+  margin-left: auto;
+  color: var(--color-text-secondary);
+}
