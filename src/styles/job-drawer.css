@@ -371,3 +371,21 @@
   background-color: var(--color-neutral-bg) !important;
   color: var(--color-text-tertiary) !important;
 }
+
+/* Auto-apply capability, shown above the Apply actions.
+   Deliberately quiet — this is context for a decision the owner is making, not
+   a status to be chased. The verified variant is the only one that has earned
+   an accent, because it is the only one backed by a form we actually filled. */
+.jp-apply-tier {
+  margin: 0 0 var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-apply-tier--verified {
+  color: var(--color-on-success-bg);
+  background-color: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--hdk-radius-sm);
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+}
