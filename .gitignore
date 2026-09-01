@@ -1,5 +1,9 @@
 # Dependencies
-node_modules/
+# No trailing slash, deliberately. `node_modules/` matches DIRECTORIES only,
+# and .husky/pre-commit symlinks the main checkout's node_modules into a fresh
+# worktree so the gates can run there. A symlink is not a directory, so the
+# slashed pattern let `git add -A` commit the links themselves.
+node_modules
 
 # Build outputs
 dist/
