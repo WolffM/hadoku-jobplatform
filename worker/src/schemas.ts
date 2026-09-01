@@ -361,6 +361,12 @@ export const UnansweredQuestionSchema = z
 		applications: z.number(),
 		/** How many applications it actually stopped (status needs_manual). */
 		blocking: z.number(),
+		/**
+		 * The choices the form offers, empty when it is a free-text question.
+		 * Not a hint: an answer has to match one of these verbatim to land, so
+		 * a question with options must be answered by picking, never by typing.
+		 */
+		options: z.array(z.string()),
 	})
 	.openapi('UnansweredQuestion');
 

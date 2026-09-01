@@ -60,13 +60,25 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 	// key -> the question as last seen, plus who is waiting on it
 	const pending = new Map<
 		string,
-		{ question: string; companies: Set<string>; applications: number; blocking: number }
+		{
+			question: string;
+			companies: Set<string>;
+			applications: number;
+			blocking: number;
+			options: string[];
+		}
 	>();
 
 	for (const row of rows.results) {
 		let unmatched: unknown;
+		let optionsByKey: Record<string, unknown> = {};
 		try {
-			unmatched = (JSON.parse(row.evidence) as Record<string, unknown>).unmatched;
+			const parsedEvidence = JSON.parse(row.evidence) as Record<string, unknown>;
+			unmatched = parsedEvidence.unmatched;
+			const opts = parsedEvidence.options;
+			if (typeof opts === 'object' && opts !== null && !Array.isArray(opts)) {
+				optionsByKey = opts as Record<string, unknown>;
+			}
 		} catch {
 			// A hand-edited or truncated blob is skipped, not fatal: one bad row
 			// must not hide every other question in the queue.
@@ -82,7 +94,17 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				companies: new Set<string>(),
 				applications: 0,
 				blocking: 0,
+				options: [] as string[],
 			};
+			// An answer must match the board's option text verbatim to land, so
+			// these are not a hint — they are the only answers that work. First
+			// sighting wins: two employers wording the same question differently
+			// have different option text, and blending them would produce a list
+			// that is verbatim for neither.
+			const seen = optionsByKey[key];
+			if (!entry.options.length && Array.isArray(seen)) {
+				entry.options = seen.filter((o): o is string => typeof o === 'string' && !!o);
+			}
 			entry.companies.add(row.company);
 			// Per APPLICATION, not per company. Two postings at one employer are
 			// two applications held up; counting distinct companies reported
@@ -110,6 +132,9 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			companies: new Set<string>(),
 			applications: 0,
 			blocking: 0,
+			// A seeded question has never been seen on a form, so nothing is
+			// known about what it accepts.
+			options: [],
 		});
 	}
 
@@ -120,6 +145,7 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				question: v.question,
 				companies: [...v.companies].sort(),
 				applications: v.applications,
+				options: v.options,
 				blocking: v.blocking,
 			}))
 			// Most blocking first: the queue is a work list, so what is costing the

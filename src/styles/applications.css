@@ -221,3 +221,15 @@
   width: auto;
   margin-bottom: 0;
 }
+
+/* A question with choices gets a picker, never a text box. min-width:0 so a
+   sentence-long option cannot push the Save button off the row. */
+.jp-questions__answer select {
+  flex: 1;
+  min-width: 0;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
