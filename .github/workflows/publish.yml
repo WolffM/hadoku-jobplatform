@@ -26,6 +26,9 @@ jobs:
   publish:
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v6
         with:
           fetch-depth: 2
@@ -258,3 +261,15 @@ jobs:
               echo "  Failed to dispatch redeploy_service (HTTP $status)"
             fi
           fi
+
+      # A red run is seen by nobody unless it says so itself: nothing polls
+      # these repos. `always()` so RECOVERIES report too -- without the success
+      # side the alert state stays broken and the next real failure arrives as a
+      # suppressed reminder rather than a new alert.
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: jobplatform:publish
+          service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
+          started-at: ${{ env.JOB_STARTED_AT }}
