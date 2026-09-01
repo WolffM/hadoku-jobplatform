@@ -9,6 +9,9 @@ describe('applyTier', () => {
 			'https://job-boards.greenhouse.io/coinbase/jobs/8154983',
 			'https://boards.greenhouse.io/acme/jobs/12345',
 			'https://jobs.lever.co/matchgroup/7fca4a70-174c-41a2-b44b-7ff1cb9422e7/apply',
+			// The EU host is not a subdomain of the US one, so a naive
+			// endsWith check misses it.
+			'https://job-boards.eu.greenhouse.io/acme/jobs/1234',
 		]) {
 			assert.equal(applyTier(url, null), 'supported', url);
 		}
