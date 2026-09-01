@@ -233,12 +233,18 @@ export const ApplicationModeSchema = z.enum(['review', 'auto']).openapi('Applica
 // honest failure exits. The runner posts transitions via /applications/:id/status;
 // only 'approved' is owner-only (via /applications/:id/approve).
 export const ApplicationStatusSchema = z
-	.enum(['queued', 'filled', 'approved', 'submitted', 'needs_manual', 'failed'])
+	.enum(['queued', 'filled', 'approved', 'submitted', 'needs_manual', 'failed', 'job_closed'])
 	.openapi('ApplicationStatus');
 
 export const ApplyRequestSchema = z
 	.object({
 		mode: ApplicationModeSchema.optional(),
+		/**
+		 * Queue it even though the posting looks taken down. The delisted check
+		 * is an inference from scrape history; the owner can open the page and
+		 * see for themselves, and this is how they overrule it.
+		 */
+		force: z.boolean().optional(),
 	})
 	.openapi('ApplyRequest');
 

@@ -19,7 +19,8 @@ const STATUS_COPY: Record<ApplicationStatus, string> = {
   approved: 'approved — the runner will submit it on its next run with --submit',
   submitted: 'submitted',
   needs_manual: 'needs you: the runner stopped rather than guess',
-  failed: 'failed'
+  failed: 'failed',
+  job_closed: 'the posting was taken down before this could be sent'
 }
 
 function formatWhen(iso: string): string {

@@ -402,6 +402,7 @@ export type ApplicationStatus =
   | 'submitted'
   | 'needs_manual'
   | 'failed'
+  | 'job_closed'
 
 export interface ApplicationSummary {
   id: string
