@@ -26,21 +26,31 @@ const store = new Map<string, Entry<unknown>>()
 /** Below this age a cached value is served without a background refresh. */
 export const FRESH_MS = 30_000
 
-/**
- * Run `fetcher` for `key`, sharing one request between concurrent callers.
- *
- * `onStale` fires synchronously with a cached value when there is one, so a
- * caller can paint immediately and then settle on the resolved promise.
- */
+export interface FetchOptions<T> {
+  /**
+   * Fires synchronously with a cached value when there is one, so a caller can
+   * paint immediately and then settle on the resolved promise.
+   */
+  onStale?: (cached: T, fresh: boolean) => void
+  /**
+   * How long a value counts as fresh. The default suits a feed, where a stale
+   * read should still be re-checked promptly. Answers that only move when the
+   * corpus is re-scraped — the editor's "312 matching jobs" probes, each a
+   * full-table LIKE — pass something much longer.
+   */
+  maxAgeMs?: number
+}
+
+/** Run `fetcher` for `key`, sharing one request between concurrent callers. */
 export function fetchResource<T>(
   key: string,
   fetcher: () => Promise<T>,
-  onStale?: (cached: T, fresh: boolean) => void
+  { onStale, maxAgeMs = FRESH_MS }: FetchOptions<T> = {}
 ): Promise<T> {
   const hit = store.get(key) as Entry<T> | undefined
 
   if (hit && 'value' in hit) {
-    const fresh = Date.now() - hit.at < FRESH_MS
+    const fresh = Date.now() - hit.at < maxAgeMs
     onStale?.(hit.value, fresh)
     // A fresh value is the answer, not a placeholder — don't re-request it.
     if (fresh) return Promise.resolve(hit.value)

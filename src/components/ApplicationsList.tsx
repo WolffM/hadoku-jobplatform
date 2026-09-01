@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   approveApplication,
   listApplications,
@@ -56,34 +56,36 @@ function fillDigest(app: ApplicationSummary): string | null {
  * employer until a human has looked at that screenshot and said yes here.
  */
 export function ApplicationsList({ auth }: Props) {
-  const [apps, setApps] = useState<ApplicationSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [needsAuth, setNeedsAuth] = useState(false)
   const [approving, setApproving] = useState<string | null>(null)
+  const [approveError, setApproveError] = useState<string | null>(null)
+  // Approvals land here so a row reflects its new status without refetching
+  // the queue; the cache keeps the rest of the list as it was.
+  const [approved, setApproved] = useState<Record<string, ApplicationSummary>>({})
 
-  const load = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    listApplications(undefined, auth)
-      .then(setApps)
-      .catch((err: unknown) => {
-        if (err instanceof JobsApiError && err.status === 403) setNeedsAuth(true)
-        else setError(err instanceof JobsApiError ? err.message : 'Failed to load applications')
-      })
-      .finally(() => setLoading(false))
-  }, [auth])
+  const {
+    data,
+    loading,
+    error: loadError
+  } = useResource<ApplicationSummary[]>('applications', () => listApplications(undefined, auth))
 
-  useEffect(load, [load])
+  const needsAuth = loadError instanceof JobsApiError && loadError.status === 403
+  const apps: ApplicationSummary[] = (data ?? []).map(a => approved[a.id] ?? a)
+  const error =
+    approveError ??
+    (loadError && !needsAuth
+      ? loadError instanceof JobsApiError
+        ? loadError.message
+        : 'Failed to load applications'
+      : null)
 
   async function handleApprove(app: ApplicationSummary) {
     setApproving(app.id)
-    setError(null)
+    setApproveError(null)
     try {
       const updated = await approveApplication(app.id, auth)
-      setApps(rows => rows.map(r => (r.id === updated.id ? updated : r)))
+      setApproved(prev => ({ ...prev, [updated.id]: updated }))
     } catch (err) {
-      setError(err instanceof JobsApiError ? err.message : 'Failed to approve')
+      setApproveError(err instanceof JobsApiError ? err.message : 'Failed to approve')
     } finally {
       setApproving(null)
     }

@@ -20,6 +20,12 @@ import {
   type RoleLevel
 } from '../api/profiles'
 import { preflightCount } from '../api/jobs'
+import { fetchResource } from '../api/resource'
+
+// Corpus counts only move when the scraper ingests, which is daily — so a
+// probe answer is good for the whole editing session. Without this the counts
+// go stale after 30s and reopening the editor re-runs every full-table scan.
+const PROBE_MAX_AGE_MS = 15 * 60_000
 import type { Auth } from '../api/auth'
 import { CompaniesManager } from './CompaniesManager'
 
@@ -80,11 +86,21 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
   const [trackCount, setTrackCount] = useState<Count>(null)
 
   // Probe a keyword / role against the live corpus and stash the count.
+  //
+  // Each probe is a full scan — the keyword one runs LIKE over every
+  // description in the corpus — and opening this editor fires one per keyword
+  // and level at once. Routing them through the resource cache means a repeat
+  // probe of the same term is free, and two components asking at the same
+  // moment share one request instead of racing two identical scans.
   const probeKeyword = useCallback(
     async (kw: string) => {
       setKwCounts(prev => ({ ...prev, [kw]: 'loading' }))
       try {
-        const n = await preflightCount({ keyword: kw }, auth)
+        const n = await fetchResource(
+          `preflight:kw:${kw}`,
+          () => preflightCount({ keyword: kw }, auth),
+          { maxAgeMs: PROBE_MAX_AGE_MS }
+        )
         setKwCounts(prev => ({ ...prev, [kw]: n }))
       } catch {
         setKwCounts(prev => ({ ...prev, [kw]: null }))
@@ -96,7 +112,11 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
     async (lvl: RoleLevel) => {
       setLevelCounts(prev => ({ ...prev, [lvl]: 'loading' }))
       try {
-        const n = await preflightCount({ level: lvl }, auth)
+        const n = await fetchResource(
+          `preflight:level:${lvl}`,
+          () => preflightCount({ level: lvl }, auth),
+          { maxAgeMs: PROBE_MAX_AGE_MS }
+        )
         setLevelCounts(prev => ({ ...prev, [lvl]: n }))
       } catch {
         setLevelCounts(prev => ({ ...prev, [lvl]: null }))
@@ -123,7 +143,9 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
     }
     let stale = false
     setTrackCount('loading')
-    preflightCount({ track }, auth)
+    fetchResource(`preflight:track:${track}`, () => preflightCount({ track }, auth), {
+      maxAgeMs: PROBE_MAX_AGE_MS
+    })
       .then(n => !stale && setTrackCount(n))
       .catch(() => !stale && setTrackCount(null))
     return () => {

@@ -26,7 +26,7 @@ export interface ResourceState<T> {
 export function useResource<T>(
   key: string,
   fetcher: () => Promise<T>,
-  { enabled = true }: { enabled?: boolean } = {}
+  { enabled = true, maxAgeMs }: { enabled?: boolean; maxAgeMs?: number } = {}
 ): ResourceState<T> {
   const [data, setData] = useState<T | undefined>(() =>
     enabled ? peekResource<T>(key) : undefined
@@ -56,16 +56,15 @@ export function useResource<T>(
     if (cached !== undefined) setData(cached)
     setRefreshing(true)
 
-    fetchResource<T>(
-      key,
-      () => fetcherRef.current(),
-      (value, fresh) => {
+    fetchResource<T>(key, () => fetcherRef.current(), {
+      maxAgeMs,
+      onStale: (value, fresh) => {
         if (!cancelled) {
           setData(value)
           if (fresh) setRefreshing(false)
         }
       }
-    )
+    })
       .then(value => {
         if (!cancelled) setData(value)
       })
@@ -79,7 +78,7 @@ export function useResource<T>(
     return () => {
       cancelled = true
     }
-  }, [key, enabled, nonce])
+  }, [key, enabled, maxAgeMs, nonce])
 
   return {
     data,
