@@ -13,6 +13,20 @@
    Shell
    ============================================================================ */
 
+/* The host (hadoku_site global.css) pins `.mf-viewport` to `box-sizing:
+   content-box` and lets `*` inherit it, so every child app keeps the UA default
+   unless it brings its own reset. This sheet is written border-box: rules like
+   `.jp-jobcard { width: 100%; padding: …; border: … }` resolve 100% against the
+   container and then ADD padding and borders under content-box, so the cards
+   overhang the auto-width filter bar above them. Scoping the reset to our own
+   subtree is what the host expects — a class selector outranks its bare `*`. */
+.job-platform-container,
+.job-platform-container *,
+.job-platform-container *::before,
+.job-platform-container *::after {
+  box-sizing: border-box;
+}
+
 .job-platform-container {
   min-height: 100vh;
   background-color: var(--color-bg);
