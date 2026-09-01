@@ -103,9 +103,7 @@ export function ApplicationsList({ auth }: Props) {
     return (
       <div className="jp-applications">
         <UnansweredQuestions auth={auth} />
-        <p className="jp-muted">
-          No applications queued. Open a job, prepare its application, then hit Apply.
-        </p>
+        <p className="jp-muted">No applications queued.</p>
       </div>
     )
   }

@@ -29,6 +29,13 @@ interface Unanswered {
 
 let h: Harness;
 
+/**
+ * Questions the runner actually met, as opposed to the common-question seed.
+ * The seed rides in the same list on purpose — to the owner they are all just
+ * things to answer — so tests about what a FILL reported have to separate them.
+ */
+const met = (qs: Unanswered[]) => qs.filter((q) => q.companies.length > 0);
+
 function get<T>(path: string, userId = OWNER) {
 	return h.json<{ success: boolean; data: T; message: string }>(`${BASE}${path}`, {
 		method: 'GET',
@@ -82,17 +89,17 @@ beforeEach(async () => {
 });
 
 describe('GET /unanswered-questions', () => {
-	it('is empty when nothing has been filled', async () => {
+	it('reports nothing met when nothing has been filled', async () => {
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.deepEqual(body.data.questions, []);
+		assert.deepEqual(met(body.data.questions), []);
 	});
 
 	it('surfaces what the runner could not answer', async () => {
 		await seedFill('j1', 'Coinbase', ['Are you at least 18 years of age?']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.equal(body.data.questions.length, 1);
-		assert.equal(body.data.questions[0].question, 'Are you at least 18 years of age?');
-		assert.deepEqual(body.data.questions[0].companies, ['Coinbase']);
+		assert.equal(met(body.data.questions).length, 1);
+		assert.equal(met(body.data.questions)[0].question, 'Are you at least 18 years of age?');
+		assert.deepEqual(met(body.data.questions)[0].companies, ['Coinbase']);
 	});
 
 	it('collapses one question asked by several employers', async () => {
@@ -101,9 +108,9 @@ describe('GET /unanswered-questions', () => {
 		await seedFill('j1', 'Coinbase', ['Are you at least 18 years of age?']);
 		await seedFill('j2', 'Pinterest', ['Are you at least 18 years of age? *']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.equal(body.data.questions.length, 1);
-		assert.equal(body.data.questions[0].applications, 2);
-		assert.deepEqual(body.data.questions[0].companies, ['Coinbase', 'Pinterest']);
+		assert.equal(met(body.data.questions).length, 1);
+		assert.equal(met(body.data.questions)[0].applications, 2);
+		assert.deepEqual(met(body.data.questions)[0].companies, ['Coinbase', 'Pinterest']);
 	});
 
 	it('ranks by what it is actually costing', async () => {
@@ -113,21 +120,21 @@ describe('GET /unanswered-questions', () => {
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
 		assert.equal(body.data.questions[0].question, 'Expensive question');
 		assert.equal(body.data.questions[0].blocking, 2);
-		assert.equal(body.data.questions[1].blocking, 0, 'unanswered but not holding anything up');
+		assert.equal(met(body.data.questions)[1].blocking, 0, 'unanswered but not blocking');
 	});
 
 	it('drops a question once it has an answer', async () => {
 		await seedFill('j1', 'Coinbase', ['Are you at least 18 years of age?']);
 		await putAnswer('Are you at least 18 years of age?', 'Yes');
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.deepEqual(body.data.questions, []);
+		assert.deepEqual(met(body.data.questions), []);
 	});
 
 	it('matches an answer to the question however the next board words it', async () => {
 		await putAnswer('Preferred Pronouns', 'did not provide');
 		await seedFill('j1', 'Acme', ['preferred pronouns *']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.deepEqual(body.data.questions, [], 'normalization must agree with the runner');
+		assert.deepEqual(met(body.data.questions), [], 'normalization must agree with the runner');
 	});
 
 	it('survives a corrupt evidence blob instead of hiding the whole queue', async () => {
@@ -136,14 +143,14 @@ describe('GET /unanswered-questions', () => {
 		await seedFill('j2', 'Globex', ['Another question']);
 		await h.db.prepare("UPDATE applications SET evidence = '{not json' WHERE id = 'app-j2'").run();
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.equal(body.data.questions.length, 1);
-		assert.equal(body.data.questions[0].question, 'Good question');
+		assert.equal(met(body.data.questions).length, 1);
+		assert.equal(met(body.data.questions)[0].question, 'Good question');
 	});
 
 	it("does not leak another user's questions", async () => {
 		await seedFill('j1', 'Coinbase', ['Secret question']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions', 'someone');
-		assert.deepEqual(body.data.questions, []);
+		assert.deepEqual(met(body.data.questions), []);
 	});
 });
 
@@ -190,7 +197,7 @@ describe('application answers', () => {
 			userId: OWNER,
 		});
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
-		assert.equal(body.data.questions.length, 1);
+		assert.equal(met(body.data.questions).length, 1);
 	});
 
 	it('keeps users apart', async () => {
@@ -202,5 +209,33 @@ describe('application answers', () => {
 	it('403s anonymously', async () => {
 		const res = await h.fetch(`${BASE}/application-answers`, { method: 'GET' });
 		assert.equal(res.status, 403);
+	});
+});
+
+describe('the common-question seed', () => {
+	it('gives the owner something to answer before any fill has happened', async () => {
+		// Otherwise the store could only be filled by first FAILING an
+		// application, which is backwards when the questions are this predictable.
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		assert.ok(body.data.questions.length > 0);
+		assert.ok(body.data.questions.every((q) => q.companies.length === 0));
+	});
+
+	it('drops a seeded question once it is answered', async () => {
+		const before = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const target = before.body.data.questions[0];
+		await putAnswer(target.question, 'Some answer');
+		const after = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		assert.ok(!after.body.data.questions.some((q) => q.question_key === target.question_key));
+	});
+
+	it('never overwrites a question the runner actually met', async () => {
+		// A seeded entry carries no company; a real one carries the employers
+		// that asked. Losing that would hide what an answer is worth.
+		await seedFill('j1', 'Coinbase', ['Veteran Status']);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const veteran = body.data.questions.filter((q) => q.question_key === 'veteran status');
+		assert.equal(veteran.length, 1, 'seed and reality must not both appear');
+		assert.deepEqual(veteran[0].companies, ['Coinbase']);
 	});
 });

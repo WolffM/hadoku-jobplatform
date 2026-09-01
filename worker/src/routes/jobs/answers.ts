@@ -7,6 +7,7 @@ import {
 	SetAnswerSchema,
 	UnansweredResponseSchema,
 } from '../../schemas.js';
+import { COMMON_QUESTIONS } from '../../commonQuestions.js';
 import { questionKey } from '../../questionKey.js';
 import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
 
@@ -85,6 +86,17 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			if (row.status === 'needs_manual') entry.blocking += 1;
 			pending.set(key, entry);
 		}
+	}
+
+	// Seed with questions boards commonly ask, so the store can be filled before
+	// an application has to fail to reveal them. Suggestions only: any already
+	// answered are dropped, exactly like a question the runner really met, and
+	// one the runner DID meet keeps its real company list rather than being
+	// overwritten by the seed.
+	for (const { question } of COMMON_QUESTIONS) {
+		const key = questionKey(question);
+		if (!key || known.has(key) || pending.has(key)) continue;
+		pending.set(key, { question, companies: new Set<string>(), blocking: 0 });
 	}
 
 	return (

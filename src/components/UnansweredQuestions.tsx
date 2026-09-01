@@ -113,46 +113,46 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
     }
   }
 
-  if (loading) return <p className="jp-muted">Loading questions…</p>
+  // Nothing to answer means nothing to show. An empty panel explaining that it
+  // is empty is noise above the queue the owner actually came for.
+  if (loading || (!questions.length && !answers.length)) return null
 
   return (
     <section className="jp-questions">
       <div className="jp-questions__head">
         <h3>Unanswered questions</h3>
-        <button
-          type="button"
-          className="jp-questions__toggle"
-          onClick={() => setShowAnswered(v => !v)}
-        >
-          {showAnswered ? 'Hide' : 'Show'} saved answers ({answers.length})
-        </button>
+        {answers.length > 0 && (
+          <button
+            type="button"
+            className="jp-questions__toggle"
+            onClick={() => setShowAnswered(v => !v)}
+          >
+            {showAnswered ? 'Hide' : 'Show'} saved answers ({answers.length})
+          </button>
+        )}
       </div>
       {error && <p className="jp-error">{error}</p>}
 
-      {!questions.length ? (
-        <p className="jp-muted">
-          Nothing outstanding. Questions the runner cannot answer show up here after a fill.
-        </p>
-      ) : (
+      {questions.length > 0 && (
         <ul className="jp-questions__list">
           {questions.map(q => (
             <li key={q.question_key} className="jp-questions__row">
               <p className="jp-questions__q">{q.question}</p>
-              <p className="jp-questions__meta">
-                {q.blocking > 0 ? (
-                  <strong>
-                    blocking {q.blocking} application{q.blocking === 1 ? '' : 's'}
-                  </strong>
-                ) : (
-                  'not blocking anything yet'
-                )}{' '}
-                · asked by {q.companies.join(', ')}
-              </p>
+              {q.companies.length > 0 && (
+                <p className="jp-questions__meta">
+                  {q.blocking > 0 && (
+                    <strong>
+                      blocking {q.blocking} application{q.blocking === 1 ? '' : 's'} ·{' '}
+                    </strong>
+                  )}
+                  {q.companies.join(', ')}
+                </p>
+              )}
               <div className="jp-questions__answer">
                 <input
                   type="text"
                   value={drafts[q.question_key] ?? ''}
-                  placeholder="Your answer — must match the form's option text exactly"
+                  placeholder="Answer"
                   onChange={e => setDrafts(d => ({ ...d, [q.question_key]: e.target.value }))}
                   onKeyDown={e => {
                     if (e.key === 'Enter') void handleSave(q)
@@ -173,12 +173,7 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
       )}
 
       <details className="jp-questions__add">
-        <summary>Add an answer ahead of time</summary>
-        <p className="jp-muted">
-          Paste the question exactly as the form words it. Matching ignores case, punctuation and a
-          trailing <code>*</code>, so one entry covers the boards that word it slightly differently.
-          For a dropdown the answer must match the option text verbatim.
-        </p>
+        <summary>Add another question</summary>
         <input
           type="text"
           value={newQuestion}
@@ -189,7 +184,7 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
           <input
             type="text"
             value={newAnswer}
-            placeholder="Answer (leave empty to mean “leave this blank”)"
+            placeholder="Answer"
             onChange={e => setNewAnswer(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') void handleAdd()
@@ -223,7 +218,6 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
               </button>
             </li>
           ))}
-          {!answers.length && <li className="jp-muted">No saved answers yet.</li>}
         </ul>
       )}
     </section>
