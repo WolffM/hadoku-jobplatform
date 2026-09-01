@@ -228,3 +228,19 @@
 .jp-jobcard__source--link:focus-visible {
   color: var(--color-text);
 }
+
+/*
+ * A refresh happens over the list that is already on screen — the rows stay
+ * put and are dimmed while the new page lands, instead of being replaced by a
+ * "Loading jobs…" line. Only a cold read with nothing cached still blanks.
+ */
+.jp-jobs__list[data-refreshing='true'] {
+  opacity: 0.55;
+  transition: opacity 120ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jp-jobs__list[data-refreshing='true'] {
+    transition: none;
+  }
+}
