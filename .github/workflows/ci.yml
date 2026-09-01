@@ -56,11 +56,6 @@ jobs:
     # keeps it always-running while an unauthorized fork PR lands on
     # GitHub-hosted (free here) instead of a claw — a persistent machine on a
     # home LAN. author_association is computed by GitHub, not the submitter.
-    # Runner SELECTION, not a job-level `if:`. Skipping the job would make a
-    # required check that never reports, so a fork PR could never merge. This
-    # keeps it always-running while an unauthorized fork PR lands on
-    # GitHub-hosted (free here) instead of a claw — a persistent machine on a
-    # home LAN. author_association is computed by GitHub, not the submitter.
     runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
     timeout-minutes: 15
     steps:
@@ -112,18 +107,19 @@ jobs:
     # keeps it always-running while an unauthorized fork PR lands on
     # GitHub-hosted (free here) instead of a claw — a persistent machine on a
     # home LAN. author_association is computed by GitHub, not the submitter.
-    # Runner SELECTION, not a job-level `if:`. Skipping the job would make a
-    # required check that never reports, so a fork PR could never merge. This
-    # keeps it always-running while an unauthorized fork PR lands on
-    # GitHub-hosted (free here) instead of a claw — a persistent machine on a
-    # home LAN. author_association is computed by GitHub, not the submitter.
     runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
     timeout-minutes: 15
+    # Published so the `report` job can quote a real duration. Both jobs start
+    # together, so either one's start is the run's start; lint already had the
+    # marker, so it is the one that exports it.
+    outputs:
+      started-at: ${{ steps.start.outputs.epoch }}
     steps:
       # fetch-depth: 0 — the scope step diffs against the PR base, and a
       # shallow clone has no common ancestor to diff with.
       - name: Mark the start, so the reported duration is real
-        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+        id: start
+        run: echo "epoch=$(date -u +%s)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v6
         with:
@@ -179,14 +175,50 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: pnpm run lint:css
 
-      # A red run is seen by nobody unless it says so itself: nothing polls
-      # these repos. `always()` so RECOVERIES report too -- without the success
-      # side the alert state stays broken and the next real failure arrives as a
-      # suppressed reminder rather than a new alert.
+  # ONE report per RUN, not one per job — and this is a correctness constraint,
+  # not tidiness.
+  #
+  # `POST /health/api/jobs` upserts the execution row on run_id ALONE
+  # (monitoring-api migration 0007: `CREATE UNIQUE INDEX idx_jobs_run_id ON
+  # job_executions(run_id)`, and `ON CONFLICT(run_id) DO UPDATE` in
+  # job-store.ts). typecheck and lint are two jobs in ONE workflow file, so they
+  # share this run's id: a report step in each would upsert the SAME row, and
+  # whichever finished last would overwrite the other's verdict. A green lint
+  # would erase a red typecheck — the exact silence the reporting exists to end.
+  # site:typecheck / site:lint get away with per-job names only because they sit
+  # in separate workflow FILES, which means separate runs.
+  #
+  # Until now only lint reported at all, so a typecheck-only failure on main was
+  # already invisible. This closes that without opening the clobber.
+  #
+  # No checkout: report-job is REFERENCED, not vendored, so the runner fetches
+  # it before the first step. Hosted, because this is one curl and a claw is a
+  # scarce shared resource. On a fork PR the service key is absent and the
+  # action warns and skips, which is the intended behaviour.
+  report:
+    name: report
+    needs: [typecheck, lint]
+    # `always()` so RECOVERIES report too -- without the success side the alert
+    # state stays broken and the next real failure arrives as a suppressed
+    # reminder rather than a new alert.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Report the outcome so a silent failure can't hide
-        if: always()
         uses: WolffM/hadoku-actions/report-job@v1
         with:
           job-name: jobplatform:ci
           service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
-          started-at: ${{ env.JOB_STARTED_AT }}
+          started-at: ${{ needs.lint.outputs.started-at }}
+          # Cancelled is checked FIRST and deliberately wins over failure: a
+          # superseded run is not breakage, and report-job stays silent on it
+          # rather than clearing a live failure streak.
+          outcome: >-
+            ${{ (contains(needs.*.result, 'cancelled') && 'cancelled')
+                || (contains(needs.*.result, 'failure') && 'failure')
+                || 'success' }}
+          error-message: >-
+            jobplatform CI failed (typecheck=${{ needs.typecheck.result }},
+            lint=${{ needs.lint.result }}) —
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
