@@ -30,3 +30,7 @@ pnpm-debug.log*
 
 # Test coverage
 coverage/
+
+# Local perf harness: a throwaway wrangler entry that binds the REAL remote D1
+# so feed changes can be timed without deploying. Not part of the package.
+bench/

@@ -10,6 +10,10 @@ export default [
       '**/dist/**',
       '**/node_modules/**',
       '**/coverage/**',
+      // Local perf harness (worker/bench, gitignored): a wrangler entry that
+      // binds the real remote D1 so feed timings can be measured without a
+      // deploy. It belongs to no tsconfig, so the typed rules cannot parse it.
+      'worker/bench/**',
       // Agent worktrees live here (see AGENTS.md). They are full checkouts, so
       // without this the MAIN checkout lints every worktree's sources against
       // its own tsconfig and fails with "file not found in any of the provided
