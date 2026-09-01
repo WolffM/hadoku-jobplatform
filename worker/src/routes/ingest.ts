@@ -109,6 +109,11 @@ app.openapi(ingestRoute, async (c) => {
 		const parsed = parseAtsSlug(job.url);
 		const ats = parsed.ats ?? (board_slug ? source : null);
 		const slug = board_slug ?? parsed.slug;
+		// Record which of the two wrote it. Without this a hostname guess is
+		// indistinguishable from a slug the scraper actually fetched, and the
+		// only way to find out is for something downstream to build a URL from
+		// it and get a 404.
+		const slugSource = slug === null ? null : board_slug ? 'scraped' : 'guessed';
 		// No ATS publishes a track or a level, so we infer both here — once, at
 		// write time — rather than re-deriving them from the title on every read.
 		const role = classifyRole(job.title, job.description);
@@ -120,8 +125,8 @@ app.openapi(ingestRoute, async (c) => {
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
 					scraper_used, raw, scraped_at, last_seen_at, ats, slug,
-					role_track, role_level
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					role_track, role_level, slug_source
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				job.id,
@@ -145,7 +150,8 @@ app.openapi(ingestRoute, async (c) => {
 				ats,
 				slug,
 				role.track,
-				role.level
+				role.level,
+				slugSource
 			);
 	});
 
@@ -172,7 +178,7 @@ app.openapi(ingestRoute, async (c) => {
 					// when the scraper told us which board it fetched.
 					db
 						.prepare(
-							`UPDATE jobs SET last_seen_at = ?, slug = ?
+							`UPDATE jobs SET last_seen_at = ?, slug = ?, slug_source = 'scraped'
 							 WHERE url IN (${chunk.map(() => '?').join(',')})`
 						)
 						.bind(now, board_slug, ...chunk)

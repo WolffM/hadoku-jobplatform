@@ -1,0 +1,24 @@
+-- Where jobs.slug came from, so a guess stops looking like a fact.
+--
+-- The slug was written by two very different processes into one column:
+--   * the scraper fetched that board BY slug — it cannot be wrong;
+--   * or parseAtsSlug invented one from the posting's hostname, because an
+--     employer-hosted careers URL names no board at all.
+--
+-- Nothing downstream could tell them apart. 'pinterestcareers' (invented) and
+-- 'pinterest' (fetched) are both just strings that sort, filter and render
+-- fine. The apply runner then derived a Greenhouse form URL from an invented
+-- one, got a 404, and spent 45 seconds timing out on a résumé input that was
+-- never there — the first time anything actually USED the value.
+--
+-- Measured 2026-09-01: hostname guesses were wrong for 12 of 37 employer-hosted
+-- Greenhouse boards, 1,633 postings.
+--
+--   'scraped'   the scraper sent the board it fetched. Authoritative.
+--   'guessed'   parsed out of the URL. Fine for display, not for building
+--               another URL from without checking it first.
+--   'verified'  a guess that was probed and confirmed. Nothing writes this yet;
+--               it is the state the probe path will produce.
+--   NULL        written before this column existed, provenance unknown —
+--               treated as 'guessed', because that is the unsafe assumption.
+ALTER TABLE jobs ADD COLUMN slug_source TEXT;
