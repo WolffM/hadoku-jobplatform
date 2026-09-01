@@ -77,3 +77,16 @@ export const ZERO_BREAKDOWN = {
 	domain_interest: 0,
 	discipline_factor: 0,
 };
+
+/**
+ * Narrow jobs.slug_source to the values the API promises.
+ *
+ * Anything unrecognised — including the NULL on every row written before
+ * migration 0018 — becomes 'guessed', which is the SAFE reading: a consumer
+ * that will not build a URL from an unverified slug should treat "we don't
+ * know where this came from" exactly like "we made it up".
+ */
+export function asSlugSource(value: string | null): 'scraped' | 'guessed' | 'verified' | null {
+	if (value === null) return null;
+	return value === 'scraped' || value === 'verified' ? value : 'guessed';
+}

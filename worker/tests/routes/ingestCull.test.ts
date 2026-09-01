@@ -128,6 +128,48 @@ describe('board_slug — the scraper knows which board it fetched', () => {
 		assert.equal(row?.ats, 'greenhouse');
 	});
 
+	it('records that the scraper supplied the slug', async () => {
+		await ingest([job({ id: 'prov-1', url: 'https://x.example.com/?gh_jid=1' })], {
+			source: 'greenhouse',
+			board_slug: 'pinterest',
+		});
+		const row = await h.db
+			.prepare('SELECT slug_source FROM jobs WHERE id = ?')
+			.bind('prov-1')
+			.first<{ slug_source: string }>();
+		assert.equal(row?.slug_source, 'scraped');
+	});
+
+	it('marks a hostname-derived slug as a guess', async () => {
+		// The whole point: 'pinterestcareers' and 'pinterest' are both strings.
+		// Only provenance tells a consumer which one it may build a URL from.
+		await ingest([job({ id: 'prov-2', url: 'https://www.pinterestcareers.com/?gh_jid=2' })], {
+			source: 'greenhouse',
+		});
+		const row = await h.db
+			.prepare('SELECT slug, slug_source FROM jobs WHERE id = ?')
+			.bind('prov-2')
+			.first<{ slug: string; slug_source: string }>();
+		assert.equal(row?.slug, 'pinterestcareers');
+		assert.equal(row?.slug_source, 'guessed');
+	});
+
+	it('promotes a guess to scraped when the board is later named', async () => {
+		await ingest([job({ id: 'prov-3', url: 'https://www.pinterestcareers.com/?gh_jid=3' })], {
+			source: 'greenhouse',
+		});
+		await ingest([job({ id: 'prov-3', url: 'https://www.pinterestcareers.com/?gh_jid=3' })], {
+			source: 'greenhouse',
+			board_slug: 'pinterest',
+		});
+		const row = await h.db
+			.prepare('SELECT slug, slug_source FROM jobs WHERE id = ?')
+			.bind('prov-3')
+			.first<{ slug: string; slug_source: string }>();
+		assert.equal(row?.slug, 'pinterest');
+		assert.equal(row?.slug_source, 'scraped');
+	});
+
 	it('heals a row already carrying the hostname guess', async () => {
 		// Otherwise the rows written before this change keep a slug that derives
 		// a 404 apply URL until someone runs a backfill.

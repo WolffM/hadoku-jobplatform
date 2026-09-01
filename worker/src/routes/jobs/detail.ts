@@ -3,7 +3,14 @@ import { JobResponseSchema, ErrorResponseSchema } from '../../schemas.js';
 import { scoreJob } from '../../scoring.js';
 import { applyTier } from '../../applyTier.js';
 import { loadScorableProfile } from '../../profileScore.js';
-import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
+import {
+	asRoleLevel,
+	asRoleTrack,
+	asSlugSource,
+	maybeUserId,
+	ZERO_BREAKDOWN,
+	type JobsApp,
+} from './shared.js';
 
 export function registerDetailRoute(app: JobsApp): void {
 	app.openapi(
@@ -123,6 +130,7 @@ export function registerDetailRoute(app: JobsApp): void {
 				scraped_at: row.scraped_at as string,
 				ats: (row.ats as string | null) ?? null,
 				slug: (row.slug as string | null) ?? null,
+				slug_source: asSlugSource((row.slug_source as string | null) ?? null),
 				apply_tier: applyTier(
 					(row.application_url as string | null) ?? (row.url as string | null),
 					(row.ats as string | null) ?? null

@@ -142,6 +142,13 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	 * employer's own site. An indicator that contradicts itself between the
 	 * card and the drawer is worse than no indicator.
 	 */
+	/**
+	 * Where `slug` came from. 'scraped' is authoritative (the scraper fetched
+	 * that board); 'guessed' was parsed from the URL and must be verified before
+	 * anything builds another URL out of it; null predates the column and is
+	 * treated as a guess. See migration 0018.
+	 */
+	slug_source: z.enum(['scraped', 'guessed', 'verified']).nullable(),
 	apply_tier: z.enum(['supported', 'embedded', 'unsupported', 'unknown']),
 	/**
 	 * The runner has actually filled a form on this board before. Evidence,
