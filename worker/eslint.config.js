@@ -68,6 +68,15 @@ export default [
 		},
 	},
 	{
-		ignores: ['dist/**', 'node_modules/**', '*.config.js', '*.config.ts', 'validate-template.mjs'],
+		// bench/ is the gitignored local perf harness — a wrangler entry bound to
+		// the real remote D1, outside every tsconfig here.
+		ignores: [
+			'dist/**',
+			'node_modules/**',
+			'bench/**',
+			'*.config.js',
+			'*.config.ts',
+			'validate-template.mjs',
+		],
 	},
 ];

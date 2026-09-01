@@ -70,27 +70,38 @@ function postedDaysAgo(postedDate: string | null): number {
 	return Number.isFinite(age) ? age : 0;
 }
 
-interface JobRow {
+// The light pass reads the WHOLE filtered corpus, so it selects only what
+// ranking needs: the five scoring inputs, the three timestamps the stale/ghost
+// factors read, and the per-user join columns. Everything a card renders is a
+// column the shortlist fetches in stage 2 instead — at 30k rows the display
+// columns (url alone is ~2MB across the table) cost more to ship than the
+// ranking does to compute.
+interface LightRow {
 	id: string;
 	title: string;
-	company: string;
 	location: string;
 	workplace_type: string;
-	salary_min: number | null;
 	salary_max: number | null;
-	source_site: string;
-	url: string;
 	posted_date: string | null;
 	scraped_at: string;
-	ats: string | null;
-	slug: string | null;
-	role_track: string;
+	last_seen_at: string | null;
 	role_level: string | null;
-	description: string;
 	row_state: string | null;
 	row_vote: number | null;
 	row_vote_reasons: string | null;
-	last_seen_at: string | null;
+}
+
+/** The display half, fetched only for rows that survive the light pass. */
+interface HeavyRow {
+	id: string;
+	company: string;
+	salary_min: number | null;
+	source_site: string;
+	url: string;
+	ats: string | null;
+	slug: string | null;
+	role_track: string;
+	description: string;
 }
 
 /** Highest ceiling first; postings with no stated salary sort to the bottom. */
@@ -301,10 +312,8 @@ export function registerFeedRoute(app: JobsApp): void {
 				// descriptions. ~300 bytes/row, so tens of thousands of rows are fine.
 				const candSql = `
 					SELECT
-						j.id, j.title, j.company, j.location, j.workplace_type,
-						j.salary_min, j.salary_max, j.source_site, j.url,
-						j.posted_date, j.scraped_at, j.last_seen_at, j.ats, j.slug,
-						j.role_track, j.role_level,
+						j.id, j.title, j.location, j.workplace_type, j.salary_max,
+						j.posted_date, j.scraped_at, j.last_seen_at, j.role_level,
 						${stateCols}
 					FROM jobs j
 					${joinClause}
@@ -315,7 +324,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				const candidates = await db
 					.prepare(candSql)
 					.bind(...binds)
-					.all<Omit<JobRow, 'description'>>();
+					.all<LightRow>();
 
 				if (candidates.results.length >= LIGHT_CANDIDATE_CAP) {
 					logger.warn('score-on-read light-pass cap hit', {
@@ -330,7 +339,9 @@ export function registerFeedRoute(app: JobsApp): void {
 				// sunk jobs, downvotes, and stale rows don't top ANY lens.
 				const light = candidates.results;
 				const isLens = sort === 'comp' || sort === 'interest' || sort === 'relevance';
-				let shortlist: typeof light;
+				// Ranked alongside the row: the bound each candidate is sorted by.
+				// Stage 2 reads it back to prove it has fetched far enough.
+				let shortlist: { r: LightRow; bound: number }[];
 				if (sort === 'score' || isLens) {
 					let ranked = light.map((r) => ({
 						r,
@@ -368,103 +379,141 @@ export function registerFeedRoute(app: JobsApp): void {
 							(a, b) =>
 								b.bound - a.bound || b.tie - a.tie || b.r.scraped_at.localeCompare(a.r.scraped_at)
 						)
-						.slice(0, FULL_SCORE_CAP)
-						.map((x) => x.r);
+						.slice(0, FULL_SCORE_CAP);
 				} else if (sort === 'salary') {
-					shortlist = [...light].sort(bySalaryDesc).slice(0, FULL_SCORE_CAP);
+					shortlist = [...light]
+						.sort(bySalaryDesc)
+						.slice(0, FULL_SCORE_CAP)
+						.map((r) => ({ r, bound: 1 }));
 				} else {
 					shortlist = [...light]
 						.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at))
-						.slice(0, FULL_SCORE_CAP);
+						.slice(0, FULL_SCORE_CAP)
+						.map((r) => ({ r, bound: 1 }));
 				}
 
-				// Stage 2 — fetch descriptions for the shortlist only, then score for
-				// real. IN () lists chunk at the SQLite bind limit; one batch round trip.
-				const descById = new Map<string, string>();
-				const idChunks: string[][] = [];
-				for (let i = 0; i < shortlist.length; i += ID_CHUNK) {
-					idChunks.push(shortlist.slice(i, i + ID_CHUNK).map((r) => r.id));
-				}
-				if (idChunks.length > 0) {
-					const descResults = await db.batch<{ id: string; description: string }>(
-						idChunks.map((ids) =>
+				// Stage 2 — the display columns and the description, fetched only for
+				// rows the answer can actually depend on.
+				//
+				// Descriptions average ~7.5KB, so fetching the whole shortlist cost
+				// ~6MB per request to render 25 rows. Instead: score a window past the
+				// requested page, then check the window was big enough. Because the
+				// shortlist is ordered by an upper bound on the final sort key, an
+				// unscored candidate can only place ahead of the worst row we return if
+				// its BOUND does — so `worst >= shortlist[cursor].bound` proves the page
+				// is the same one full scoring would have produced.
+				const heavyById = new Map<string, HeavyRow>();
+				const fetchHeavy = async (from: number, to: number): Promise<void> => {
+					const chunks: string[][] = [];
+					for (let i = from; i < to; i += ID_CHUNK) {
+						chunks.push(shortlist.slice(i, Math.min(i + ID_CHUNK, to)).map((x) => x.r.id));
+					}
+					if (chunks.length === 0) return;
+					const res = await db.batch<HeavyRow>(
+						chunks.map((ids) =>
 							db
 								.prepare(
-									`SELECT id, description FROM jobs WHERE id IN (${ids.map(() => '?').join(',')})`
+									`SELECT id, company, salary_min, source_site, url, ats, slug, role_track, description
+									 FROM jobs WHERE id IN (${ids.map(() => '?').join(',')})`
 								)
 								.bind(...ids)
 						)
 					);
-					for (const res of descResults) {
-						for (const row of res.results) descById.set(row.id, row.description);
-					}
-				}
+					for (const r of res) for (const row of r.results) heavyById.set(row.id, row);
+				};
 
-				const scored = shortlist
-					.map((r) => {
-						const roleLevel = asRoleLevel(r.role_level);
-						const { score, breakdown } = scoreJob(
-							{
+				const scoreWindow = (to: number) =>
+					shortlist
+						.slice(0, to)
+						.map(({ r }) => {
+							const roleLevel = asRoleLevel(r.role_level);
+							const h = heavyById.get(r.id);
+							const { score, breakdown } = scoreJob(
+								{
+									title: r.title,
+									description: h?.description ?? '',
+									location: r.location,
+									workplace_type: r.workplace_type,
+									salary_max: r.salary_max,
+									role_level: roleLevel,
+								},
+								profile
+							);
+							return {
+								id: r.id,
 								title: r.title,
-								description: descById.get(r.id) ?? '',
+								company: h?.company ?? '',
 								location: r.location,
 								workplace_type: r.workplace_type,
+								salary_min: h?.salary_min ?? null,
 								salary_max: r.salary_max,
+								source_site: h?.source_site ?? '',
+								url: h?.url ?? '',
+								posted_date: r.posted_date,
+								scraped_at: r.scraped_at,
+								ats: h?.ats ?? null,
+								slug: h?.slug ?? null,
+								role_track: asRoleTrack(h?.role_track ?? ''),
 								role_level: roleLevel,
-							},
-							profile
-						);
-						return {
-							id: r.id,
-							title: r.title,
-							company: r.company,
-							location: r.location,
-							workplace_type: r.workplace_type,
-							salary_min: r.salary_min,
-							salary_max: r.salary_max,
-							source_site: r.source_site,
-							url: r.url,
-							posted_date: r.posted_date,
-							scraped_at: r.scraped_at,
-							ats: r.ats,
-							slug: r.slug,
-							role_track: asRoleTrack(r.role_track),
-							role_level: roleLevel,
-							score: applyVote(
-								Math.round(score * staleFactor(r) * postedAgeFactor(r.posted_date) * 1000) / 1000,
-								r.row_vote
-							),
-							score_breakdown: breakdown,
-							state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
-							vote: (r.row_vote as 1 | -1 | null) ?? null,
-							vote_reasons: r.row_vote_reasons ? String(r.row_vote_reasons).split(',') : [],
-						};
-					})
-					.filter((j) => j.score >= min_score);
+								score: applyVote(
+									Math.round(score * staleFactor(r) * postedAgeFactor(r.posted_date) * 1000) / 1000,
+									r.row_vote
+								),
+								score_breakdown: breakdown,
+								state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+								vote: (r.row_vote as 1 | -1 | null) ?? null,
+								vote_reasons: r.row_vote_reasons ? String(r.row_vote_reasons).split(',') : [],
+							};
+						})
+						.filter((j) => j.score >= min_score);
 
-				if (sort === 'score') {
-					scored.sort((a, b) => b.score - a.score || b.scraped_at.localeCompare(a.scraped_at));
-				} else if (sort === 'comp') {
-					scored.sort(
-						(a, b) => b.score_breakdown.comp_fit - a.score_breakdown.comp_fit || b.score - a.score
-					);
-				} else if (sort === 'interest') {
-					scored.sort(
-						(a, b) =>
-							b.score_breakdown.domain_interest - a.score_breakdown.domain_interest ||
-							b.score - a.score
-					);
-				} else if (sort === 'relevance') {
-					scored.sort(
-						(a, b) => b.score_breakdown.relevance - a.score_breakdown.relevance || b.score - a.score
-					);
-				} else if (sort === 'salary') {
-					scored.sort(bySalaryDesc);
-				} else {
-					scored.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at));
-				}
+				// The value the stopping rule compares: whatever the active sort ranks
+				// by, so the certificate is checked against the same key the page is
+				// ordered by rather than a proxy for it.
+				const sortKey = (j: ReturnType<typeof scoreWindow>[number]) =>
+					sort === 'comp'
+						? j.score_breakdown.comp_fit
+						: sort === 'interest'
+							? j.score_breakdown.domain_interest
+							: sort === 'relevance'
+								? j.score_breakdown.relevance
+								: j.score;
+				const sortScored = (rows: ReturnType<typeof scoreWindow>) => {
+					if (sort === 'score') {
+						rows.sort((a, b) => b.score - a.score || b.scraped_at.localeCompare(a.scraped_at));
+					} else if (sort === 'comp' || sort === 'interest' || sort === 'relevance') {
+						rows.sort((a, b) => sortKey(b) - sortKey(a) || b.score - a.score);
+					} else if (sort === 'salary') {
+						rows.sort(bySalaryDesc);
+					} else {
+						rows.sort((a, b) => b.scraped_at.localeCompare(a.scraped_at));
+					}
+					return rows;
+				};
 
-				const total = scored.length;
+				// How much of the shortlist actually needs a description.
+				//
+				// date and salary rank on columns stage 1 already selected, so the
+				// shortlist is ALREADY in final order — the description only fills in the
+				// decorative score on rows the caller can see, and fetching it for the
+				// other 775 changes nothing in the response. score and the lens sorts do
+				// rank on the description, and their light-pass bound is too loose to
+				// prove an early cut is safe (relevanceUpperBound assumes EVERY keyword
+				// hits, so thousands of candidates share the top bound), so those still
+				// score the whole shortlist rather than quietly narrowing the field.
+				const orderIsFinal = sort === 'date' || sort === 'salary';
+				// min_score decides `total`, so a filtered feed has to score everything.
+				const scoreTo =
+					orderIsFinal && min_score === 0
+						? Math.min(shortlist.length, offset + limit)
+						: shortlist.length;
+
+				await fetchHeavy(0, scoreTo);
+				const scored = sortScored(scoreWindow(scoreTo));
+
+				// Unchanged from scoring the whole shortlist: min_score is the only
+				// filter that can drop rows here, and that path scores all of them.
+				const total = min_score > 0 ? scored.length : shortlist.length;
 				const pageJobs = scored.slice(offset, offset + limit);
 
 				return c.json(
@@ -516,7 +565,7 @@ export function registerFeedRoute(app: JobsApp): void {
 			const rows = await db
 				.prepare(dataSql)
 				.bind(...binds, limit, offset)
-				.all<Omit<JobRow, 'description'>>();
+				.all<LightRow & HeavyRow>();
 
 			const jobs = rows.results.map((r) => ({
 				id: r.id,
