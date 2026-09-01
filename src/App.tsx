@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, type RefObject } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import {
   HashRouter,
   Link,
@@ -22,14 +22,15 @@ import { ApplicationsList } from './components/ApplicationsList'
 import { PacketsList } from './components/PacketsList'
 import { PacketDetail } from './components/PacketDetail'
 import type { Auth } from './api/auth'
-import type { FeedbackReason, VoteValue } from './api/jobs'
+import { invalidateResource } from './api/resource'
+import type { FeedbackReason, JobStateRead, VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
 import type { JobPlatformProps } from './entry'
 
 type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
 interface DashboardOutletCtx {
-  onJobStateChanged: () => void
+  onJobStateChanged: (jobId: string, state: JobStateRead) => void
   onJobVoted: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
 }
 
@@ -52,8 +53,10 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
   const { containerRef } = props
 
   // Bundle the auth credentials once at the root, then thread the same
-  // object through every component.
-  const auth: Auth = { sessionId: props.sessionId }
+  // object through every component. Memoised on the credential itself: this
+  // object is a dependency of every data hook below, so rebuilding it each
+  // render re-ran the feed, the sidebar and the drawer on any re-render at all.
+  const auth: Auth = useMemo(() => ({ sessionId: props.sessionId }), [props.sessionId])
 
   const [systemPrefersDark] = useState(() => {
     if (window.matchMedia) {
@@ -175,13 +178,40 @@ function PacketDetailRoute({ auth }: { auth: Auth }) {
   )
 }
 
+/**
+ * The profile the dashboard opened on last time.
+ *
+ * Cold load used to serialise: fetch /profiles, let the sidebar pick the first
+ * one, and only THEN start the scored feed — which meant the expensive request
+ * did not begin until ~1s in, after an unscored one had already been fired and
+ * thrown away. Remembering the selection lets the feed start immediately,
+ * beside /profiles rather than behind it. A remembered id that no longer
+ * exists is self-correcting: the sidebar reselects once the list lands.
+ */
+const LAST_PROFILE_KEY = 'jobplatform:last-profile'
+
+function readLastProfile(): string | null {
+  try {
+    return window.localStorage.getItem(LAST_PROFILE_KEY)
+  } catch {
+    // Storage can throw outright (Safari private mode, blocked cookies). A
+    // remembered profile is an optimisation, so losing it is not an error.
+    return null
+  }
+}
+
 function Dashboard({ auth }: { auth: Auth }) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const profileId = searchParams.get('profile')
   const navigate = useNavigate()
 
   const setProfileId = useCallback(
     (id: string | null) => {
+      try {
+        if (id) window.localStorage.setItem(LAST_PROFILE_KEY, id)
+        else window.localStorage.removeItem(LAST_PROFILE_KEY)
+      } catch {
+        // See readLastProfile — best effort.
+      }
       setSearchParams(
         prev => {
           const next = new URLSearchParams(prev)
@@ -195,10 +225,44 @@ function Dashboard({ auth }: { auth: Auth }) {
     [setSearchParams]
   )
 
-  // Bump on every triage transition coming from the drawer so JobsList
-  // re-fetches and reflects the new state in the cards + filter counts.
+  // Seed the URL from the remembered selection on first paint, so the feed's
+  // very first request is already the scored one.
+  const [seeded] = useState(() => (searchParams.get('profile') ? null : readLastProfile()))
+  useEffect(() => {
+    if (seeded && !searchParams.get('profile')) setProfileId(seeded)
+  }, [seeded, searchParams, setProfileId])
+  const profileId = searchParams.get('profile') ?? seeded
+
+  // Until the sidebar has its list, an authed visitor with no selection is
+  // about to get one — so the feed waits rather than firing a request for
+  // "no profile" and discarding it a moment later.
+  //
+  // The gate lifts on the SELECTION, not on the list arriving: those are two
+  // renders apart (the sidebar resolves, then its effect selects), and lifting
+  // on the first one let exactly one unscored request through.
+  const [hasNoProfiles, setHasNoProfiles] = useState(false)
+  const onProfilesResolved = useCallback((count: number) => setHasNoProfiles(count === 0), [])
+  const awaitingProfile = Boolean(auth.sessionId) && !profileId && !hasNoProfiles
+
+  // Bumped only by things that actually re-score the feed — a profile saved,
+  // a company added. It keys JobsList's cache, so a bump misses every cached
+  // page at once rather than refetching the current one.
   const [refreshKey, setRefreshKey] = useState(0)
-  const onJobStateChanged = useCallback(() => setRefreshKey(k => k + 1), [])
+  const onFeedInvalidated = useCallback(() => {
+    invalidateResource('jobs:')
+    setRefreshKey(k => k + 1)
+  }, [])
+
+  // Triage deliberately does NOT re-score. Ranking the corpus again to learn
+  // that one badge changed cost seconds and reshuffled the feed under the user
+  // mid-triage; the override shadows the fetched value instead, the same way
+  // votes already did.
+  const [stateOverrides, setStateOverrides] = useState<Record<string, JobStateRead>>({})
+  const onJobStateChanged = useCallback(
+    (jobId: string, state: JobStateRead) =>
+      setStateOverrides(prev => ({ ...prev, [jobId]: state })),
+    []
+  )
 
   // Votes deliberately do NOT refetch — re-ranking the feed mid-rip would
   // shuffle jobs under the user. Overrides shadow the fetched value until the
@@ -219,7 +283,10 @@ function Dashboard({ auth }: { auth: Auth }) {
   const [editing, setEditing] = useState<EditorState | null>(null)
   const [profilesReload, setProfilesReload] = useState(0)
 
-  const ctx: DashboardOutletCtx = { onJobStateChanged, onJobVoted }
+  const ctx: DashboardOutletCtx = useMemo(
+    () => ({ onJobStateChanged, onJobVoted }),
+    [onJobStateChanged, onJobVoted]
+  )
 
   return (
     <div className="jp-dashboard">
@@ -230,6 +297,7 @@ function Dashboard({ auth }: { auth: Auth }) {
         onNew={() => setEditing({ mode: 'new' })}
         onEdit={profile => setEditing({ mode: 'edit', profile })}
         reloadKey={profilesReload}
+        onResolved={onProfilesResolved}
       />
       <section className="jp-main">
         <JobsList
@@ -238,6 +306,8 @@ function Dashboard({ auth }: { auth: Auth }) {
           refreshKey={refreshKey}
           voteOverrides={voteOverrides}
           onVote={onJobVoted}
+          stateOverrides={stateOverrides}
+          awaitingProfile={awaitingProfile}
           onSelect={(jobId, vote) => {
             const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
             // The detail endpoint doesn't return the vote, so the card hands
@@ -256,9 +326,9 @@ function Dashboard({ auth }: { auth: Auth }) {
             setProfilesReload(k => k + 1)
             setProfileId(saved.id)
             // A saved profile's companies/criteria may change its feed.
-            onJobStateChanged()
+            onFeedInvalidated()
           }}
-          onCompaniesChanged={onJobStateChanged}
+          onCompaniesChanged={onFeedInvalidated}
         />
       )}
     </div>
@@ -291,7 +361,7 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
       profileId={profileId}
       initialVote={initialVote}
       onClose={closeDrawer}
-      onStateChange={() => ctx.onJobStateChanged()}
+      onStateChange={(id, state) => ctx.onJobStateChanged(id, state)}
       onVoteChange={ctx.onJobVoted}
     />
   )

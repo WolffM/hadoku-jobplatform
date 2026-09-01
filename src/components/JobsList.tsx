@@ -1,28 +1,37 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   listJobs,
   JobsApiError,
-  type JobSummary,
   type JobStateRead,
   type FeedbackReason,
   type JobSort,
   type VoteValue
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
+import { useResource } from '../api/useResource'
 import { JobCard } from './JobCard'
 
 interface Props {
   auth: Auth
   profileId: string | null
   onSelect: (jobId: string, vote: VoteValue | null) => void
-  // Bumped by the drawer when the user transitions a job — forces a refetch
-  // so the list reflects the new state immediately.
+  // Bumped when something re-scores the feed (a profile edit, a company added).
+  // It keys the cache rather than triggering a refetch, so a bump misses every
+  // cached page at once. Triage does NOT bump it — see stateOverrides.
   refreshKey?: number
   // This-session vote overrides (card thumbs + drawer), keyed by job id.
   // They shadow the fetched feed value so a vote never forces a refetch —
   // the feed only re-ranks on the next natural load.
   voteOverrides: Record<string, { vote: VoteValue | null; reasons: FeedbackReason[] }>
   onVote: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
+  // Same idea for triage: the drawer writes the new state through here and the
+  // card reflects it immediately, instead of the feed re-ranking 30k rows to
+  // learn that one badge changed.
+  stateOverrides: Record<string, JobStateRead>
+  // Hold the request while the sidebar is still resolving which profile is
+  // selected. Without it the feed fires an unscored request on mount and
+  // discards the answer a moment later, when the sidebar picks a profile.
+  awaitingProfile?: boolean
 }
 
 const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
@@ -34,12 +43,17 @@ const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
   { value: 'dismissed', label: 'Dismissed' }
 ]
 
-export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides, onVote }: Props) {
-  const [jobs, setJobs] = useState<JobSummary[]>([])
-  const [total, setTotal] = useState(0)
+export function JobsList({
+  auth,
+  profileId,
+  onSelect,
+  refreshKey,
+  voteOverrides,
+  onVote,
+  stateOverrides,
+  awaitingProfile
+}: Props) {
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const [sort, setSort] = useState<JobSort>('score')
   // Salary is a view control, not a profile criterion — it narrows what you're
@@ -59,43 +73,55 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
   // offers — fall back to date rather than rendering a blank selection.
   const effectiveSort: JobSort = !profileId && sort === 'score' ? 'date' : sort
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await listJobs(
-        {
-          profile_id: profileId ?? undefined,
-          state: stateFilter || undefined,
-          page,
-          limit,
-          sort: effectiveSort,
-          workplace: workplace || undefined
-        },
-        auth
-      )
-      setJobs(res.jobs)
-      setTotal(res.total)
-    } catch (err) {
-      setError(err instanceof JobsApiError ? err.message : 'Failed to load jobs')
-    } finally {
-      setLoading(false)
-    }
-  }, [auth, profileId, stateFilter, page, limit, effectiveSort, workplace])
+  const query = useMemo(
+    () => ({
+      profile_id: profileId ?? undefined,
+      state: stateFilter || undefined,
+      page,
+      limit,
+      sort: effectiveSort,
+      workplace: workplace || undefined
+    }),
+    [profileId, stateFilter, page, limit, effectiveSort, workplace]
+  )
 
-  useEffect(() => {
-    void load()
-  }, [load, refreshKey])
+  // refreshKey is in the cache key rather than a refetch trigger: bumping it
+  // (a profile edit re-scores the feed) misses every previously cached page at
+  // once, which is exactly the invalidation this needs.
+  const {
+    data,
+    loading,
+    refreshing,
+    error: loadError
+  } = useResource(`jobs:${refreshKey ?? 0}:${JSON.stringify(query)}`, () => listJobs(query, auth), {
+    enabled: !awaitingProfile
+  })
+
+  const jobs = useMemo(() => data?.jobs ?? [], [data])
+  const total = data?.total ?? 0
+  const error = loadError
+    ? loadError instanceof JobsApiError
+      ? loadError.message
+      : 'Failed to load jobs'
+    : null
 
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
   }, [profileId, effectiveSort, stateFilter, workplace])
 
+  // Triage the drawer applied this session, laid over the fetched rows. It has
+  // to happen before the view filters so that dismissing a job from the drawer
+  // drops it from a hide-dismissed feed without a refetch.
+  const patched = useMemo(
+    () => jobs.map(j => (stateOverrides[j.id] ? { ...j, state: stateOverrides[j.id] } : j)),
+    [jobs, stateOverrides]
+  )
+
   const filtered = useMemo(() => {
     // Hide-dismissed is a VIEW filter over the already-loaded page — toggling
-    // it must never refetch (a feed reload re-scores the corpus, ~1s+).
-    let list = effectiveHideDismissed ? jobs.filter(j => j.state !== 'dismissed') : jobs
+    // it must never refetch (a feed reload re-scores the corpus, seconds).
+    let list = effectiveHideDismissed ? patched.filter(j => j.state !== 'dismissed') : patched
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -106,14 +132,14 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
       )
     }
     return list
-  }, [jobs, search, effectiveHideDismissed])
+  }, [patched, search, effectiveHideDismissed])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   // Auth-gated filters: the API requires admin/friend for state=.
   // We don't pre-flight whoami here — instead, rely on a real state value in the
   // response. Both null (authed-but-no-row) and undefined (older worker without
   // the field) mean "not authed enough to surface the filters".
-  const seemsAuthed = jobs.some(j => j.state !== null && j.state !== undefined)
+  const seemsAuthed = patched.some(j => j.state !== null && j.state !== undefined)
 
   return (
     <div className="jp-jobs">
@@ -192,7 +218,7 @@ export function JobsList({ auth, profileId, onSelect, refreshKey, voteOverrides,
           {total === 0 ? 'No jobs match your filters.' : 'No matches for the current search.'}
         </p>
       ) : (
-        <ul className="jp-jobs__list">
+        <ul className="jp-jobs__list" data-refreshing={refreshing ? 'true' : undefined}>
           {filtered.map(job => {
             const ov = voteOverrides[job.id]
             const vote = ov ? ov.vote : (job.vote ?? null)

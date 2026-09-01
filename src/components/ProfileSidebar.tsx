@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { listProfiles, deleteProfile, ProfilesApiError, type JobProfile } from '../api/profiles'
 import type { Auth } from '../api/auth'
+import { invalidateResource } from '../api/resource'
+import { useResource } from '../api/useResource'
 
 /**
  * Where "Sign in" sends an anonymous visitor.
@@ -25,12 +27,26 @@ interface Props {
   onEdit: (profile: JobProfile) => void
   /** Bumped by the parent after a save so the list refetches. */
   reloadKey?: number
+  /**
+   * Fired once the profile list has settled, with how many profiles there are
+   * — including for a signed-out visitor, where there is nothing to fetch and
+   * the count is 0. The dashboard holds the feed's request while a selection is
+   * still coming, so it never asks for an unscored feed it is about to replace
+   * with a scored one; a count of 0 means no selection is coming.
+   */
+  onResolved?: (count: number) => void
 }
 
-export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, reloadKey }: Props) {
-  const [profiles, setProfiles] = useState<JobProfile[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function ProfileSidebar({
+  auth,
+  selectedId,
+  onSelect,
+  onNew,
+  onEdit,
+  reloadKey,
+  onResolved
+}: Props) {
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Profiles are per-user and the API gates /profiles at friend tier, so an
   // anonymous visitor can only ever get a 403 here. The feed itself is public,
@@ -41,27 +57,27 @@ export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, relo
   // pre-flight, which is exactly what JobsList avoids.
   const isAuthed = Boolean(auth.sessionId)
 
-  const refresh = useCallback(async () => {
-    if (!isAuthed) {
-      setProfiles([])
-      setError(null)
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      setProfiles(await listProfiles(auth))
-    } catch (err) {
-      setError(err instanceof ProfilesApiError ? err.message : 'Failed to load profiles')
-    } finally {
-      setLoading(false)
-    }
-  }, [auth, isAuthed])
+  const {
+    data,
+    loading,
+    error: loadError,
+    reload
+  } = useResource(`profiles:${reloadKey ?? 0}`, () => listProfiles(auth), { enabled: isAuthed })
 
+  const profiles = data ?? []
+  const error =
+    deleteError ??
+    (loadError
+      ? loadError instanceof ProfilesApiError
+        ? loadError.message
+        : 'Failed to load profiles'
+      : null)
+
+  // Settled = we have an answer, or there was never a question to ask.
+  const resolved = !isAuthed || !loading
   useEffect(() => {
-    void refresh()
-  }, [refresh, reloadKey])
+    if (resolved) onResolved?.(profiles.length)
+  }, [resolved, profiles.length, onResolved])
 
   // Keep selection in sync with available profiles: auto-pick first if none
   // selected, or clear selection if the selected one disappeared (e.g. after
@@ -82,11 +98,13 @@ export function ProfileSidebar({ auth, selectedId, onSelect, onNew, onEdit, relo
       ? 'Hide the default profile? It won’t come back (your edits/deletion are remembered).'
       : 'Delete this profile?'
     if (!window.confirm(msg)) return
+    setDeleteError(null)
     try {
       await deleteProfile(p.id, auth)
-      await refresh()
+      invalidateResource('profiles:')
+      reload()
     } catch (err) {
-      setError(err instanceof ProfilesApiError ? err.message : 'Failed to delete profile')
+      setDeleteError(err instanceof ProfilesApiError ? err.message : 'Failed to delete profile')
     }
   }
 
