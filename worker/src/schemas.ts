@@ -130,6 +130,24 @@ export const JobSummarySchema = z
 	.openapi('JobSummary');
 
 export const JobDetailSchema = JobSummarySchema.extend({
+	/**
+	 * Whether the form runner has an adapter for this posting. A PREDICTION
+	 * read off the URL — no page has been opened. See worker/src/applyTier.ts.
+	 *
+	 * Detail-only, not on JobSummary, for two reasons. The feed's first pass is
+	 * deliberately light over tens of thousands of rows and does not select
+	 * `application_url`; computing the tier from `url` instead would disagree
+	 * with this field on exactly the embedded case — a Greenhouse posting whose
+	 * board URL looks supported while its real application URL is the
+	 * employer's own site. An indicator that contradicts itself between the
+	 * card and the drawer is worse than no indicator.
+	 */
+	apply_tier: z.enum(['supported', 'embedded', 'unsupported', 'unknown']),
+	/**
+	 * The runner has actually filled a form on this board before. Evidence,
+	 * not inference — the only half of this pair that means "checked".
+	 */
+	apply_verified: z.boolean(),
 	job_type: z.string(),
 	description: z.string(),
 	application_url: z.string().nullable(),

@@ -118,6 +118,36 @@ function CopyBlock({
   )
 }
 
+/**
+ * How much of this application the runner can take on.
+ *
+ * Two claims with very different standing, and the wording keeps them apart.
+ * `verified` means a form on this board was actually filled — evidence. `tier`
+ * is read off the URL and no page has been opened, so it says "should" and not
+ * "will". Dressing a prediction as a check is how a queue full of surprises
+ * gets built.
+ */
+function ApplyTierChip({ tier, verified }: { tier: JobDetail['apply_tier']; verified: boolean }) {
+  if (verified) {
+    return (
+      <p className="jp-apply-tier jp-apply-tier--verified">
+        Auto-apply verified — the runner has filled a form on this board before.
+      </p>
+    )
+  }
+  const COPY: Record<JobDetail['apply_tier'], string | null> = {
+    supported: 'The runner should be able to fill this form; it has not driven this board yet.',
+    embedded:
+      'This employer hosts its own careers page, but the form underneath is one the runner ' +
+      'knows. Not tried on this board yet.',
+    unsupported: 'No adapter for this ATS — this one is by hand.',
+    unknown: null
+  }
+  const copy = COPY[tier]
+  if (!copy) return null
+  return <p className={`jp-apply-tier jp-apply-tier--${tier}`}>{copy}</p>
+}
+
 export function JobDrawer({
   auth,
   jobId,
@@ -455,6 +485,7 @@ export function JobDrawer({
 
             <section className="jp-drawer__section">
               <h3>Apply</h3>
+              <ApplyTierChip tier={job.apply_tier} verified={job.apply_verified} />
               <div className="jp-drawer__actions">
                 <a
                   className="jp-drawer__cta jp-drawer__cta--primary"

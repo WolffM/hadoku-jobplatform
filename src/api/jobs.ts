@@ -52,6 +52,14 @@ export interface JobSummary {
   scraped_at: string
   ats: string | null
   slug: string | null
+  /**
+   * Whether the form runner has an adapter for this posting. A PREDICTION read
+   * off the URL — nothing has been opened, so it must not be worded as if we
+   * had checked.
+   */
+  apply_tier: 'supported' | 'embedded' | 'unsupported' | 'unknown'
+  /** The runner has actually filled a form on this board. Evidence. */
+  apply_verified: boolean
   role_track: RoleTrack
   role_level: RoleLevel | null
   score: number

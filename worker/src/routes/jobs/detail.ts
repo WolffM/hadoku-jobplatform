@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { JobResponseSchema, ErrorResponseSchema } from '../../schemas.js';
 import { scoreJob } from '../../scoring.js';
+import { applyTier } from '../../applyTier.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
 
@@ -75,6 +76,29 @@ export function registerDetailRoute(app: JobsApp): void {
 			const userId = await maybeUserId(c);
 			let state: StateRead | null = null;
 			let stateUpdatedAt: string | null = null;
+
+			// Has the runner actually driven a form on THIS board before?
+			//
+			// Board-level rather than job-level on purpose: one posting having
+			// been filled says nothing useful about itself (it is already
+			// done), but it says a great deal about the next posting on the
+			// same board — same ATS, same template, same questions. This is the
+			// only signal here entitled to read as "checked"; `apply_tier` is a
+			// prediction from the URL and no page has been opened for it.
+			let applyVerified = false;
+			if (userId && row.ats && row.slug) {
+				const proven = await db
+					.prepare(
+						`SELECT 1 FROM applications a
+						 JOIN jobs j ON j.id = a.job_id
+						 WHERE a.user_id = ? AND j.ats = ? AND j.slug = ?
+						   AND a.status IN ('filled', 'approved', 'submitted')
+						 LIMIT 1`
+					)
+					.bind(userId, row.ats as string, row.slug as string)
+					.first<{ 1: number }>();
+				applyVerified = proven !== null;
+			}
 			if (userId) {
 				const stateRow = await db
 					.prepare('SELECT state, updated_at FROM job_states WHERE job_id = ? AND user_id = ?')
@@ -99,6 +123,11 @@ export function registerDetailRoute(app: JobsApp): void {
 				scraped_at: row.scraped_at as string,
 				ats: (row.ats as string | null) ?? null,
 				slug: (row.slug as string | null) ?? null,
+				apply_tier: applyTier(
+					(row.application_url as string | null) ?? (row.url as string | null),
+					(row.ats as string | null) ?? null
+				),
+				apply_verified: applyVerified,
 				role_track: asRoleTrack((row.role_track as string | null) ?? 'unknown'),
 				role_level: roleLevel,
 				description: row.description as string,
