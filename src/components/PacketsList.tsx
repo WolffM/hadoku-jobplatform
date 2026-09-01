@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
 import { listPackets, JobsApiError, type PacketSummary } from '../api/jobs'
 import { packetUrl } from '../api/packets'
 import type { Auth } from '../api/auth'
+import { useResource } from '../api/useResource'
 
 interface Props {
   auth: Auth
@@ -22,34 +22,16 @@ function formatPrepared(iso: string): string {
  * lives inside the split view (scratch #25).
  */
 export function PacketsList({ auth, onSelect }: Props) {
-  const [packets, setPackets] = useState<PacketSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [needsAuth, setNeedsAuth] = useState(false)
+  const { data, loading, error: loadError } = useResource('packets', () => listPackets(auth))
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    listPackets(auth)
-      .then(rows => {
-        if (!cancelled) setPackets(rows)
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return
-        if (err instanceof JobsApiError && err.status === 403) {
-          setNeedsAuth(true)
-        } else {
-          setError(err instanceof JobsApiError ? err.message : 'Failed to load packets')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [auth])
+  const packets: PacketSummary[] = data ?? []
+  const needsAuth = loadError instanceof JobsApiError && loadError.status === 403
+  const error =
+    loadError && !needsAuth
+      ? loadError instanceof JobsApiError
+        ? loadError.message
+        : 'Failed to load packets'
+      : null
 
   if (loading) return <p className="jp-muted">Loading packets…</p>
   if (needsAuth) return <p className="jp-muted">Packets are per-account — sign in to see yours.</p>

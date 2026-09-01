@@ -8,6 +8,8 @@ import {
   type ProfileCompany
 } from '../api/profiles'
 import type { Auth } from '../api/auth'
+import { invalidateResource } from '../api/resource'
+import { useResource } from '../api/useResource'
 
 interface Props {
   auth: Auth
@@ -36,9 +38,7 @@ function faviconUrl(domain: string | null): string | null {
 }
 
 export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props) {
-  const [companies, setCompanies] = useState<ProfileCompany[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const [nameInput, setNameInput] = useState('')
   const [matching, setMatching] = useState(false)
@@ -46,33 +46,42 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [addingKey, setAddingKey] = useState<string | null>(null)
 
-  const refresh = useCallback(async () => {
-    if (!profileId) {
-      setCompanies([])
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      setCompanies(await listProfileCompanies(profileId, auth))
-    } catch (err) {
-      setError(err instanceof ProfilesApiError ? err.message : 'Failed to load companies')
-    } finally {
-      setLoading(false)
-    }
-  }, [auth, profileId])
+  const {
+    data,
+    loading,
+    error: loadError,
+    reload
+  } = useResource<ProfileCompany[]>(
+    `profile-companies:${profileId ?? ''}`,
+    () => listProfileCompanies(profileId ?? '', auth),
+    { enabled: Boolean(profileId) }
+  )
+
+  const companies: ProfileCompany[] = profileId ? (data ?? []) : []
+  const error =
+    actionError ??
+    (loadError
+      ? loadError instanceof ProfilesApiError
+        ? loadError.message
+        : 'Failed to load companies'
+      : null)
+
+  // A write changed the slice, so the cached list is wrong — drop it and re-read.
+  const refresh = useCallback(() => {
+    invalidateResource(`profile-companies:${profileId ?? ''}`)
+    reload()
+  }, [profileId, reload])
 
   useEffect(() => {
-    void refresh()
     setMatches(null)
-  }, [refresh])
+  }, [profileId])
 
   const subscribedKey = (ats: string, slug: string) => `${ats}:${slug}`
   const subscribed = new Set(companies.map(c => subscribedKey(c.ats, c.slug)))
 
   const add = async (ats: string, slug: string, displayName: string) => {
     if (!profileId || addingKey) return
-    setError(null)
+    setActionError(null)
     setMatchError(null)
     try {
       await addProfileCompany(
@@ -80,7 +89,7 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
         { ats, slug, display_name: displayName.trim() || slug },
         auth
       )
-      await refresh()
+      refresh()
       onCompaniesChanged?.()
     } catch (err) {
       const msg =
@@ -123,13 +132,13 @@ export function CompaniesManager({ auth, profileId, onCompaniesChanged }: Props)
 
   const handleRemove = async (companyId: string) => {
     if (!profileId) return
-    setError(null)
+    setActionError(null)
     try {
       await removeProfileCompany(profileId, companyId, auth)
-      await refresh()
+      refresh()
       onCompaniesChanged?.()
     } catch (err) {
-      setError(err instanceof ProfilesApiError ? err.message : 'Failed to remove company')
+      setActionError(err instanceof ProfilesApiError ? err.message : 'Failed to remove company')
     }
   }
 

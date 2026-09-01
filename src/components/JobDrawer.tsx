@@ -17,6 +17,8 @@ import {
   type VoteValue
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
+import { invalidateResource } from '../api/resource'
+import { useResource } from '../api/useResource'
 import { VoteControl } from './VoteControl'
 
 interface Props {
@@ -157,9 +159,7 @@ export function JobDrawer({
   onStateChange,
   onVoteChange
 }: Props) {
-  const [job, setJob] = useState<JobDetail | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   // Optimistic local state so the buttons update without a full refetch.
   const [currentState, setCurrentState] = useState<JobStateRead | null>(null)
   const [pendingState, setPendingState] = useState<JobStateWrite | null>(null)
@@ -184,11 +184,29 @@ export function JobDrawer({
   const [linkError, setLinkError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
+  // The posting is cached, so reopening a job you already looked at paints
+  // immediately instead of spending a round trip on a row that has not moved.
+  const {
+    data: job,
+    loading,
+    error: loadError
+  } = useResource<JobDetail>(`job:${jobId}:${profileId ?? ''}`, () =>
+    getJob(jobId, profileId ?? undefined, auth)
+  )
+
+  const error =
+    actionError ??
+    (loadError
+      ? loadError instanceof JobsApiError
+        ? loadError.message
+        : 'Failed to load job'
+      : null)
+
+  // Everything the drawer builds up belongs to ONE posting, so switching jobs
+  // clears it — otherwise a cached posting would paint under the previous
+  // job's packet and triage.
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
-    setError(null)
-    setJob(null)
+    setActionError(null)
     setCurrentState(null)
     setVote(initialVote ?? null)
     setPacket(null)
@@ -201,25 +219,12 @@ export function JobDrawer({
     setQueueError(null)
     setLinkError(null)
     setCopied(false)
-    getJob(jobId, profileId ?? undefined, auth)
-      .then(result => {
-        if (!cancelled) {
-          setJob(result)
-          setCurrentState(result.state)
-        }
-      })
-      .catch(err => {
-        if (!cancelled) {
-          setError(err instanceof JobsApiError ? err.message : 'Failed to load job')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [auth, jobId, profileId, initialVote])
+  }, [jobId, profileId, initialVote])
+
+  // Triage is optimistic locally, seeded from whatever the posting reports.
+  useEffect(() => {
+    if (job) setCurrentState(job.state)
+  }, [job])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -232,15 +237,19 @@ export function JobDrawer({
   const handleSetState = async (next: JobStateWrite) => {
     if (pendingState) return
     setPendingState(next)
-    setError(null)
+    setActionError(null)
     try {
       // Marking applied with a prepared packet records which link went out.
       const slug = next === 'applied' ? (packetSlug ?? undefined) : undefined
       const res = await setJobState(jobId, next, auth, slug)
       setCurrentState(res.state)
+      // The cached posting still carries the old triage state, so reopening
+      // this job would show it. Drop it rather than patch it: the next open
+      // re-reads, and the row is one request, not a corpus scan.
+      invalidateResource(`job:${jobId}:`)
       onStateChange?.(jobId, res.state)
     } catch (err) {
-      setError(err instanceof JobsApiError ? err.message : 'Failed to update state')
+      setActionError(err instanceof JobsApiError ? err.message : 'Failed to update state')
     } finally {
       setPendingState(null)
     }
