@@ -193,3 +193,57 @@ describe('board_slug — the scraper knows which board it fetched', () => {
 		assert.equal(after?.slug, 'pinterest', 'a re-scrape corrects it');
 	});
 });
+
+/**
+ * The cull runs on every ingest — 2,027 calls in the week this was measured —
+ * and its filter is a computed expression, so without a matching expression
+ * index SQLite scans the whole jobs table: 31,271 rows and ~195ms per call, to
+ * delete about two.
+ *
+ * SQLite only uses an expression index when the query's expression matches the
+ * index's. Nothing fails when they stop matching: the cull still returns the
+ * right rows, just by scanning again. So the plan itself is the assertion.
+ */
+describe('cull query plan', () => {
+	it('seeks on idx_jobs_freshness rather than scanning jobs', async () => {
+		const cutoff = new Date(Date.now() - 60 * 86_400_000).toISOString();
+		const plan = await h.db
+			.prepare(
+				`EXPLAIN QUERY PLAN
+				 SELECT j.id FROM jobs j
+				 WHERE MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
+				   AND NOT EXISTS (SELECT 1 FROM job_states s WHERE s.job_id = j.id)
+				   AND NOT EXISTS (SELECT 1 FROM job_feedback f WHERE f.job_id = j.id)
+				 LIMIT 500`
+			)
+			.bind(cutoff)
+			.all<{ detail: string }>();
+		const details = plan.results.map((r) => r.detail).join('\n');
+		assert.match(
+			details,
+			/USING INDEX idx_jobs_freshness/,
+			`the cull stopped using its index — check that the expression in cullExpired() still ` +
+				`matches migration 0019 exactly.\nplan was:\n${details}`
+		);
+		assert.doesNotMatch(details, /^SCAN j\b/m, `plan was:\n${details}`);
+	});
+
+	it('the dropped indexes are gone, and the ones covering them remain', async () => {
+		const rows = await h.db
+			.prepare("SELECT name FROM sqlite_master WHERE type = 'index'")
+			.all<{ name: string }>();
+		const names = new Set(rows.results.map((r) => r.name));
+		for (const dropped of [
+			'idx_job_states_user',
+			'idx_job_feedback_user',
+			'idx_profiles_user',
+			'idx_jobs_company',
+		]) {
+			assert.ok(!names.has(dropped), `${dropped} should have been dropped by 0019`);
+		}
+		// Each drop was safe only because a wider index still serves the lookup.
+		for (const kept of ['idx_job_states_user_state', 'idx_profiles_user_default']) {
+			assert.ok(names.has(kept), `${kept} is what makes dropping its prefix safe`);
+		}
+	});
+});
