@@ -352,6 +352,51 @@ export const AnswersResponseSchema = S(z.object({ answers: z.array(AnswerSchema)
 	'AnswersResponse'
 );
 
+/**
+ * Handing an application to someone else.
+ *
+ * A NAME, never a userId. `.strict()` is load-bearing: zod's default strips an
+ * unknown key silently, so an old client sending `{"userId": "…"}` would arrive
+ * as an empty body. Strict turns the retired field into a 400 that names itself
+ * rather than a request that quietly means something else.
+ */
+export const ReassignOwnerInputSchema = z
+	.object({
+		name: z.string().trim().min(1).max(200).openapi({
+			example: 'Hadoku',
+			description:
+				"The recipient's registry display name, as listed by GET /session/users/search. Resolved against the key registry; a name nobody holds is a 404 rather than a row assigned to nobody.",
+		}),
+	})
+	.strict()
+	.openapi('ReassignOwnerInput');
+
+/**
+ * An identity failure, carrying the resolver's own code.
+ *
+ * The three codes mean different things and the caller must be able to tell
+ * them apart: NO_REGISTRY is OUR deployment failing and is retryable,
+ * NAME_NOT_FOUND is a name nobody holds, NO_USER_ID is a real name that has
+ * never signed in. Flattening them into one message sends someone hunting for
+ * a typo in a name that was spelled correctly.
+ */
+export const IdentityErrorResponseSchema = ErrorResponseSchema.extend({
+	code: z.enum(['NO_REGISTRY', 'NAME_NOT_FOUND', 'NO_USER_ID']).optional(),
+}).openapi('IdentityErrorResponse');
+
+export const ReassignOwnerResponseSchema = S(
+	z.object({
+		application_id: z.string(),
+		/**
+		 * WHO it went to — the R4 echo, so the caller can confirm the identity.
+		 * `name` is nullable because a resolved identity legitimately may not
+		 * carry a display name; declaring it non-null would be a claim about the
+		 * registry that the registry does not make.
+		 */
+		grantedTo: z.object({ name: z.string().nullable(), tier: z.string().nullable() }),
+	})
+).openapi('ReassignOwnerResponse');
+
 export const UnansweredQuestionSchema = z
 	.object({
 		question_key: z.string(),
