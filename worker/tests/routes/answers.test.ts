@@ -284,6 +284,22 @@ describe('question options', () => {
 		assert.match(q.options[0], /^No, I am not/);
 	});
 
+	it('gives a SEEDED question the options a fill already learnt', async () => {
+		// The one the owner reported. "Are you Hispanic/Latino?" is answered
+		// from the canned set, so it never appears in `unmatched` — but a fill
+		// still SAW it and learnt its options. Reading options only off pending
+		// entries sent it to the dashboard as a free-text box for a
+		// fixed-option EEO question.
+		await seedFill('h1', 'Coinbase', ['Something else entirely'], 'needs_manual', {
+			'are you hispanic latino': ['Yes', 'No', 'Decline To Self Identify'],
+		});
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = body.data.questions.find((x) => x.question_key === 'are you hispanic latino');
+		assert.ok(q, 'the seed is present');
+		assert.equal(q.companies.length, 0, 'still a seed — no fill failed on it');
+		assert.deepEqual(q.options, ['Yes', 'No', 'Decline To Self Identify']);
+	});
+
 	it('reports no options for a genuinely free-text question', async () => {
 		await seedFill('j2', 'Acme', ['Why do you want to work here?']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');

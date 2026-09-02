@@ -64,6 +64,22 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 		.all<{ question_key: string }>();
 	const known = new Set(answered.results.map((r) => r.question_key));
 
+	/**
+	 * Every option list this user's fills have ever seen, keyed by question.
+	 *
+	 * Separate from `pending` because the two are populated by different rules:
+	 * a question enters `pending` only when a fill could not ANSWER it, while
+	 * its options are learnt whenever a fill SEES it. Reading options straight
+	 * off the pending entry meant an answered question — "Are you
+	 * Hispanic/Latino?", answered from the canned set and asked as a picker on
+	 * nearly every board — contributed its options to nothing, and reached the
+	 * dashboard as a free-text box for a fixed-option question.
+	 *
+	 * First sighting wins: two employers wording one question differently offer
+	 * different option TEXT, and a blend is verbatim for neither.
+	 */
+	const learnedOptions = new Map<string, string[]>();
+
 	// key -> the question as last seen, plus who is waiting on it
 	const pending = new Map<
 		string,
@@ -91,6 +107,12 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			// must not hide every other question in the queue.
 			continue;
 		}
+		for (const [key, seen] of Object.entries(optionsByKey)) {
+			if (learnedOptions.has(key) || !Array.isArray(seen)) continue;
+			const clean = seen.filter((o): o is string => typeof o === 'string' && !!o);
+			if (clean.length) learnedOptions.set(key, clean);
+		}
+
 		if (!Array.isArray(unmatched)) continue;
 		for (const raw of unmatched) {
 			if (typeof raw !== 'string' || !raw.trim()) continue;
@@ -104,14 +126,8 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				options: [] as string[],
 			};
 			// An answer must match the board's option text verbatim to land, so
-			// these are not a hint — they are the only answers that work. First
-			// sighting wins: two employers wording the same question differently
-			// have different option text, and blending them would produce a list
-			// that is verbatim for neither.
-			const seen = optionsByKey[key];
-			if (!entry.options.length && Array.isArray(seen)) {
-				entry.options = seen.filter((o): o is string => typeof o === 'string' && !!o);
-			}
+			// these are not a hint — they are the only answers that work.
+			if (!entry.options.length) entry.options = learnedOptions.get(key) ?? [];
 			entry.companies.add(row.company);
 			// Per APPLICATION, not per company. Two postings at one employer are
 			// two applications held up; counting distinct companies reported
@@ -139,9 +155,10 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			companies: new Set<string>(),
 			applications: 0,
 			blocking: 0,
-			// A seeded question has never been seen on a form, so nothing is
-			// known about what it accepts.
-			options: [],
+			// A seed carries no company, but it may still have options: a fill
+			// that ANSWERED this question still learnt what it accepts. That is
+			// the whole reason `learnedOptions` is built separately.
+			options: learnedOptions.get(key) ?? [],
 		});
 	}
 
