@@ -1,0 +1,2682 @@
+{
+  "anchorSha": "a286bf23af696601533889a4d7bc61ad96e834d7",
+  "anchorDate": "2026-08-19T23:13:10-07:00",
+  "dirty": false,
+  "config": {
+    "enabled": true,
+    "dynamicTests": false,
+    "reportChannel": "issue",
+    "maxReportItems": 15,
+    "sizeTiers": [
+      500,
+      1000,
+      2000
+    ],
+    "exclude": [],
+    "jsRoots": [],
+    "dataPr": "episodic",
+    "lanes": {
+      "size": {
+        "enabled": true
+      },
+      "arrival": {
+        "enabled": true
+      },
+      "deadcode": {
+        "enabled": true
+      },
+      "duplication": {
+        "enabled": true,
+        "minLines": 30
+      },
+      "smells": {
+        "enabled": true
+      },
+      "consistency": {
+        "enabled": true
+      }
+    }
+  },
+  "candidateFiles": 110,
+  "excluded": [
+    {
+      "path": ".vibecompact/ledger.jsonl",
+      "reason": "path-convention"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0001_init.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0002_user_companies.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0003_jobs_ats_slug.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0004_profiles_user_id.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0005_job_states.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0006_default_profile.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0007_profile_companies.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0008_drop_job_profile_matches.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0009_role_track_level.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0010_job_states_variant_slug.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0011_scoring_prefs.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0012_job_feedback.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/migrations/0013_last_seen_at.sql",
+      "reason": "path-convention"
+    },
+    {
+      "path": "worker/pnpm-lock.yaml",
+      "reason": "path-convention"
+    }
+  ],
+  "lanes": {
+    "size": {
+      "available": true,
+      "toolVersion": "3.7.0",
+      "entries": [
+        {
+          "path": ".husky/post-commit",
+          "language": "Shell",
+          "codeLines": 1,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.002,
+          "cohesionModifier": 1
+        },
+        {
+          "path": ".husky/pre-commit",
+          "language": "Shell",
+          "codeLines": 80,
+          "complexity": 4,
+          "tier": 0,
+          "score": 0.16,
+          "cohesionModifier": 1
+        },
+        {
+          "path": ".stylelintrc.cjs",
+          "language": "JavaScript",
+          "codeLines": 11,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.022,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "eslint.config.js",
+          "language": "JavaScript",
+          "codeLines": 69,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.138,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "playwright.config.ts",
+          "language": "TypeScript",
+          "codeLines": 30,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.06,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "scripts/check-node-modules-links.mjs",
+          "language": "JavaScript",
+          "codeLines": 91,
+          "complexity": 13,
+          "tier": 0,
+          "score": 0.182,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "scripts/free-port.mjs",
+          "language": "JavaScript",
+          "codeLines": 28,
+          "complexity": 5,
+          "tier": 0,
+          "score": 0.056,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "scripts/version-from-commit.mjs",
+          "language": "JavaScript",
+          "codeLines": 107,
+          "complexity": 22,
+          "tier": 0,
+          "score": 0.214,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/App.tsx",
+          "language": "TypeScript",
+          "codeLines": 197,
+          "complexity": 9,
+          "tier": 0,
+          "score": 0.394,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/api/auth.ts",
+          "language": "TypeScript",
+          "codeLines": 9,
+          "complexity": 2,
+          "tier": 0,
+          "score": 0.018,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/api/companies.ts",
+          "language": "TypeScript",
+          "codeLines": 47,
+          "complexity": 5,
+          "tier": 0,
+          "score": 0.094,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/api/jobs.ts",
+          "language": "TypeScript",
+          "codeLines": 291,
+          "complexity": 20,
+          "tier": 0,
+          "score": 0.582,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/api/profiles.ts",
+          "language": "TypeScript",
+          "codeLines": 148,
+          "complexity": 5,
+          "tier": 0,
+          "score": 0.296,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/CompaniesManager.tsx",
+          "language": "TypeScript",
+          "codeLines": 251,
+          "complexity": 37,
+          "tier": 0,
+          "score": 0.502,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/JobCard.tsx",
+          "language": "TypeScript",
+          "codeLines": 99,
+          "complexity": 40,
+          "tier": 0,
+          "score": 0.198,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/JobDrawer.tsx",
+          "language": "TypeScript",
+          "codeLines": 479,
+          "complexity": 56,
+          "tier": 0,
+          "score": 0.958,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/JobsList.tsx",
+          "language": "TypeScript",
+          "codeLines": 197,
+          "complexity": 28,
+          "tier": 0,
+          "score": 0.394,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/PacketsList.tsx",
+          "language": "TypeScript",
+          "codeLines": 108,
+          "complexity": 18,
+          "tier": 0,
+          "score": 0.216,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/ProfileEditorModal.tsx",
+          "language": "TypeScript",
+          "codeLines": 374,
+          "complexity": 59,
+          "tier": 0,
+          "score": 0.748,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/ProfileSidebar.tsx",
+          "language": "TypeScript",
+          "codeLines": 142,
+          "complexity": 14,
+          "tier": 0,
+          "score": 0.284,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/components/VoteControl.tsx",
+          "language": "TypeScript",
+          "codeLines": 125,
+          "complexity": 17,
+          "tier": 0,
+          "score": 0.25,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/entry.tsx",
+          "language": "TypeScript",
+          "codeLines": 24,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.048,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/base.css",
+          "language": "CSS",
+          "codeLines": 67,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.134,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/chips.css",
+          "language": "CSS",
+          "codeLines": 59,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.118,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/companies-manager.css",
+          "language": "CSS",
+          "codeLines": 110,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.22,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/companies-page.css",
+          "language": "CSS",
+          "codeLines": 12,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.024,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/company-match.css",
+          "language": "CSS",
+          "codeLines": 72,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.144,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/dashboard-shell.css",
+          "language": "CSS",
+          "codeLines": 150,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.3,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/filters.css",
+          "language": "CSS",
+          "codeLines": 130,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.26,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/index.css",
+          "language": "CSS",
+          "codeLines": 12,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.024,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/job-drawer.css",
+          "language": "CSS",
+          "codeLines": 308,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.616,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/job-list.css",
+          "language": "CSS",
+          "codeLines": 178,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.356,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/packets.css",
+          "language": "CSS",
+          "codeLines": 60,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.12,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/profile-editor.css",
+          "language": "CSS",
+          "codeLines": 163,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.326,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "src/styles/vote.css",
+          "language": "CSS",
+          "codeLines": 87,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.174,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "tests/global-setup.ts",
+          "language": "TypeScript",
+          "codeLines": 23,
+          "complexity": 3,
+          "tier": 0,
+          "score": 0.046,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "tests/jobplatform.spec.ts",
+          "language": "TypeScript",
+          "codeLines": 379,
+          "complexity": 29,
+          "tier": 0,
+          "score": 0.758,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "vite.config.ts",
+          "language": "TypeScript",
+          "codeLines": 45,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.09,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/eslint.config.js",
+          "language": "JavaScript",
+          "codeLines": 67,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.134,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/clients/scraper.ts",
+          "language": "TypeScript",
+          "codeLines": 128,
+          "complexity": 11,
+          "tier": 0,
+          "score": 0.256,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/defaultProfile.ts",
+          "language": "TypeScript",
+          "codeLines": 32,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.064,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/index.ts",
+          "language": "TypeScript",
+          "codeLines": 73,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.146,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/logger.ts",
+          "language": "TypeScript",
+          "codeLines": 2,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.004,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/profileScore.ts",
+          "language": "TypeScript",
+          "codeLines": 53,
+          "complexity": 3,
+          "tier": 0,
+          "score": 0.106,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/roleClassify.ts",
+          "language": "TypeScript",
+          "codeLines": 117,
+          "complexity": 14,
+          "tier": 0,
+          "score": 0.234,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/companies.ts",
+          "language": "TypeScript",
+          "codeLines": 107,
+          "complexity": 2,
+          "tier": 0,
+          "score": 0.214,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/health.ts",
+          "language": "TypeScript",
+          "codeLines": 36,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.072,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/ingest.ts",
+          "language": "TypeScript",
+          "codeLines": 452,
+          "complexity": 46,
+          "tier": 0,
+          "score": 0.904,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/detail.ts",
+          "language": "TypeScript",
+          "codeLines": 108,
+          "complexity": 10,
+          "tier": 0,
+          "score": 0.216,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/feed.ts",
+          "language": "TypeScript",
+          "codeLines": 430,
+          "complexity": 89,
+          "tier": 0,
+          "score": 0.86,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/feedback.ts",
+          "language": "TypeScript",
+          "codeLines": 121,
+          "complexity": 3,
+          "tier": 0,
+          "score": 0.242,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/index.ts",
+          "language": "TypeScript",
+          "codeLines": 18,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.036,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/packets.ts",
+          "language": "TypeScript",
+          "codeLines": 61,
+          "complexity": 1,
+          "tier": 0,
+          "score": 0.122,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/preflight.ts",
+          "language": "TypeScript",
+          "codeLines": 70,
+          "complexity": 5,
+          "tier": 0,
+          "score": 0.14,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/shared.ts",
+          "language": "TypeScript",
+          "codeLines": 49,
+          "complexity": 8,
+          "tier": 0,
+          "score": 0.098,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/state.ts",
+          "language": "TypeScript",
+          "codeLines": 122,
+          "complexity": 5,
+          "tier": 0,
+          "score": 0.244,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/jobs/tailoring.ts",
+          "language": "TypeScript",
+          "codeLines": 183,
+          "complexity": 25,
+          "tier": 0,
+          "score": 0.366,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/routes/profiles.ts",
+          "language": "TypeScript",
+          "codeLines": 484,
+          "complexity": 24,
+          "tier": 0,
+          "score": 0.968,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/salaryParse.ts",
+          "language": "TypeScript",
+          "codeLines": 32,
+          "complexity": 15,
+          "tier": 0,
+          "score": 0.064,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/schemas.ts",
+          "language": "TypeScript",
+          "codeLines": 298,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.596,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/scoring.ts",
+          "language": "TypeScript",
+          "codeLines": 326,
+          "complexity": 73,
+          "tier": 0,
+          "score": 0.652,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/slugParse.ts",
+          "language": "TypeScript",
+          "codeLines": 42,
+          "complexity": 14,
+          "tier": 0,
+          "score": 0.084,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/types.ts",
+          "language": "TypeScript",
+          "codeLines": 8,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.016,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/src/userId.ts",
+          "language": "TypeScript",
+          "codeLines": 20,
+          "complexity": 2,
+          "tier": 0,
+          "score": 0.04,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/helpers/harness.ts",
+          "language": "TypeScript",
+          "codeLines": 201,
+          "complexity": 20,
+          "tier": 0,
+          "score": 0.402,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/helpers/seed.ts",
+          "language": "TypeScript",
+          "codeLines": 121,
+          "complexity": 28,
+          "tier": 0,
+          "score": 0.242,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/register.mjs",
+          "language": "JavaScript",
+          "codeLines": 2,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.004,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/roleClassify.test.ts",
+          "language": "TypeScript",
+          "codeLines": 78,
+          "complexity": 1,
+          "tier": 0,
+          "score": 0.156,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/ingestCull.test.ts",
+          "language": "TypeScript",
+          "codeLines": 60,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.12,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/jobsDetail.test.ts",
+          "language": "TypeScript",
+          "codeLines": 204,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.408,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/jobsFeed.test.ts",
+          "language": "TypeScript",
+          "codeLines": 325,
+          "complexity": 8,
+          "tier": 0,
+          "score": 0.65,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/jobsPackets.test.ts",
+          "language": "TypeScript",
+          "codeLines": 122,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.244,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/jobsState.test.ts",
+          "language": "TypeScript",
+          "codeLines": 201,
+          "complexity": 1,
+          "tier": 0,
+          "score": 0.402,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/routes/jobsTailoring.test.ts",
+          "language": "TypeScript",
+          "codeLines": 264,
+          "complexity": 6,
+          "tier": 0,
+          "score": 0.528,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/salaryParse.test.ts",
+          "language": "TypeScript",
+          "codeLines": 33,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.066,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/scoring.test.ts",
+          "language": "TypeScript",
+          "codeLines": 184,
+          "complexity": 3,
+          "tier": 0,
+          "score": 0.368,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/tests/ts-resolve.mjs",
+          "language": "JavaScript",
+          "codeLines": 13,
+          "complexity": 3,
+          "tier": 0,
+          "score": 0.026,
+          "cohesionModifier": 1
+        },
+        {
+          "path": "worker/vite.config.ts",
+          "language": "TypeScript",
+          "codeLines": 22,
+          "complexity": 0,
+          "tier": 0,
+          "score": 0.044,
+          "cohesionModifier": 1
+        }
+      ]
+    },
+    "arrival": {
+      "lane": "arrival",
+      "available": true,
+      "disclosures": [],
+      "bulkMuted": false,
+      "entries": [
+        {
+          "path": ".stylelintrc.cjs",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 1,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "eslint.config.js",
+          "touches": 5,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 6.533333333333333,
+          "snapshotChurnShare": 0,
+          "score": 1.098
+        },
+        {
+          "path": "playwright.config.ts",
+          "touches": 3,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2.933333333333333,
+          "snapshotChurnShare": 0,
+          "score": 1.044
+        },
+        {
+          "path": "scripts/check-node-modules-links.mjs",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 9.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "scripts/free-port.mjs",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 3.1333333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "scripts/version-from-commit.mjs",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 11.533333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "src/App.tsx",
+          "touches": 15,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 9.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 1.149
+        },
+        {
+          "path": "src/api/auth.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2.533333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "src/api/companies.ts",
+          "touches": 7,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 6.2,
+          "snapshotChurnShare": 0,
+          "score": 1.093
+        },
+        {
+          "path": "src/api/jobs.ts",
+          "touches": 15,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 7.866666666666666,
+          "snapshotChurnShare": 0,
+          "score": 1.1179999999999999
+        },
+        {
+          "path": "src/api/profiles.ts",
+          "touches": 6,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 6.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 1.104
+        },
+        {
+          "path": "src/components/CompaniesManager.tsx",
+          "touches": 7,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 10.266666666666667,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "src/components/JobCard.tsx",
+          "touches": 5,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 3.6,
+          "snapshotChurnShare": 0,
+          "score": 1.054
+        },
+        {
+          "path": "src/components/JobDrawer.tsx",
+          "touches": 16,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 10.133333333333333,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "src/components/JobsList.tsx",
+          "touches": 12,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 9.866666666666667,
+          "snapshotChurnShare": 0,
+          "score": 1.148
+        },
+        {
+          "path": "src/components/PacketsList.tsx",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 8.333333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "src/components/ProfileEditorModal.tsx",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 23.8,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "src/components/ProfileSidebar.tsx",
+          "touches": 6,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 15.733333333333333,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "src/components/VoteControl.tsx",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 9.133333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "src/entry.tsx",
+          "touches": 6,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2.3333333333333335,
+          "snapshotChurnShare": 0,
+          "score": 1.035
+        },
+        {
+          "path": "vite.config.ts",
+          "touches": 6,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 3.3333333333333335,
+          "snapshotChurnShare": 0,
+          "score": 1.05
+        },
+        {
+          "path": "worker/eslint.config.js",
+          "touches": 5,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 3.6,
+          "snapshotChurnShare": 0,
+          "score": 1.054
+        },
+        {
+          "path": "worker/src/clients/scraper.ts",
+          "touches": 6,
+          "applicable": true,
+          "untestedShare": 0.8333333333333334,
+          "coChangeMode": "graph",
+          "bulkScore": 9.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0.9823333333333334
+        },
+        {
+          "path": "worker/src/defaultProfile.ts",
+          "touches": 3,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2.6,
+          "snapshotChurnShare": 0,
+          "score": 1.039
+        },
+        {
+          "path": "worker/src/index.ts",
+          "touches": 9,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 10.866666666666667,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "worker/src/logger.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 0.7333333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/profileScore.ts",
+          "touches": 4,
+          "applicable": true,
+          "untestedShare": 0.75,
+          "coChangeMode": "graph",
+          "bulkScore": 2.533333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0.788
+        },
+        {
+          "path": "worker/src/roleClassify.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 0,
+          "coChangeMode": "graph",
+          "bulkScore": 13,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/companies.ts",
+          "touches": 8,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 17.733333333333334,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "worker/src/routes/health.ts",
+          "touches": 3,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 4.066666666666666,
+          "snapshotChurnShare": 0,
+          "score": 1.061
+        },
+        {
+          "path": "worker/src/routes/ingest.ts",
+          "touches": 17,
+          "applicable": true,
+          "untestedShare": 0.9411764705882353,
+          "coChangeMode": "graph",
+          "bulkScore": 13.866666666666667,
+          "snapshotChurnShare": 0,
+          "score": 1.0911764705882352
+        },
+        {
+          "path": "worker/src/routes/jobs/detail.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 0.5,
+          "coChangeMode": "graph",
+          "bulkScore": 7.733333333333333,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/feed.ts",
+          "touches": 4,
+          "applicable": true,
+          "untestedShare": 0.5,
+          "coChangeMode": "graph",
+          "bulkScore": 24.6,
+          "snapshotChurnShare": 0,
+          "score": 0.65
+        },
+        {
+          "path": "worker/src/routes/jobs/feedback.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 0.5,
+          "coChangeMode": "graph",
+          "bulkScore": 9.266666666666667,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/index.ts",
+          "touches": 3,
+          "applicable": true,
+          "untestedShare": 0.3333333333333333,
+          "coChangeMode": "graph",
+          "bulkScore": 1.7333333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0.35933333333333334
+        },
+        {
+          "path": "worker/src/routes/jobs/packets.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 0,
+          "coChangeMode": "graph",
+          "bulkScore": 5.466666666666667,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/preflight.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 6.266666666666667,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/shared.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 0.5,
+          "coChangeMode": "graph",
+          "bulkScore": 4.4,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/state.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 9.4,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/tailoring.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 0.5,
+          "coChangeMode": "graph",
+          "bulkScore": 14.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/profiles.ts",
+          "touches": 10,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 24.933333333333334,
+          "snapshotChurnShare": 0,
+          "score": 1.15
+        },
+        {
+          "path": "worker/src/salaryParse.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 0,
+          "coChangeMode": "graph",
+          "bulkScore": 3.6666666666666665,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/schemas.ts",
+          "touches": 17,
+          "applicable": true,
+          "untestedShare": 0.8823529411764706,
+          "coChangeMode": "graph",
+          "bulkScore": 8.466666666666667,
+          "snapshotChurnShare": 0,
+          "score": 1.0093529411764706
+        },
+        {
+          "path": "worker/src/scoring.ts",
+          "touches": 11,
+          "applicable": true,
+          "untestedShare": 0.45454545454545453,
+          "coChangeMode": "graph",
+          "bulkScore": 22.6,
+          "snapshotChurnShare": 0,
+          "score": 0.6045454545454545
+        },
+        {
+          "path": "worker/src/slugParse.ts",
+          "touches": 2,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 4.133333333333334,
+          "snapshotChurnShare": 0,
+          "score": 0
+        },
+        {
+          "path": "worker/src/types.ts",
+          "touches": 8,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2.7333333333333334,
+          "snapshotChurnShare": 0,
+          "score": 1.041
+        },
+        {
+          "path": "worker/src/userId.ts",
+          "touches": 4,
+          "applicable": true,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 2,
+          "snapshotChurnShare": 0,
+          "score": 1.03
+        },
+        {
+          "path": "worker/vite.config.ts",
+          "touches": 1,
+          "applicable": false,
+          "untestedShare": 1,
+          "coChangeMode": "graph",
+          "bulkScore": 1.6,
+          "snapshotChurnShare": 0,
+          "score": 0
+        }
+      ]
+    },
+    "deadcode": {
+      "available": true,
+      "disclosures": [
+        "9 declared entry points exempt from dead-surface claims"
+      ],
+      "filesSignalMuted": false,
+      "coverage": [
+        "ts-js"
+      ],
+      "assessedCount": 63,
+      "entries": [
+        {
+          "path": "src/api/jobs.ts",
+          "applicable": true,
+          "unusedFile": false,
+          "deadItems": 3,
+          "definitionCount": 27,
+          "deadDetail": [
+            {
+              "name": "clearJobState",
+              "line": 382,
+              "internalUse": false
+            },
+            {
+              "name": "RoleTrack",
+              "line": 17,
+              "internalUse": true
+            },
+            {
+              "name": "ScreeningAnswer",
+              "line": 306,
+              "internalUse": true
+            }
+          ],
+          "score": 0.1111111111111111
+        },
+        {
+          "path": "src/api/profiles.ts",
+          "applicable": true,
+          "unusedFile": false,
+          "deadItems": 2,
+          "definitionCount": 19,
+          "deadDetail": [
+            {
+              "name": "IcLevel",
+              "line": 19,
+              "internalUse": true
+            },
+            {
+              "name": "ManagerLevel",
+              "line": 20,
+              "internalUse": true
+            }
+          ],
+          "score": 0.10526315789473684
+        },
+        {
+          "path": "worker/src/roleClassify.ts",
+          "applicable": true,
+          "unusedFile": false,
+          "deadItems": 3,
+          "definitionCount": 13,
+          "deadDetail": [
+            {
+              "name": "RoleTrack",
+              "line": 22,
+              "internalUse": true
+            },
+            {
+              "name": "IcLevel",
+              "line": 27,
+              "internalUse": true
+            },
+            {
+              "name": "ManagerLevel",
+              "line": 28,
+              "internalUse": true
+            }
+          ],
+          "score": 0.23076923076923078
+        },
+        {
+          "path": "worker/src/scoring.ts",
+          "applicable": true,
+          "unusedFile": false,
+          "deadItems": 1,
+          "definitionCount": 9,
+          "deadDetail": [
+            {
+              "name": "ScoreBreakdown",
+              "line": 27,
+              "internalUse": true
+            }
+          ],
+          "score": 0.1111111111111111
+        },
+        {
+          "path": "worker/tests/helpers/harness.ts",
+          "applicable": true,
+          "unusedFile": false,
+          "deadItems": 3,
+          "definitionCount": 8,
+          "deadDetail": [
+            {
+              "name": "startResumeService",
+              "line": 121,
+              "internalUse": true
+            },
+            {
+              "name": "ResumeCall",
+              "line": 86,
+              "internalUse": true
+            },
+            {
+              "name": "ResumeService",
+              "line": 92,
+              "internalUse": true
+            }
+          ],
+          "score": 0.375
+        }
+      ]
+    },
+    "duplication": {
+      "available": true,
+      "dirPairs": [],
+      "entries": [
+        {
+          "path": ".github/workflows/publish.yml",
+          "duplicatedLines": 70,
+          "codeLines": 0,
+          "clusterFanOut": 0,
+          "clones": [
+            {
+              "start": 88,
+              "end": 122,
+              "partner": "",
+              "partnerStart": 138,
+              "partnerEnd": 172
+            },
+            {
+              "start": 138,
+              "end": 172,
+              "partner": "",
+              "partnerStart": 88,
+              "partnerEnd": 122
+            }
+          ],
+          "score": 0
+        },
+        {
+          "path": "worker/src/routes/jobs/feedback.ts",
+          "duplicatedLines": 40,
+          "codeLines": 121,
+          "clusterFanOut": 1,
+          "clones": [
+            {
+              "start": 37,
+              "end": 76,
+              "partner": "worker/src/routes/jobs/state.ts",
+              "partnerStart": 29,
+              "partnerEnd": 70
+            }
+          ],
+          "score": 0.3305785123966942
+        },
+        {
+          "path": "worker/src/routes/jobs/state.ts",
+          "duplicatedLines": 42,
+          "codeLines": 122,
+          "clusterFanOut": 1,
+          "clones": [
+            {
+              "start": 29,
+              "end": 70,
+              "partner": "worker/src/routes/jobs/feedback.ts",
+              "partnerStart": 37,
+              "partnerEnd": 76
+            }
+          ],
+          "score": 0.3442622950819672
+        }
+      ]
+    },
+    "smells": {
+      "available": true,
+      "disclosures": [
+        "smells lane currently carries type-coverage only; the ast-grep rulepack is M2 backlog"
+      ],
+      "typedPercent": 99.93,
+      "assessedCount": 55,
+      "entries": [
+        {
+          "path": "src/App.tsx",
+          "applicable": true,
+          "anyCount": 1,
+          "codeLines": 197,
+          "score": 0.050761421319796954
+        },
+        {
+          "path": "src/components/JobDrawer.tsx",
+          "applicable": true,
+          "anyCount": 2,
+          "codeLines": 479,
+          "score": 0.04175365344467641
+        }
+      ]
+    },
+    "consistency": {
+      "available": true,
+      "disclosures": [
+        "orphan + cycle + category signals are TS/JS-only (import-graph jurisdiction); copy artifacts are language-agnostic"
+      ],
+      "categoryFindings": [],
+      "assessedCount": 48,
+      "entries": [
+        {
+          "path": "src/App.tsx",
+          "applicable": true,
+          "cycleSize": 2,
+          "score": 0.5
+        },
+        {
+          "path": "src/entry.tsx",
+          "applicable": true,
+          "cycleSize": 2,
+          "score": 0.5
+        }
+      ]
+    }
+  },
+  "fileScores": [
+    {
+      "path": ".husky/post-commit",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": ".husky/pre-commit",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": ".stylelintrc.cjs",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "eslint.config.js",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "playwright.config.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "scripts/check-node-modules-links.mjs",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "scripts/free-port.mjs",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "scripts/version-from-commit.mjs",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/App.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/api/auth.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/api/companies.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/api/jobs.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/api/profiles.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/CompaniesManager.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/JobCard.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/JobDrawer.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/JobsList.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/PacketsList.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/ProfileEditorModal.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/ProfileSidebar.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/components/VoteControl.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/entry.tsx",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/base.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/chips.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/companies-manager.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/companies-page.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/company-match.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/dashboard-shell.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/filters.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/index.css",
+      "applicableLanes": [
+        "duplication"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/job-drawer.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/job-list.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/packets.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/profile-editor.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "src/styles/vote.css",
+      "applicableLanes": [
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "tests/global-setup.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "tests/jobplatform.spec.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "vite.config.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/eslint.config.js",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/clients/scraper.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/defaultProfile.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/index.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/logger.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/profileScore.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/roleClassify.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/companies.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/health.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/ingest.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/detail.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/feed.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/feedback.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [
+        {
+          "lane": "duplication",
+          "score": 0.3305785123966942,
+          "threshold": 0.3
+        }
+      ],
+      "suppressedByFloor": [],
+      "weightedScore": 1.1019283746556474,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/index.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/packets.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/preflight.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/shared.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/state.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [
+        {
+          "lane": "duplication",
+          "score": 0.3442622950819672,
+          "threshold": 0.3
+        }
+      ],
+      "suppressedByFloor": [],
+      "weightedScore": 1.1475409836065573,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/jobs/tailoring.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/routes/profiles.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/salaryParse.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/schemas.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/scoring.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/slugParse.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/types.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/src/userId.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/helpers/harness.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/helpers/seed.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/register.mjs",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/roleClassify.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/ingestCull.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/jobsDetail.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/jobsFeed.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/jobsPackets.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/jobsState.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/routes/jobsTailoring.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/salaryParse.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/scoring.test.ts",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/tests/ts-resolve.mjs",
+      "applicableLanes": [
+        "deadcode",
+        "duplication",
+        "size"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    },
+    {
+      "path": "worker/vite.config.ts",
+      "applicableLanes": [
+        "consistency",
+        "deadcode",
+        "duplication",
+        "size",
+        "smells"
+      ],
+      "firingLanes": [],
+      "suppressedByFloor": [],
+      "weightedScore": 0,
+      "gatePassed": false
+    }
+  ],
+  "worstOffenders": [],
+  "bestFirstTargets": [],
+  "ledger": {
+    "floors": {},
+    "suppressed": [
+      {
+        "fingerprint": "size:src/styles/index.css",
+        "status": "justified",
+        "suppressed": true,
+        "event": {
+          "id": "01M08RVE3V30VTMWPR3XWV5DRN",
+          "at": "2026-08-17T21:08:15.611Z",
+          "verdict": "justified",
+          "fingerprint": "size:src/styles/index.css",
+          "reason": "This is the whole micro-frontend's style surface in one file, already navigable: 14 banner-comment sections, and the build concatenates to a single dist/style.css regardless, so splitting buys no load-graph benefit and no readability the banners do not already give. CSS also carries none of the size lane's usual risk — no branching, no untested logic — and the real gates on it are lint:css plus the @wolffm/themes check-usage token check, both green. Splitting is mechanical but touches every selector in a live app for zero functional gain, which is a bad trade to make speculatively. Revisit if it crosses roughly 2000 lines or gains a second consumer; the >20% hard-reopen catches the first case automatically.",
+          "baseline": {
+            "codeLines": 1226,
+            "sha": "74bf57a"
+          },
+          "invalidateWhen": {
+            "growthPct": 20,
+            "maxAgeDays": 180
+          }
+        }
+      }
+    ],
+    "agingJustifications": [],
+    "verdicts": [
+      {
+        "id": "01M08RV44SEQW1X2HH4ZT16AAJ",
+        "at": "2026-08-17T21:08:05.401Z",
+        "verdict": "justified",
+        "fingerprint": "size:worker/src/routes/jobs.ts",
+        "reason": "Cohesive router: six endpoints for one resource sharing maybeUserId, gateAuthed and callResumeBinding, plus inline zod-openapi schemas that inflate the line count without adding branching. Splitting it needs characterization tests first (this skill's own rule) and the lane's suggested cut point is unusable — its symbol map reports impossible spans (callResumeBinding at 807-1029 in a then-970-line file; maybeUserId as 574 lines when it is ~11), because it measures distance to the next function keyword and swallows the intervening app.openapi route registrations. Reported separately as a detector bug. Not splitting a live app's only jobs router on a broken cut suggestion; the 180-day expiry and the >20% hard-reopen are the right leash.",
+        "baseline": {
+          "codeLines": 841,
+          "sha": "a7c37c0"
+        },
+        "invalidateWhen": {
+          "growthPct": 20,
+          "maxAgeDays": 180
+        }
+      },
+      {
+        "id": "01M08RVE3V30VTMWPR3XWV5DRN",
+        "at": "2026-08-17T21:08:15.611Z",
+        "verdict": "justified",
+        "fingerprint": "size:src/styles/index.css",
+        "reason": "This is the whole micro-frontend's style surface in one file, already navigable: 14 banner-comment sections, and the build concatenates to a single dist/style.css regardless, so splitting buys no load-graph benefit and no readability the banners do not already give. CSS also carries none of the size lane's usual risk — no branching, no untested logic — and the real gates on it are lint:css plus the @wolffm/themes check-usage token check, both green. Splitting is mechanical but touches every selector in a live app for zero functional gain, which is a bad trade to make speculatively. Revisit if it crosses roughly 2000 lines or gains a second consumer; the >20% hard-reopen catches the first case automatically.",
+        "baseline": {
+          "codeLines": 1226,
+          "sha": "74bf57a"
+        },
+        "invalidateWhen": {
+          "growthPct": 20,
+          "maxAgeDays": 180
+        }
+      }
+    ],
+    "reopened": [],
+    "stampedEvents": 2,
+    "improving": {}
+  },
+  "trends": {
+    "entry": {
+      "at": "2026-08-19T23:13:10-07:00",
+      "sha": "a286bf23af696601533889a4d7bc61ad96e834d7",
+      "dirty": false,
+      "toolVersions": {
+        "scc": "3.7.0"
+      },
+      "floors": {},
+      "saturated": [
+        "arrival"
+      ],
+      "aggregates": {
+        "candidateFiles": 110,
+        "perLane": {
+          "size": {
+            "filesAssessed": 78,
+            "filesFlagged": 0
+          },
+          "arrival": {
+            "filesAssessed": 28,
+            "filesFlagged": 0
+          },
+          "deadcode": {
+            "filesAssessed": 63,
+            "filesFlagged": 0
+          },
+          "duplication": {
+            "filesAssessed": 78,
+            "filesFlagged": 2
+          },
+          "smells": {
+            "filesAssessed": 55,
+            "filesFlagged": 0
+          },
+          "consistency": {
+            "filesAssessed": 48,
+            "filesFlagged": 0
+          }
+        },
+        "gatePassing": 0,
+        "offenders": 0,
+        "suppressedByFloor": 0
+      }
+    },
+    "derivative": null
+  }
+}
