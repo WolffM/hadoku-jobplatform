@@ -41,4 +41,22 @@ export interface AppEnv {
 	 * X-Hadoku-Tier: service so resume-api's in-worker gate admits them.
 	 */
 	RESUME?: Fetcher;
+
+	// ============================================================================
+	// edge-router service binding (identity — display name -> userId)
+	// ============================================================================
+
+	/**
+	 * Service binding to edge-router, for ONE question: what userId does this
+	 * display name belong to. Declared in hadoku_site wrangler.toml as
+	 * [[services]] binding="EDGE" service="edge-router".
+	 *
+	 * NOT a SESSIONS_KV binding, which is how study, task and prefs answer the
+	 * same question. That namespace is keyed `key:{rawKey}` — its KEYS are the
+	 * fleet's credentials — and Workers KV has no prefix scoping and no
+	 * read-only mode, so binding it here to resolve one name would hand this
+	 * worker `list()` over every live key in the fleet, plus write access.
+	 * Over the binding we learn one userId for one name we already knew.
+	 */
+	EDGE?: Fetcher;
 }

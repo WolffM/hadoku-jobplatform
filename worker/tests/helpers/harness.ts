@@ -215,7 +215,50 @@ export interface Harness {
 	dispose(): Promise<void>;
 }
 
+/**
+ * A fake edge-router that resolves exactly one name.
+ *
+ * `Hadoku` resolves; `Ghost` is a live row that never signed in (no userId);
+ * anything else is unknown. Those three are the three outcomes the route has to
+ * report differently, and a fake that only ever succeeds would let all three
+ * collapse into one status without any test noticing.
+ */
+export function defaultEdge(): Fetcher {
+	return {
+		async fetch(input: Request | string | URL): Promise<Response> {
+			// `.url`, not `.toString()`: the resolver passes a Request, and
+			// stringifying one yields "[object Request]". Getting this wrong made
+			// every call look like an unreachable resolver, which is the failure
+			// mode this fake exists to tell apart from the others.
+			const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			const name = (new URL(raw).searchParams.get('name') ?? '').toLowerCase();
+			if (name === 'hadoku') {
+				return Response.json({ userId: 'user-hadoku', name: 'Hadoku', tier: 'admin' });
+			}
+			if (name === 'ghost') {
+				// A live row that never signed in. The endpoint reports this as a
+				// 409 with NO_USER_ID — a 200 carrying `userId: null` would be
+				// read as an unreachable resolver instead.
+				return Response.json(
+					{ error: 'That name has never signed in.', code: 'NO_USER_ID' },
+					{ status: 409 }
+				);
+			}
+			return Response.json(
+				{ error: `No registered key named "${name}".`, code: 'NAME_NOT_FOUND' },
+				{ status: 404 }
+			);
+		},
+	} as unknown as Fetcher;
+}
+
 export interface HarnessOptions {
+	/**
+	 * Override the edge binding. `null` leaves it UNBOUND, which is the
+	 * deployment fault the route must report as retryable rather than as
+	 * "no such user".
+	 */
+	edge?: Fetcher | null;
 	/**
 	 * Leave `env.RESUME` unset, as it is in a deployment where the service
 	 * binding was never declared. The tailoring routes must fail loudly there.
@@ -239,7 +282,13 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 	const env: AppEnv = {
 		EDGE_AUTH_SECRET: EDGE_SECRET,
 		JOB_PLATFORM_DB: db,
+		SCRAPER_USER_KEY: 'test-service-key',
 		...(options.withoutResumeBinding ? {} : { RESUME: resume.binding }),
+		// Stand-in for the edge-router service binding. Name resolution is the
+		// one thing it is asked for, so the fake answers exactly that and
+		// nothing else — including the failure shapes, which carry different
+		// meanings the route has to keep apart.
+		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge() }),
 	};
 
 	const app = createJobPlatformHandler(BASE);

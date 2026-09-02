@@ -17,6 +17,7 @@ import { registerStateRoutes } from './state.js';
 import { registerFeedbackRoutes } from './feedback.js';
 import { registerTailoringRoutes } from './tailoring.js';
 import { registerAnswerRoutes } from './answers.js';
+import { registerOwnerRoutes } from './owner.js';
 import { registerApplicationRoutes } from './applications.js';
 
 const app = new OpenAPIHono<RouteContext>();
@@ -32,5 +33,6 @@ registerTailoringRoutes(app);
 // its /applications paths have no static/param collision with /jobs routes.
 registerApplicationRoutes(app);
 registerAnswerRoutes(app);
+registerOwnerRoutes(app);
 
 export const jobRoutes = app;
