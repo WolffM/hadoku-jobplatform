@@ -6,9 +6,16 @@ import {
 	ApplicationStatusSchema,
 	ApplyRequestSchema,
 	ErrorResponseSchema,
+	IdentityErrorResponseSchema,
 	SetApplicationStatusSchema,
 } from '../../schemas.js';
-import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
+import {
+	effectiveUserId,
+	gateAuthed,
+	isEffectiveUserError,
+	maybeUserId,
+	type JobsApp,
+} from './shared.js';
 
 /**
  * The approve-to-apply queue (issue #15).
@@ -166,20 +173,26 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				409: {
-					description: 'No packet minted for this job',
-					content: { 'application/json': { schema: ErrorResponseSchema } },
+					description: 'No packet minted, or the owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
-
 			const { id } = c.req.valid('param');
 			// Body is optional; zod-openapi validates {} for a body-less POST, which
 			// skips schema defaults — so the 'review' default lives here.
-			const body = c.req.valid('json') as { mode?: 'review' | 'auto'; force?: boolean } | undefined;
+			const body = c.req.valid('json') as
+				| { mode?: 'review' | 'auto'; force?: boolean; owner?: string }
+				| undefined;
 			const mode = body?.mode ?? 'review';
+			const who = await effectiveUserId(c, body?.owner);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const db = c.env.JOB_PLATFORM_DB;
 
 			const job = await db
@@ -268,7 +281,13 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			tags: ['Applications'],
 			summary: "List the caller's queued applications, newest first",
 			request: {
-				query: z.object({ status: ApplicationStatusSchema.optional() }),
+				query: z.object({
+					status: ApplicationStatusSchema.optional(),
+					owner: z.string().optional().openapi({
+						description:
+							"Act as this registry display name. SERVICE or ADMIN callers only — this is how the PC-side runner reads the owner's queue while authenticating as itself. Resolved against the key registry; never stored.",
+					}),
+				}),
 			},
 			responses: {
 				200: {
@@ -279,13 +298,25 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					description: 'Forbidden',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
-
-			const { status } = c.req.valid('query');
+			const { status, owner } = c.req.valid('query');
+			const who = await effectiveUserId(c, owner);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const filter = status ? ' AND a.status = ?' : '';
 			const stmt = c.env.JOB_PLATFORM_DB.prepare(
 				`SELECT a.id, a.job_id, a.variant_slug, a.mode, a.status, a.error,
@@ -334,17 +365,25 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				404: {
-					description: 'Application not found',
-					content: { 'application/json': { schema: ErrorResponseSchema } },
+					description: 'Application not found, or no such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
-
 			const { id } = c.req.valid('param');
 			const body = c.req.valid('json');
+			const who = await effectiveUserId(c, body.owner);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const db = c.env.JOB_PLATFORM_DB;
 
 			// Scoped to the caller: another user's application id 404s, not 403s,

@@ -4,12 +4,19 @@ import {
 	AnswerResponseSchema,
 	AnswersResponseSchema,
 	ErrorResponseSchema,
+	IdentityErrorResponseSchema,
 	SetAnswerSchema,
 	UnansweredResponseSchema,
 } from '../../schemas.js';
 import { COMMON_QUESTIONS } from '../../commonQuestions.js';
 import { questionKey } from '../../questionKey.js';
-import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
+import {
+	effectiveUserId,
+	gateAuthed,
+	isEffectiveUserError,
+	maybeUserId,
+	type JobsApp,
+} from './shared.js';
 
 /**
  * Standing answers, and the queue of questions still missing one.
@@ -166,6 +173,14 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			path: '/application-answers',
 			tags: ['Answers'],
 			summary: "The caller's standing answers to application questions",
+			request: {
+				query: z.object({
+					owner: z.string().optional().openapi({
+						description:
+							"Act as this registry display name. SERVICE or ADMIN callers only — the form runner reads the owner's saved answers while authenticating as itself.",
+					}),
+				}),
+			},
 			responses: {
 				200: {
 					description: 'Answers, most recently updated first',
@@ -175,11 +190,25 @@ export function registerAnswerRoutes(app: JobsApp): void {
 					description: 'Forbidden',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
+			const { owner } = c.req.valid('query');
+			const who = await effectiveUserId(c, owner);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const rows = await c.env.JOB_PLATFORM_DB.prepare(
 				`SELECT question_key, question, answer, updated_at
 				 FROM application_answers WHERE user_id = ? ORDER BY updated_at DESC`

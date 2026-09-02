@@ -1,5 +1,7 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
+import type { Fetcher } from '@cloudflare/workers-types';
 import type { AppEnv } from '../../types.js';
 import { NoIdentityError, resolveUserId } from '../../userId.js';
 import { ALL_LEVELS, type RoleLevel } from '../../roleClassify.js';
@@ -89,4 +91,102 @@ export const ZERO_BREAKDOWN = {
 export function asSlugSource(value: string | null): 'scraped' | 'guessed' | 'verified' | null {
 	if (value === null) return null;
 	return value === 'scraped' || value === 'verified' ? value : 'guessed';
+}
+
+/** The refusal body, shaped to match ErrorResponseSchema / IdentityErrorResponseSchema. */
+export interface IdentityRefusal {
+	status: 403 | 404 | 409 | 503;
+	body: {
+		success: false;
+		error: string;
+		message: string;
+		code?: 'NO_REGISTRY' | 'NAME_NOT_FOUND' | 'NO_USER_ID';
+	};
+}
+
+/** What `effectiveUserId` decided, or the response the caller should get. */
+export type EffectiveUser =
+	| { userId: string; onBehalfOf: string | null }
+	| { error: IdentityRefusal };
+
+export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRefusal } {
+	return 'error' in v;
+}
+
+/**
+ * Whose rows this request operates on.
+ *
+ * Without `owner` it is the caller's own — the browser case, unchanged.
+ *
+ * With `owner`, the caller is asking to act as a named person. That is how the
+ * PC-side form runner works at all: it authenticates as a SERVICE and the queue
+ * is keyed to a PERSON, so without this the two can never see the same rows.
+ * The runner drained its own service-owned queue for a day while the owner's
+ * dashboard showed nothing, which is what this exists to fix.
+ *
+ * SERVICE OR ADMIN ONLY, and that gate is the whole security of it. A
+ * friend-tier caller is a signed-in human in a browser; letting one pass
+ * `owner=SomeoneElse` would turn every per-user route into a way to read and
+ * mutate another person's queue. Friend gets 403 — not a 404, because the row
+ * they are reaching for is real and refusing to say so would be misleading
+ * about their OWN permissions rather than about someone else's data.
+ *
+ * The name is resolved, never trusted (R5). What comes back is a userId from
+ * the registry; `owner` itself never reaches a database column.
+ */
+export async function effectiveUserId(
+	c: {
+		req: { header: (name: string) => string | undefined };
+		get: (k: 'authContext') => HadokuAuthContext;
+		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string };
+	},
+	owner: string | undefined
+): Promise<EffectiveUser> {
+	const callerId = await maybeUserId(c);
+	if (!callerId) {
+		return {
+			error: {
+				status: 403,
+				body: { success: false as const, error: 'Forbidden', message: 'Authentication required' },
+			},
+		};
+	}
+	if (!owner || !owner.trim()) return { userId: callerId, onBehalfOf: null };
+
+	if (!tierAtLeast(c.get('authContext'), 'service')) {
+		return {
+			error: {
+				status: 403,
+				body: {
+					success: false as const,
+					error: 'Forbidden',
+					message: 'Only a service or admin caller may act on behalf of a named owner.',
+				},
+			},
+		};
+	}
+
+	const resolved = await resolveGranteeVia(c.env.EDGE, {
+		serviceKey: c.env.SCRAPER_USER_KEY ?? '',
+		name: owner,
+	});
+	if (isIdentityError(resolved)) {
+		// The three codes mean different things; 503 especially must not read as
+		// "no such user" when it is our own resolver being unreachable.
+		const status = ([404, 409, 503] as const).includes(resolved.status as 404 | 409 | 503)
+			? (resolved.status as 404 | 409 | 503)
+			: 503;
+		return {
+			error: {
+				status,
+				body: {
+					success: false as const,
+					error: status === 503 ? 'Unavailable' : status === 409 ? 'Conflict' : 'Not found',
+					message: resolved.error,
+					...(resolved.code ? { code: resolved.code } : {}),
+				},
+			},
+		};
+	}
+	return { userId: resolved.userId, onBehalfOf: resolved.name };
 }
