@@ -270,6 +270,13 @@ export const ApplyRequestSchema = z
 		 * see for themselves, and this is how they overrule it.
 		 */
 		force: z.boolean().optional(),
+		/**
+		 * Queue this for the named person instead of the caller. SERVICE or
+		 * ADMIN only — it is how the runner queues on the owner's behalf while
+		 * authenticating as itself. A NAME, resolved against the registry; the
+		 * string never reaches a database column (R5).
+		 */
+		owner: z.string().optional(),
 	})
 	.openapi('ApplyRequest');
 
@@ -317,6 +324,8 @@ export const SetApplicationStatusSchema = z
 		// kept, so a bare transition never wipes the runner's screenshots.
 		error: z.string().optional(),
 		evidence: z.record(z.string(), z.unknown()).optional(),
+		/** Act as this registry display name. SERVICE or ADMIN only. */
+		owner: z.string().optional(),
 	})
 	.openapi('SetApplicationStatus');
 
