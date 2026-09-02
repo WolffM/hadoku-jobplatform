@@ -104,6 +104,36 @@ describe('acting on behalf of a named owner', () => {
 		assert.equal(status, 200);
 	});
 
+	it("reads the owner's question queue", async () => {
+		// The queue is derived from the owner's applications, so it has to be
+		// scoped the same way. Missing this left the reassignment looking like
+		// it had lost the questions: the rows moved and the queue read zero.
+		const now = new Date().toISOString();
+		await h.db
+			.prepare(
+				`INSERT INTO applications (id, user_id, job_id, variant_slug, mode, status, evidence, created_at, updated_at)
+				 VALUES ('q1', ?, 'j1', 'v', 'review', 'needs_manual', ?, ?, ?)`
+			)
+			.bind(HADOKU, JSON.stringify({ unmatched: ['Are you 18?'], options: {} }), now, now)
+			.run();
+
+		const asService = await req<{ data: { questions: { companies: string[] }[] } }>(
+			'/unanswered-questions',
+			{ method: 'GET', tier: 'service', userId: SERVICE }
+		);
+		assert.equal(
+			asService.body.data.questions.filter((q) => q.companies.length).length,
+			0,
+			'the service owns no applications, so it has no real questions'
+		);
+
+		const asOwner = await req<{ data: { questions: { companies: string[] }[] } }>(
+			'/unanswered-questions?owner=Hadoku',
+			{ method: 'GET', tier: 'service', userId: SERVICE }
+		);
+		assert.equal(asOwner.body.data.questions.filter((q) => q.companies.length).length, 1);
+	});
+
 	it("reads the owner's standing answers", async () => {
 		const now = new Date().toISOString();
 		await h.db

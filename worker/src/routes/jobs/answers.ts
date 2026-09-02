@@ -332,6 +332,13 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			path: '/unanswered-questions',
 			tags: ['Answers'],
 			summary: 'Questions the runner could not answer, most costly first',
+			request: {
+				query: z.object({
+					owner: z.string().optional().openapi({
+						description: 'Act as this registry display name. SERVICE or ADMIN callers only.',
+					}),
+				}),
+			},
 			responses: {
 				200: {
 					description: 'The queue',
@@ -341,12 +348,25 @@ export function registerAnswerRoutes(app: JobsApp): void {
 					description: 'Forbidden',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
-			const questions = await unansweredQuestions(c.env.JOB_PLATFORM_DB, userId);
+			const { owner } = c.req.valid('query');
+			const who = await effectiveUserId(c, owner);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const questions = await unansweredQuestions(c.env.JOB_PLATFORM_DB, who.userId);
 			return c.json({ success: true as const, data: { questions } }, 200);
 		}
 	);
