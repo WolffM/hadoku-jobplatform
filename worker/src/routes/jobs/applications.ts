@@ -187,10 +187,10 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			// Body is optional; zod-openapi validates {} for a body-less POST, which
 			// skips schema defaults — so the 'review' default lives here.
 			const body = c.req.valid('json') as
-				| { mode?: 'review' | 'auto'; force?: boolean; owner?: string }
+				| { mode?: 'review' | 'auto'; force?: boolean; ownerName?: string }
 				| undefined;
 			const mode = body?.mode ?? 'review';
-			const who = await effectiveUserId(c, body?.owner);
+			const who = await effectiveUserId(c, body?.ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const db = c.env.JOB_PLATFORM_DB;
@@ -283,7 +283,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			request: {
 				query: z.object({
 					status: ApplicationStatusSchema.optional(),
-					owner: z.string().optional().openapi({
+					ownerName: z.string().optional().openapi({
 						description:
 							"Act as this registry display name. SERVICE or ADMIN callers only — this is how the PC-side runner reads the owner's queue while authenticating as itself. Resolved against the key registry; never stored.",
 					}),
@@ -313,8 +313,8 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			},
 		}),
 		async (c) => {
-			const { status, owner } = c.req.valid('query');
-			const who = await effectiveUserId(c, owner);
+			const { status, ownerName } = c.req.valid('query');
+			const who = await effectiveUserId(c, ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const filter = status ? ' AND a.status = ?' : '';
@@ -381,7 +381,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 		async (c) => {
 			const { id } = c.req.valid('param');
 			const body = c.req.valid('json');
-			const who = await effectiveUserId(c, body.owner);
+			const who = await effectiveUserId(c, body.ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const db = c.env.JOB_PLATFORM_DB;

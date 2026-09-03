@@ -276,7 +276,7 @@ export const ApplyRequestSchema = z
 		 * authenticating as itself. A NAME, resolved against the registry; the
 		 * string never reaches a database column (R5).
 		 */
-		owner: z.string().optional(),
+		ownerName: z.string().optional(),
 	})
 	.openapi('ApplyRequest');
 
@@ -325,7 +325,7 @@ export const SetApplicationStatusSchema = z
 		error: z.string().optional(),
 		evidence: z.record(z.string(), z.unknown()).optional(),
 		/** Act as this registry display name. SERVICE or ADMIN only. */
-		owner: z.string().optional(),
+		ownerName: z.string().optional(),
 	})
 	.openapi('SetApplicationStatus');
 

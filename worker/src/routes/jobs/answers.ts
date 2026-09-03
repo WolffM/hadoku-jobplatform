@@ -192,7 +192,7 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			summary: "The caller's standing answers to application questions",
 			request: {
 				query: z.object({
-					owner: z.string().optional().openapi({
+					ownerName: z.string().optional().openapi({
 						description:
 							"Act as this registry display name. SERVICE or ADMIN callers only — the form runner reads the owner's saved answers while authenticating as itself.",
 					}),
@@ -222,8 +222,8 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			},
 		}),
 		async (c) => {
-			const { owner } = c.req.valid('query');
-			const who = await effectiveUserId(c, owner);
+			const { ownerName } = c.req.valid('query');
+			const who = await effectiveUserId(c, ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const rows = await c.env.JOB_PLATFORM_DB.prepare(
@@ -351,7 +351,7 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			summary: 'Questions the runner could not answer, most costly first',
 			request: {
 				query: z.object({
-					owner: z.string().optional().openapi({
+					ownerName: z.string().optional().openapi({
 						description: 'Act as this registry display name. SERVICE or ADMIN callers only.',
 					}),
 				}),
@@ -380,8 +380,8 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			},
 		}),
 		async (c) => {
-			const { owner } = c.req.valid('query');
-			const who = await effectiveUserId(c, owner);
+			const { ownerName } = c.req.valid('query');
+			const who = await effectiveUserId(c, ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const questions = await unansweredQuestions(c.env.JOB_PLATFORM_DB, who.userId);
 			return c.json({ success: true as const, data: { questions } }, 200);
