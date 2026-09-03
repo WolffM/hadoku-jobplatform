@@ -116,9 +116,9 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
 /**
  * Whose rows this request operates on.
  *
- * Without `owner` it is the caller's own — the browser case, unchanged.
+ * Without `ownerName` it is the caller's own — the browser case, unchanged.
  *
- * With `owner`, the caller is asking to act as a named person. That is how the
+ * With `ownerName`, the caller is asking to act as a named person. That is how the
  * PC-side form runner works at all: it authenticates as a SERVICE and the queue
  * is keyed to a PERSON, so without this the two can never see the same rows.
  * The runner drained its own service-owned queue for a day while the owner's
@@ -126,13 +126,24 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  *
  * SERVICE OR ADMIN ONLY, and that gate is the whole security of it. A
  * friend-tier caller is a signed-in human in a browser; letting one pass
- * `owner=SomeoneElse` would turn every per-user route into a way to read and
+ * `ownerName=SomeoneElse` would turn every per-user route into a way to read and
  * mutate another person's queue. Friend gets 403 — not a 404, because the row
  * they are reaching for is real and refusing to say so would be misleading
  * about their OWN permissions rather than about someone else's data.
  *
  * The name is resolved, never trusted (R5). What comes back is a userId from
- * the registry; `owner` itself never reaches a database column.
+ * the registry; `ownerName` itself never reaches a database column.
+ *
+ * IT IS CALLED `ownerName`, NOT `owner`, AND THAT IS LOAD-BEARING. The field
+ * carries a display NAME to be resolved — never an already-resolved identity —
+ * and `owner` is one of the names the identity-model contract reserves for the
+ * resolved kind (alongside userId/ownerUserId/ownerId), because there is no way
+ * to re-resolve one of those and reading it off a body is therefore always
+ * wrong. Under the old name this function's own call sites read as G3
+ * violations while doing exactly the right thing, and the check could not tell
+ * the difference from the field name alone — which is the point: if the two
+ * kinds share a name, neither a reviewer nor a gate can separate them. Renamed
+ * 2026-09-03. Keep any future on-behalf-of parameter in the `*Name` shape.
  */
 export async function effectiveUserId(
 	c: {
@@ -140,7 +151,7 @@ export async function effectiveUserId(
 		get: (k: 'authContext') => HadokuAuthContext;
 		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string };
 	},
-	owner: string | undefined
+	ownerName: string | undefined
 ): Promise<EffectiveUser> {
 	const callerId = await maybeUserId(c);
 	if (!callerId) {
@@ -151,7 +162,7 @@ export async function effectiveUserId(
 			},
 		};
 	}
-	if (!owner || !owner.trim()) return { userId: callerId, onBehalfOf: null };
+	if (!ownerName || !ownerName.trim()) return { userId: callerId, onBehalfOf: null };
 
 	if (!tierAtLeast(c.get('authContext'), 'service')) {
 		return {
@@ -168,7 +179,7 @@ export async function effectiveUserId(
 
 	const resolved = await resolveGranteeVia(c.env.EDGE, {
 		serviceKey: c.env.SCRAPER_USER_KEY ?? '',
-		name: owner,
+		name: ownerName,
 	});
 	if (isIdentityError(resolved)) {
 		// The three codes mean different things; 503 especially must not read as

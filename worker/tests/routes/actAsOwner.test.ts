@@ -7,7 +7,7 @@
  * owner's dashboard showed nothing at all.
  *
  * The gate is the entire security of the feature: a friend-tier caller is a
- * signed-in human in a browser, and letting one pass `owner=SomeoneElse` would
+ * signed-in human in a browser, and letting one pass `ownerName=SomeoneElse` would
  * turn every per-user route into a way to read and mutate another person's
  * queue.
  */
@@ -51,7 +51,7 @@ describe('acting on behalf of a named owner', () => {
 			method: 'POST',
 			tier: 'service',
 			userId: SERVICE,
-			body: JSON.stringify({ owner: 'Hadoku' }),
+			body: JSON.stringify({ ownerName: 'Hadoku' }),
 		});
 		assert.equal(status, 200);
 		const row = await h.db
@@ -78,11 +78,14 @@ describe('acting on behalf of a named owner', () => {
 		});
 		assert.equal(mine.body.data.applications.length, 0, 'the service owns nothing');
 
-		const theirs = await req<{ data: { applications: unknown[] } }>('/applications?owner=Hadoku', {
-			method: 'GET',
-			tier: 'service',
-			userId: SERVICE,
-		});
+		const theirs = await req<{ data: { applications: unknown[] } }>(
+			'/applications?ownerName=Hadoku',
+			{
+				method: 'GET',
+				tier: 'service',
+				userId: SERVICE,
+			}
+		);
 		assert.equal(theirs.body.data.applications.length, 1);
 	});
 
@@ -99,7 +102,7 @@ describe('acting on behalf of a named owner', () => {
 			method: 'POST',
 			tier: 'service',
 			userId: SERVICE,
-			body: JSON.stringify({ status: 'filled', owner: 'Hadoku' }),
+			body: JSON.stringify({ status: 'filled', ownerName: 'Hadoku' }),
 		});
 		assert.equal(status, 200);
 	});
@@ -128,7 +131,7 @@ describe('acting on behalf of a named owner', () => {
 		);
 
 		const asOwner = await req<{ data: { questions: { companies: string[] }[] } }>(
-			'/unanswered-questions?owner=Hadoku',
+			'/unanswered-questions?ownerName=Hadoku',
 			{ method: 'GET', tier: 'service', userId: SERVICE }
 		);
 		assert.equal(asOwner.body.data.questions.filter((q) => q.companies.length).length, 1);
@@ -144,7 +147,7 @@ describe('acting on behalf of a named owner', () => {
 			.bind(HADOKU, now, now)
 			.run();
 		const { body } = await req<{ data: { answers: unknown[] } }>(
-			'/application-answers?owner=Hadoku',
+			'/application-answers?ownerName=Hadoku',
 			{ method: 'GET', tier: 'service', userId: SERVICE }
 		);
 		assert.equal(body.data.answers.length, 1);
@@ -155,7 +158,7 @@ describe('only a service or admin may act as someone else', () => {
 	it('refuses a friend-tier caller — this is the whole gate', async () => {
 		// A signed-in human in a browser. If this passed, every per-user route
 		// would become a way to read and mutate another person's queue.
-		const { status, body } = await req('/applications?owner=Hadoku', {
+		const { status, body } = await req('/applications?ownerName=Hadoku', {
 			method: 'GET',
 			tier: 'friend',
 			userId: 'some-human',
@@ -175,7 +178,7 @@ describe('only a service or admin may act as someone else', () => {
 			method: 'POST',
 			tier: 'friend',
 			userId: 'some-human',
-			body: JSON.stringify({ owner: 'Hadoku' }),
+			body: JSON.stringify({ ownerName: 'Hadoku' }),
 		});
 		assert.equal(status, 403);
 	});
@@ -193,7 +196,7 @@ describe('only a service or admin may act as someone else', () => {
 	it('an unknown owner name is 404, not a silent self-claim', async () => {
 		// The dangerous failure would be falling back to the CALLER: the runner
 		// would queue onto its own service identity and look like it worked.
-		const { status, body } = await req('/applications?owner=Nobody', {
+		const { status, body } = await req('/applications?ownerName=Nobody', {
 			method: 'GET',
 			tier: 'service',
 			userId: SERVICE,
@@ -206,7 +209,7 @@ describe('only a service or admin may act as someone else', () => {
 		const solo = await createHarness({ edge: null });
 		try {
 			const { status, body } = await solo.json<{ code?: string }>(
-				`${BASE}/applications?owner=Hadoku`,
+				`${BASE}/applications?ownerName=Hadoku`,
 				{ method: 'GET', tier: 'service', userId: SERVICE }
 			);
 			assert.equal(status, 503);

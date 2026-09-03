@@ -163,14 +163,14 @@ describe('POST /jobs/{id}/application-extras', () => {
 	it('falls back to the packet minted for this job when the body carries no résumé', async () => {
 		await seedJobState(h.db, {
 			job_id: 'tailor-1',
-			user_id: 'runner',
+			user_id: 'runner-uid',
 			state: 'saved',
 			variant_slug: 'abc123',
 		});
 		const { status } = await h.json(`${BASE}/jobs/tailor-1/application-extras`, {
 			method: 'POST',
 			tier: 'friend',
-			userId: 'runner',
+			userId: 'runner-uid',
 			body: JSON.stringify({}),
 		});
 		assert.equal(status, 200);
@@ -192,7 +192,7 @@ describe('POST /jobs/{id}/application-extras', () => {
 		const { status } = await h.json(`${BASE}/jobs/tailor-1/application-extras`, {
 			method: 'POST',
 			tier: 'friend',
-			userId: 'runner',
+			userId: 'runner-uid',
 			body: JSON.stringify({}),
 		});
 		assert.equal(status, 400);
@@ -204,14 +204,14 @@ describe('POST /jobs/{id}/application-extras', () => {
 	it('refuses an expired packet instead of tailoring the canonical résumé', async () => {
 		await seedJobState(h.db, {
 			job_id: 'tailor-1',
-			user_id: 'runner',
+			user_id: 'runner-uid',
 			state: 'saved',
 			variant_slug: 'gone',
 		});
 		h.resume.respondWith(200, { content: '# Canonical Resume' });
 		const { status, body } = await h.json<{ message: string }>(
 			`${BASE}/jobs/tailor-1/application-extras`,
-			{ method: 'POST', tier: 'friend', userId: 'runner', body: JSON.stringify({}) }
+			{ method: 'POST', tier: 'friend', userId: 'runner-uid', body: JSON.stringify({}) }
 		);
 		assert.equal(status, 400);
 		assert.match(body.message, /expired/);
