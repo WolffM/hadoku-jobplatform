@@ -15,6 +15,10 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/types.ts` — AppEnv interface
 - `src/schemas.ts` — Zod schemas for OpenAPI validation
 - `src/scoring.ts` — job-profile scoring algorithm (runs on read, per request)
+- `src/rank.ts` — the light-pass bound, precomputed into `job_profile_rank` so
+  the feed can `ORDER BY` / `LIMIT` in SQL instead of reading the whole corpus.
+  Writing it is the only new thing; the number is the same one `scoring.ts`
+  produces. `rankIsCurrent()` is what the feed asks before trusting it.
 - `src/roleClassify.ts` — infers `(role_track, role_level)` from the title at ingest
 - `src/slugParse.ts` — derives `(ats, slug)` from `job.url` at ingest
 - `src/userId.ts` — resolves the identity D1 rows are keyed by
@@ -27,7 +31,9 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
     param route captures "preflight" as an id. Don't reorder.
   - `shared.ts` — `maybeUserId`, the `gateAuthed` friend-tier middleware, and the
     `asRoleLevel`/`asRoleTrack` narrowers for D1's plain-TEXT columns
-  - `feed.ts` — `GET /jobs`: the SQL-paginated path and the score-on-read path
+  - `feed.ts` — `GET /jobs`: the SQL-paginated path, and the score-on-read path
+    in its two forms — ranked in SQL when `job_profile_rank` is current, ranked
+    live over the corpus when it is not
   - `preflight.ts` — `GET /jobs/preflight` editor probe
   - `detail.ts` — `GET /jobs/{id}`
   - `state.ts` — `PUT`/`DELETE /jobs/{id}/state` (V2 triage)

@@ -5,6 +5,8 @@ import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { parseSalaryRange } from '../salaryParse.js';
+import { loadScorableProfile } from '../profileScore.js';
+import { markRankBuilt, rebuildRank, writeRanks, type RankableJob } from '../rank.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -46,11 +48,47 @@ async function cullExpired(db: AppEnv['JOB_PLATFORM_DB']): Promise<number> {
 	return res.meta?.changes ?? 0;
 }
 
+/**
+ * Extend every profile's ranking to cover these jobs.
+ *
+ * Only the rows just written, not the corpus: a scrape batch is hundreds of
+ * jobs against a handful of profiles, so this is a small write on a path that
+ * already writes. A profile with no ranking yet is skipped — it has nothing to
+ * extend, and building one is /ingest/rebuild-rank's job.
+ */
+async function rankNewJobs(db: AppEnv['JOB_PLATFORM_DB'], jobIds: string[]): Promise<void> {
+	const ranked = await db
+		.prepare('SELECT profile_id FROM job_profile_rank_state')
+		.all<{ profile_id: string }>();
+	if (ranked.results.length === 0) return;
+
+	const rows: RankableJob[] = [];
+	for (let i = 0; i < jobIds.length; i += 90) {
+		const chunk = jobIds.slice(i, i + 90);
+		const res = await db
+			.prepare(
+				`SELECT id, title, location, workplace_type, salary_max, role_level
+				 FROM jobs WHERE id IN (${chunk.map(() => '?').join(',')})`
+			)
+			.bind(...chunk)
+			.all<RankableJob>();
+		rows.push(...res.results);
+	}
+	if (rows.length === 0) return;
+
+	for (const { profile_id } of ranked.results) {
+		const profile = await loadScorableProfile(db, profile_id);
+		await writeRanks(db, profile_id, profile, rows);
+		await markRankBuilt(db, profile_id, profile);
+	}
+}
+
 app.use('/ingest', requireMinTier('friend'));
 app.use('/ingest/backfill-slugs', requireMinTier('friend'));
 app.use('/ingest/backfill-roles', requireMinTier('friend'));
 app.use('/ingest/backfill-salary', requireMinTier('friend'));
 app.use('/ingest/cull', requireMinTier('friend'));
+app.use('/ingest/rebuild-rank', requireMinTier('friend'));
 app.use('/directives', requireMinTier('friend'));
 
 // Normalize workplace_type values from scraper to our canonical set
@@ -191,6 +229,20 @@ app.openapi(ingestRoute, async (c) => {
 	}
 	if (seenStmts.length) await db.batch(seenStmts);
 
+	// Keep every profile's precomputed ranking covering the newest postings.
+	//
+	// A job with no rank row is invisible to the feed's fast path, and new jobs
+	// are exactly the ones worth seeing — so this runs before the marker moves.
+	// markRankBuilt is what tells the feed the ranking is current; if this
+	// throws, the marker stays behind and the feed falls back to ranking live
+	// rather than quietly omitting the postings that just landed.
+	if (accepted > 0) {
+		await rankNewJobs(
+			db,
+			jobs.map((j) => j.id)
+		);
+	}
+
 	// End of a scrape run: sweep one bounded batch of expired listings. Repeated
 	// runs converge; the manual /ingest/cull endpoint exists for full sweeps.
 	let culled = 0;
@@ -297,6 +349,61 @@ app.openapi(backfillRoute, async (c) => {
 			has_more: remaining > unmatched,
 		},
 	});
+});
+
+// ============================================================================
+// POST /ingest/rebuild-rank — (re)build the feed's precomputed shortlist
+// ============================================================================
+//
+// The feed ranks live until a profile has a ranking here, so this is what
+// switches the fast path on: after the first build a sort=score page reads 800
+// rows instead of the whole corpus. Idempotent, and safe to run any time — the
+// worst a run can do is leave the feed on the path it already uses.
+//
+// Pass ?profile_id= to rebuild one; omit it for every profile.
+const rebuildRankRoute = createRoute({
+	method: 'post',
+	path: '/ingest/rebuild-rank',
+	tags: ['Ingest'],
+	summary: 'Rebuild the precomputed feed ranking for one profile or all of them',
+	request: { query: z.object({ profile_id: z.string().optional() }) },
+	responses: {
+		200: {
+			description: 'Rebuilt',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								profiles: z.number(),
+								jobs_ranked: z.number(),
+							}),
+						})
+						.openapi('RebuildRankResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(rebuildRankRoute, async (c) => {
+	const { profile_id } = c.req.valid('query');
+	const db = c.env.JOB_PLATFORM_DB;
+
+	const targets = profile_id
+		? [{ id: profile_id }]
+		: (await db.prepare('SELECT id FROM profiles').all<{ id: string }>()).results;
+
+	let ranked = 0;
+	for (const { id } of targets) {
+		const profile = await loadScorableProfile(db, id);
+		ranked += await rebuildRank(db, id, profile);
+	}
+	return c.json(
+		{ success: true as const, data: { profiles: targets.length, jobs_ranked: ranked } },
+		200
+	);
 });
 
 // ============================================================================

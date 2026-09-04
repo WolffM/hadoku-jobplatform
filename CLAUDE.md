@@ -83,6 +83,18 @@ pre-flight auth check.
   Regression cases: `worker/tests/roleClassify.test.ts`, `pnpm test` in
   `worker/` (node:test, no framework dependency).
 - Scraper writes raw jobs to KV (`jobplatform:raw:{source}_{job_id}`) for archival/prune, but POSTs **full jobs inline** in the webhook body (not ID-only). Worker scores the inline payload against all profiles and stores matches in D1.
+- **The feed's shortlist is precomputed; its visible score is not** (migration
+  0020). `sort=score` orders by `scoreJobLightAxes().bound`, which lived only in
+  JS — so SQL could not `ORDER BY` it and the worker read the WHOLE corpus
+  (31,748 rows, 14.77MB) to return 25. `job_profile_rank` stores that bound so
+  the feed orders and caps in SQL: 386ms/31,748 rows -> 18ms/3,479 rows. The
+  description-dependent half of the score is still computed live per request
+  over the shortlist, so what the feed DISPLAYS still reflects the profile now.
+  Two O(1) markers in `job_profile_rank_state` (a criteria hash, and the highest
+  `jobs.rowid` covered) decide whether the stored ranking is trustworthy; when
+  it is not, the feed ranks live exactly as before. Absent or stale rank data
+  therefore costs latency, never correctness. Rebuild with
+  `POST /ingest/rebuild-rank`.
 - **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
   (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
   reads `GET /directives` (the union of every profile's companies + keywords)

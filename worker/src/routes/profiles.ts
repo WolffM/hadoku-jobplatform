@@ -20,6 +20,7 @@ import type { RoleLevel } from '../roleClassify.js';
 import { triggerSearch } from '../clients/scraper.js';
 import { NoIdentityError, resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
+import { clearRank } from '../rank.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -314,6 +315,13 @@ app.openapi(
 			triggerSearchBg(c, c.env);
 		}
 
+		// The saved criteria are what the precomputed ranking was built from, so
+		// it is now void. rankIsCurrent would notice on its own — the stored
+		// criteria hash no longer matches — but dropping the rows keeps a stale
+		// 31k-row ranking from sitting there for a profile that will never use
+		// it again. The feed ranks live until a rebuild runs.
+		await clearRank(db, id);
+
 		const profile = {
 			id,
 			...merged,
@@ -364,6 +372,9 @@ app.openapi(
 			db.prepare('DELETE FROM profile_companies WHERE profile_id = ?').bind(id),
 			db.prepare('DELETE FROM profiles WHERE id = ? AND user_id = ?').bind(id, userId),
 		]);
+		// job_profile_rank is keyed by profile, and its foreign key is on job_id —
+		// so nothing else would ever collect these rows.
+		await clearRank(db, id);
 		// Deleting the default must persist — otherwise the next GET re-seeds it.
 		if (Number(existing.is_default) === 1) {
 			await db
