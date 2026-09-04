@@ -6,7 +6,13 @@ import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
-import { markRankBuilt, rebuildRank, writeRanks, type RankableJob } from '../rank.js';
+import {
+	markRankBuilt,
+	rankIsCurrent,
+	rebuildRank,
+	writeRanks,
+	type RankableJob,
+} from '../rank.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -360,7 +366,8 @@ app.openapi(backfillRoute, async (c) => {
 // rows instead of the whole corpus. Idempotent, and safe to run any time — the
 // worst a run can do is leave the feed on the path it already uses.
 //
-// Pass ?profile_id= to rebuild one; omit it for every profile.
+// Pass ?profile_id= to rebuild a specific one; omit it to rebuild the next
+// profile whose ranking is missing or stale, and repeat while remaining > 0.
 const rebuildRankRoute = createRoute({
 	method: 'post',
 	path: '/ingest/rebuild-rank',
@@ -376,8 +383,9 @@ const rebuildRankRoute = createRoute({
 						.object({
 							success: z.literal(true),
 							data: z.object({
-								profiles: z.number(),
+								rebuilt: z.string().nullable(),
 								jobs_ranked: z.number(),
+								remaining: z.number(),
 							}),
 						})
 						.openapi('RebuildRankResponse'),
@@ -391,17 +399,40 @@ app.openapi(rebuildRankRoute, async (c) => {
 	const { profile_id } = c.req.valid('query');
 	const db = c.env.JOB_PLATFORM_DB;
 
-	const targets = profile_id
+	// ONE profile per call. A rebuild walks the whole corpus — ~10s for 31,748
+	// rows — and the edge gives this route 30s, so looping over every profile
+	// here timed out partway and left a half-written ranking behind. (Harmless,
+	// because markRankBuilt runs last and the feed then falls back; still not a
+	// thing to ship an endpoint that does.) The caller repeats while has_more.
+	const pending = profile_id
 		? [{ id: profile_id }]
-		: (await db.prepare('SELECT id FROM profiles').all<{ id: string }>()).results;
+		: (await db.prepare('SELECT id FROM profiles ORDER BY id').all<{ id: string }>()).results;
 
-	let ranked = 0;
-	for (const { id } of targets) {
+	let target: string | null = null;
+	for (const { id } of pending) {
 		const profile = await loadScorableProfile(db, id);
-		ranked += await rebuildRank(db, id, profile);
+		if (profile_id || !(await rankIsCurrent(db, id, profile))) {
+			target = id;
+			break;
+		}
+	}
+	if (!target) {
+		return c.json(
+			{ success: true as const, data: { rebuilt: null, jobs_ranked: 0, remaining: 0 } },
+			200
+		);
+	}
+
+	const profile = await loadScorableProfile(db, target);
+	const ranked = await rebuildRank(db, target, profile);
+
+	let remaining = 0;
+	for (const { id } of pending) {
+		const p = await loadScorableProfile(db, id);
+		if (!(await rankIsCurrent(db, id, p))) remaining++;
 	}
 	return c.json(
-		{ success: true as const, data: { profiles: targets.length, jobs_ranked: ranked } },
+		{ success: true as const, data: { rebuilt: target, jobs_ranked: ranked, remaining } },
 		200
 	);
 });
