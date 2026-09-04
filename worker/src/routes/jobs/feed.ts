@@ -4,6 +4,7 @@ import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
 import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
+import { rankIsCurrent } from '../../rank.js';
 
 // Two-stage score-on-read. Descriptions are what make whole-corpus scoring
 // impossible in one pass (30k rows × ~4KB each), but they feed only ONE factor
@@ -305,12 +306,41 @@ export function registerFeedRoute(app: JobsApp): void {
 			// A profile scores its candidate set live, in-request: pull the rows
 			// (company-scoped when the profile has companies, else the whole corpus,
 			// most-recent first up to the cap), score each against the profile's
-			// current criteria in JS, then filter/sort/paginate. No precomputed
-			// job_profile_matches, so scores always reflect the profile right now.
+			// current criteria in JS, then filter/sort/paginate. Scores always
+			// reflect the profile right now.
 			if (profile_id && profile) {
-				// Stage 1 — light pass over the whole (filtered) corpus, no
-				// descriptions. ~300 bytes/row, so tens of thousands of rows are fine.
-				const candSql = `
+				// Stage 1 — the candidate rows the shortlist is chosen from.
+				//
+				// Two ways in. When job_profile_rank holds a CURRENT ranking for this
+				// profile, the light pass's sort key is already a column, so SQL can
+				// order and cap — which is the whole point: the cap is 800, not the
+				// corpus, so this reads 800 rows instead of 31,748.
+				//
+				// Otherwise we rank live, exactly as before. That is the fallback for
+				// a profile that has never been ranked, whose criteria just changed,
+				// or whose ranking does not yet cover the newest jobs — and it is why
+				// a missing or half-written rank table costs latency and never
+				// correctness.
+				// sort=score only. The lens sorts rank by a DIFFERENT key
+				// (comp_fit / interest_bound / relevance_bound), so taking the top
+				// 800 by `bound` would hand them the wrong candidates; date and
+				// salary rank on columns of their own. Those keep the live path
+				// until they have stored keys too.
+				const rankUsable = sort === 'score' && (await rankIsCurrent(db, profile_id, profile));
+
+				const candSql = rankUsable
+					? `
+					SELECT
+						j.id, j.title, j.location, j.workplace_type, j.salary_max,
+						j.posted_date, j.scraped_at, j.last_seen_at, j.role_level,
+						${stateCols}
+					FROM job_profile_rank r
+					JOIN jobs j ON j.id = r.job_id
+					${joinClause}
+					${whereClause ? whereClause + ' AND' : 'WHERE'} r.profile_id = ?
+					ORDER BY r.bound DESC, j.scraped_at DESC
+					LIMIT ${FULL_SCORE_CAP}`
+					: `
 					SELECT
 						j.id, j.title, j.location, j.workplace_type, j.salary_max,
 						j.posted_date, j.scraped_at, j.last_seen_at, j.role_level,
@@ -323,7 +353,7 @@ export function registerFeedRoute(app: JobsApp): void {
 
 				const candidates = await db
 					.prepare(candSql)
-					.bind(...binds)
+					.bind(...(rankUsable ? [...binds, profile_id] : binds))
 					.all<LightRow>();
 
 				if (candidates.results.length >= LIGHT_CANDIDATE_CAP) {
