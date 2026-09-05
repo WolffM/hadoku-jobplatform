@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/jobplatform",
-  "version": "3.23.1",
+  "version": "3.24.0",
   "description": "Job listings aggregation and tracking dashboard",
   "license": "MIT",
   "type": "module",
