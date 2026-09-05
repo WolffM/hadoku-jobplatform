@@ -127,20 +127,6 @@ jobs:
             console.log("All @wolffm dependencies are at latest.");
           '
       - name: Commit and push if changed
-        # THE COMMIT RUNS THE PRE-COMMIT HOOK, and that hook shells out to
-        # `pnpm install --lockfile-only` and `pnpm run typecheck` — both of
-        # which read npm.pkg.github.com. Without this env, setup-node's .npmrc
-        # resolves ${NODE_AUTH_TOKEN} to its own placeholder literal and every
-        # fetch answers 401.
-        #
-        # It stayed green for months because the step above installs WITH the
-        # token, so the store was already warm and the hook's install never had
-        # to fetch anything. It breaks on the one package that is not in the
-        # store yet — a version published minutes earlier, which is exactly what
-        # this workflow exists to pick up. @wolffm/prefs-client@1.0.12 on
-        # 2026-09-05 was the first to land in that window.
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
