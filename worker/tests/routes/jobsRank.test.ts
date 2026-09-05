@@ -189,3 +189,104 @@ describe('precomputed ranking', () => {
 		});
 	});
 });
+
+/**
+ * The ranking installs itself.
+ *
+ * It used to appear only when an operator remembered to POST
+ * /ingest/rebuild-rank, so a profile created today silently used the slow path
+ * forever. Building it on first VIEW instead of on creation is deliberate: a
+ * Default profile is materialised for every identity that so much as calls GET
+ * /profiles, and ranking those eagerly is what put 64,452 rows in the table for
+ * two identities that had never used the app.
+ *
+ * The harness calls app.fetch with no executionCtx, so the background work runs
+ * unattached — hence the poll. That is also the real fallback path: the request
+ * that triggers a build is served live and must still be correct.
+ */
+describe('lazy rank building', () => {
+	const waitForRanking = async (ms = 8000) => {
+		const deadline = Date.now() + ms;
+		while (Date.now() < deadline) {
+			const row = await h.db
+				.prepare('SELECT COUNT(*) AS n FROM job_profile_rank_state WHERE profile_id = ?')
+				.bind(PROFILE)
+				.first<{ n: number }>();
+			if ((row?.n ?? 0) > 0) return true;
+			await new Promise((r) => setTimeout(r, 50));
+		}
+		return false;
+	};
+
+	it('builds the ranking behind the first feed request that needs it', async () => {
+		assert.equal(await usingFastPath(), false, 'starts with nothing stored');
+
+		const first = await feed();
+		assert.ok(first.jobs.length > 0, 'the request that triggers the build is still served');
+
+		assert.ok(await waitForRanking(), 'a ranking appeared without anyone asking for one');
+
+		// And it is the same feed, now off the fast path.
+		const second = await feed();
+		assert.equal(await usingFastPath(), true);
+		assert.deepEqual(
+			second.jobs.map((j) => j.id),
+			first.jobs.map((j) => j.id)
+		);
+	});
+
+	it('does not build for a profile nobody looks at', async () => {
+		// Materialising a Default costs one row; ranking it costs one per job. So
+		// merely having a profile must not be enough to earn a ranking.
+		await seedProfile(h.db, {
+			id: 'rank-unused',
+			user_id: 'someone-who-never-visits',
+			name: 'Default',
+			keywords: ['platform'],
+			track: 'either',
+			levels: ['senior'],
+			remote_pref: 'any',
+		});
+		await feed(); // exercise the OTHER profile's feed
+		await new Promise((r) => setTimeout(r, 300));
+		const row = await h.db
+			.prepare('SELECT COUNT(*) AS n FROM job_profile_rank WHERE profile_id = ?')
+			.bind('rank-unused')
+			.first<{ n: number }>();
+		assert.equal(row?.n, 0, 'an unopened profile has no rank rows');
+		await h.db.prepare('DELETE FROM profiles WHERE id = ?').bind('rank-unused').run();
+	});
+
+	it('rebuilds after a profile edit, against the new criteria', async () => {
+		await buildRank();
+		const stored = async () =>
+			(
+				await h.db
+					.prepare('SELECT criteria_hash FROM job_profile_rank_state WHERE profile_id = ?')
+					.bind(PROFILE)
+					.first<{ criteria_hash: string }>()
+			)?.criteria_hash;
+		const before = await stored();
+
+		const { status } = await h.json(`${BASE}/profiles/${PROFILE}`, {
+			method: 'PUT',
+			...AUTH,
+			body: JSON.stringify({
+				name: 'Ranked',
+				keywords: ['director', 'payments'],
+				track: 'either',
+				levels: ['senior', 'staff'],
+				remote_pref: 'remote',
+			}),
+		});
+		assert.equal(status, 200);
+
+		const deadline = Date.now() + 8000;
+		let after = before;
+		while (Date.now() < deadline && after === before) {
+			await new Promise((r) => setTimeout(r, 50));
+			after = await stored();
+		}
+		assert.notEqual(after, before, 'the ranking was rebuilt against the saved criteria');
+	});
+});
