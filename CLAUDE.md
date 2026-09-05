@@ -93,8 +93,15 @@ pre-flight auth check.
   Two O(1) markers in `job_profile_rank_state` (a criteria hash, and the highest
   `jobs.rowid` covered) decide whether the stored ranking is trustworthy; when
   it is not, the feed ranks live exactly as before. Absent or stale rank data
-  therefore costs latency, never correctness. Rebuild with
-  `POST /ingest/rebuild-rank`.
+  therefore costs latency, never correctness. The ranking is **self-installing
+  and lazy**: the first feed request that finds none is served live and builds
+  one behind itself, and a profile edit rebuilds behind the response. Building
+  on USE rather than on existence is deliberate — `ensureDefaultProfile`
+  materialises a Default for every identity that so much as calls
+  `GET /profiles`, so ranking on creation would spend ~32k rows on every service
+  key and one-off probe. `POST /ingest/rebuild-rank` remains as the operator's
+  override, for when the SCORER changes (the criteria hash covers the profile,
+  not the code).
 - **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
   (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
   reads `GET /directives` (the union of every profile's companies + keywords)

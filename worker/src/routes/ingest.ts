@@ -361,10 +361,12 @@ app.openapi(backfillRoute, async (c) => {
 // POST /ingest/rebuild-rank — (re)build the feed's precomputed shortlist
 // ============================================================================
 //
-// The feed ranks live until a profile has a ranking here, so this is what
-// switches the fast path on: after the first build a sort=score page reads 800
-// rows instead of the whole corpus. Idempotent, and safe to run any time — the
-// worst a run can do is leave the feed on the path it already uses.
+// The feed now installs its own ranking the first time a profile's feed is
+// opened, so this is no longer how the fast path gets switched on — it is the
+// operator's override: force a rebuild after changing the SCORER, which nothing
+// else would notice (the criteria hash covers the profile, not the code).
+// Idempotent, and safe to run any time — the worst a run can do is leave the
+// feed on the path it already uses.
 //
 // Pass ?profile_id= to rebuild a specific one; omit it to rebuild the next
 // profile whose ranking is missing or stale, and repeat while remaining > 0.

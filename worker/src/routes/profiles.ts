@@ -15,12 +15,12 @@ import {
 	ErrorResponseSchema,
 } from '../schemas.js';
 import { DEFAULT_PROFILE, DEFAULT_PROFILE_COMPANIES } from '../defaultProfile.js';
-import type { ProfileTrack } from '../profileScore.js';
+import { loadScorableProfile, type ProfileTrack } from '../profileScore.js';
 import type { RoleLevel } from '../roleClassify.js';
 import { triggerSearch } from '../clients/scraper.js';
 import { NoIdentityError, resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
-import { clearRank } from '../rank.js';
+import { clearRank, scheduleRankBuild } from '../rank.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -316,11 +316,17 @@ app.openapi(
 		}
 
 		// The saved criteria are what the precomputed ranking was built from, so
-		// it is now void. rankIsCurrent would notice on its own — the stored
-		// criteria hash no longer matches — but dropping the rows keeps a stale
-		// 31k-row ranking from sitting there for a profile that will never use
-		// it again. The feed ranks live until a rebuild runs.
-		await clearRank(db, id);
+		// it is now void. rankIsCurrent notices on its own — the stored criteria
+		// hash no longer matches — so the feed is already safe; this just rebuilds
+		// it behind the response rather than leaving the next viewer to pay for a
+		// live pass. Editing a profile is a deliberate act by someone plainly
+		// using it, so unlike the feed's lazy build there is nothing to wait for.
+		scheduleRankBuild(c, db, id, await loadScorableProfile(db, id), (err) =>
+			logger.error('rank rebuild after profile update failed', {
+				profile_id: id,
+				error: err instanceof Error ? err.message : String(err),
+			})
+		);
 
 		const profile = {
 			id,

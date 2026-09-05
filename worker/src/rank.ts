@@ -194,3 +194,45 @@ export async function rebuildRank(
 	await markRankBuilt(db, profileId, profile);
 	return jobs.length;
 }
+
+/**
+ * Profiles whose ranking is being built right now, in THIS isolate.
+ *
+ * A build takes ~7s, and the feed schedules one whenever it finds no current
+ * ranking — so without a guard, every request arriving during that window
+ * starts its own. Two concurrent builds would agree (writeRanks upserts and
+ * markRankBuilt is last), so this is about wasted writes, not correctness,
+ * which is why an isolate-local Set is enough: it collapses the common case —
+ * a burst of requests from one person opening the app — without a claim row
+ * that could strand a profile if a build died holding it.
+ */
+const building = new Set<string>();
+
+/**
+ * Build this profile's ranking in the background, if one isn't already running.
+ *
+ * The caller has already served the request the slow way. This is what makes
+ * the ranking self-installing: it appears the first time a profile's feed is
+ * actually looked at, rather than needing an operator to remember. A profile
+ * nobody opens never costs anything — which matters because a Default profile
+ * is materialised for every identity that so much as calls GET /profiles.
+ */
+export function scheduleRankBuild(
+	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
+	db: D1Database,
+	profileId: string,
+	profile: ScorableProfile,
+	onError: (err: unknown) => void
+): void {
+	if (building.has(profileId)) return;
+	building.add(profileId);
+	const work = rebuildRank(db, profileId, profile)
+		.catch(onError)
+		.finally(() => building.delete(profileId));
+	try {
+		// Hono throws reading executionCtx when the runtime has none.
+		c.executionCtx?.waitUntil(work);
+	} catch {
+		void work;
+	}
+}

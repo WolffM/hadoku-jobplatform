@@ -4,7 +4,7 @@ import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
 import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
-import { rankIsCurrent } from '../../rank.js';
+import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
 
 // Two-stage score-on-read. Descriptions are what make whole-corpus scoring
 // impossible in one pass (30k rows × ~4KB each), but they feed only ONE factor
@@ -327,6 +327,22 @@ export function registerFeedRoute(app: JobsApp): void {
 				// salary rank on columns of their own. Those keep the live path
 				// until they have stored keys too.
 				const rankUsable = sort === 'score' && (await rankIsCurrent(db, profile_id, profile));
+
+				// No usable ranking: this request is served the slow way, and the
+				// ranking is built behind it so the next one is not. That makes the
+				// fast path self-installing — it arrives the first time a profile's
+				// feed is actually opened, instead of waiting for someone to run
+				// /ingest/rebuild-rank. Tying the cost to USE is the point: a Default
+				// profile is materialised for every identity that calls GET
+				// /profiles, and most of those never look at a feed.
+				if (!rankUsable && sort === 'score') {
+					scheduleRankBuild(c, db, profile_id, profile, (err) =>
+						logger.error('background rank build failed', {
+							profile_id,
+							error: err instanceof Error ? err.message : String(err),
+						})
+					);
+				}
 
 				const candSql = rankUsable
 					? `
