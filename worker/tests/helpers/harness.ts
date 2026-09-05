@@ -212,6 +212,13 @@ export interface Harness {
 	): Promise<{ status: number; body: T }>;
 	db: D1Database;
 	resume: ResumeService;
+	/**
+	 * Await everything the worker handed to waitUntil, returning how many there
+	 * were — so a test can assert work was BACKGROUNDED, not merely that it
+	 * happened. On Workers an unattached promise is killed with the response, so
+	 * that distinction decides whether it runs in production at all.
+	 */
+	settle(): Promise<number>;
 	dispose(): Promise<void>;
 }
 
@@ -283,6 +290,13 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		EDGE_AUTH_SECRET: EDGE_SECRET,
 		JOB_PLATFORM_DB: db,
 		SCRAPER_USER_KEY: 'test-service-key',
+		// Loopback to a closed port, so the suite cannot call the real scraper.
+		// It could not before, for the wrong reason: triggerSearchBg's work went to
+		// an ExecutionContext the harness did not pass, so it never ran. Now that it
+		// does, leaving this unset would mean every profile write in these tests
+		// POSTs to production. The call is fire-and-forget and its failure is
+		// logged, so a refused connection is the honest local answer.
+		SCRAPER_BASE_URL: 'http://127.0.0.1:1',
 		...(options.withoutResumeBinding ? {} : { RESUME: resume.binding }),
 		// Stand-in for the edge-router service binding. Name resolution is the
 		// one thing it is asked for, so the fake answers exactly that and
@@ -292,6 +306,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 	};
 
 	const app = createJobPlatformHandler(BASE);
+
+	/** Promises the worker handed to waitUntil, drained by settle(). */
+	const pending: Promise<unknown>[] = [];
 
 	function request(
 		path: string,
@@ -308,14 +325,38 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 			h.set('X-User-Id', userId ?? 'user-one');
 		}
 		if (rest.body && !h.has('Content-Type')) h.set('Content-Type', 'application/json');
+		// Pass an ExecutionContext, like the runtime does. Omitting it made every
+		// `c.executionCtx?.waitUntil()` throw, and the background work behind it
+		// ran unattached — which still COMPLETES under node, so a test could pass
+		// while the same code did nothing on Workers (where an unattached promise
+		// is killed with the response). Collecting the promises here is what makes
+		// `settle()` able to assert the work was actually handed to waitUntil.
 		return app.fetch(
 			new Request(`https://hadoku.me${path}`, { ...rest, headers: h }),
-			env as unknown as Record<string, unknown>
+			env as unknown as Record<string, unknown>,
+			{
+				waitUntil: (p: Promise<unknown>) => {
+					pending.push(p);
+				},
+				passThroughOnException: () => {},
+			} as unknown as ExecutionContext
 		) as unknown as Promise<Response>;
 	}
 
 	return {
 		fetch: request,
+		/**
+		 * Await everything handed to waitUntil so far.
+		 *
+		 * Returns how many there were, so a test can assert the work was
+		 * BACKGROUNDED rather than merely having happened — the distinction that
+		 * decides whether it runs at all in production.
+		 */
+		async settle() {
+			const n = pending.length;
+			await Promise.allSettled(pending.splice(0));
+			return n;
+		},
 		async json<T = unknown>(path: string, init?: RequestInit & { tier?: string; userId?: string }) {
 			const res = await request(path, init);
 			return { status: res.status, body: (await res.json()) as T };

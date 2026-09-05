@@ -166,6 +166,12 @@ describe('precomputed ranking', () => {
 			ids.includes('rk-new'),
 			'a posting ingested after the build must not be invisible until a rebuild'
 		);
+		// Let the build this request scheduled finish before removing the job it
+		// is ranking — otherwise the delete races the insert and trips the
+		// foreign key. Production survives that race (the build fails, the marker
+		// is not set, the feed falls back and the next request retries), but a
+		// test should not be asserting through it.
+		await h.settle();
 		await h.db.prepare('DELETE FROM jobs WHERE id = ?').bind('rk-new').run();
 	});
 
