@@ -16,6 +16,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import { scoreJobLightAxes } from './scoring.js';
 import type { ScorableProfile } from './profileScore.js';
 import { asRoleLevel } from './routes/jobs/shared.js';
+import { runAfterResponse, type HasExecutionCtx } from './background.js';
 
 /** The job columns the bound is computed from. */
 export interface RankableJob {
@@ -218,21 +219,16 @@ const building = new Set<string>();
  * is materialised for every identity that so much as calls GET /profiles.
  */
 export function scheduleRankBuild(
-	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
+	c: HasExecutionCtx,
 	db: D1Database,
 	profileId: string,
-	profile: ScorableProfile,
-	onError: (err: unknown) => void
+	profile: ScorableProfile
 ): void {
 	if (building.has(profileId)) return;
 	building.add(profileId);
-	const work = rebuildRank(db, profileId, profile)
-		.catch(onError)
-		.finally(() => building.delete(profileId));
-	try {
-		// Hono throws reading executionCtx when the runtime has none.
-		c.executionCtx?.waitUntil(work);
-	} catch {
-		void work;
-	}
+	runAfterResponse(
+		c,
+		`rank build ${profileId}`,
+		rebuildRank(db, profileId, profile).finally(() => building.delete(profileId))
+	);
 }
