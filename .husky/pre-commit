@@ -8,6 +8,22 @@
 # non-zero exit. core.hooksPath now points at .husky itself, which is tracked.
 [ "${HUSKY-}" = "0" ] && exit 0
 
+# Not in CI. This hook exists for the developer loop: it bumps versions, runs
+# lint/format/stylelint and typechecks before a local commit. CI already does
+# every one of those as its own job, and publish.yml has its own version-bump
+# fallback that walks to an unpublished version — so nothing here is load
+# -bearing there.
+#
+# It was actively harmful, though. The auto-update workflow's "Commit and push
+# if changed" step fired this hook, whose typecheck triggers a `pnpm install`
+# with no NODE_AUTH_TOKEN in that step, so it died on
+# ERR_PNPM_FETCH_401 fetching a private @wolffm package — a dependency-update
+# commit failing on the registry auth of a gate CI had already run.
+if [ -n "${CI-}" ] || [ -n "${GITHUB_ACTIONS-}" ]; then
+  echo "CI detected — skipping pre-commit hook (CI runs these gates as their own jobs)"
+  exit 0
+fi
+
 # Firing the hook is only half of it. A fresh worktree is missing everything
 # .gitignore excludes, and the gates below read some of it. Borrow those from
 # the main checkout rather than skipping the gate: same repo, and in the normal
@@ -143,7 +159,7 @@ fi
 # TS gate — prevents commits that break tsc (resilience plan track 1)
 echo "🔎 Running typecheck..."
 if ! pnpm run typecheck; then
-  echo "❌ TypeScript errors — fix before committing (or `--no-verify` to bypass)."
+  echo '❌ TypeScript errors — fix before committing (or --no-verify to bypass).'
   exit 1
 fi
 
