@@ -336,12 +336,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				// profile is materialised for every identity that calls GET
 				// /profiles, and most of those never look at a feed.
 				if (!rankUsable && sort === 'score') {
-					scheduleRankBuild(c, db, profile_id, profile, (err) =>
-						logger.error('background rank build failed', {
-							profile_id,
-							error: err instanceof Error ? err.message : String(err),
-						})
-					);
+					scheduleRankBuild(c, db, profile_id, profile);
 				}
 
 				const candSql = rankUsable

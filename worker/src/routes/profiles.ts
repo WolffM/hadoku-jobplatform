@@ -22,6 +22,7 @@ import { triggerSearch } from '../clients/scraper.js';
 import { NoIdentityError, resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
 import { clearRank, scheduleRankBuild } from '../rank.js';
+import { runAfterResponse, type HasExecutionCtx } from '../background.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
@@ -135,22 +136,14 @@ async function currentUserId(
 
 // Fire a scrape now (fire-and-forget) so a just-added directive — a company or
 // a keyword — is picked up promptly instead of waiting for the daily cron. The
-// scraper's /search is a 202; we don't block the response on its result. Guard
-// the executionCtx getter (Hono throws when the runtime doesn't provide one).
-function triggerSearchBg(
-	c: { executionCtx?: { waitUntil(p: Promise<unknown>): void } },
-	env: AppEnv
-): void {
-	const work = triggerSearch(env).catch((err) =>
-		logger.error('triggerSearch failed', {
-			error: err instanceof Error ? err.message : String(err),
-		})
-	);
-	try {
-		c.executionCtx?.waitUntil(work);
-	} catch {
-		void work;
-	}
+// scraper's /search is a 202; we don't block the response on its result.
+//
+// This did nothing at all until 2026-09-05: it guarded the executionCtx getter
+// with a bare catch, and the host worker was forwarding (request, env) without
+// a context, so every call landed in that catch and the promise was dropped.
+// runAfterResponse says so out loud instead.
+function triggerSearchBg(c: HasExecutionCtx, env: AppEnv): void {
+	runAfterResponse(c, 'triggerSearch', triggerSearch(env));
 }
 
 interface ProfileFields {
@@ -382,12 +375,7 @@ app.openapi(
 		// it behind the response rather than leaving the next viewer to pay for a
 		// live pass. Editing a profile is a deliberate act by someone plainly
 		// using it, so unlike the feed's lazy build there is nothing to wait for.
-		scheduleRankBuild(c, db, id, await loadScorableProfile(db, id), (err) =>
-			logger.error('rank rebuild after profile update failed', {
-				profile_id: id,
-				error: err instanceof Error ? err.message : String(err),
-			})
-		);
+		scheduleRankBuild(c, db, id, await loadScorableProfile(db, id));
 
 		const profile = {
 			id,

@@ -364,6 +364,11 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		db,
 		resume,
 		async dispose() {
+			// Let anything still in waitUntil finish against a live database.
+			// Disposing Miniflare first poisons the D1 stub underneath it, so a
+			// background rank build outliving its test logged a confusing failure
+			// that had nothing to do with the code under test.
+			await Promise.allSettled(pending.splice(0));
 			await resume.stop();
 			await mf.dispose();
 		},
