@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../types.js';
-import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireMinTier, tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
 import {
 	CreateProfileSchema,
 	UpdateProfileSchema,
@@ -24,7 +25,15 @@ import { clearRank, scheduleRankBuild } from '../rank.js';
 
 interface RouteContext {
 	Bindings: AppEnv;
-	Variables: { authContext: HadokuAuthContext };
+	Variables: {
+		authContext: HadokuAuthContext;
+		/**
+		 * Set by `requireIdentity` when a service caller named an owner. Every
+		 * route reads identity through `currentUserId`, so stashing it here
+		 * reaches all of them without touching a single call site.
+		 */
+		ownerUserId?: string;
+	};
 }
 
 const app = new OpenAPIHono<RouteContext>();
@@ -46,8 +55,11 @@ app.use('/profiles/*', requireIdentity);
 
 async function requireIdentity(
 	c: {
-		req: { header: (n: string) => string | undefined };
-		json: (b: unknown, s?: 401) => Response;
+		req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
+		json: (b: unknown, s?: 401 | 403 | 404 | 409 | 503) => Response;
+		get: (k: 'authContext') => HadokuAuthContext;
+		set: (k: 'ownerUserId', v: string) => void;
+		env: AppEnv;
 	},
 	next: () => Promise<void>
 ) {
@@ -61,6 +73,49 @@ async function requireIdentity(
 			401
 		);
 	}
+
+	// `?owner=<display name>` — act as that person instead of the caller.
+	//
+	// Resolved HERE rather than inside `currentUserId` because this is the
+	// layer that can already return a response. Doing it deeper would mean
+	// throwing from a helper seven routes call, and an identity refusal would
+	// surface as a 500 instead of the 403/404/409/503 it actually is.
+	const owner = c.req.query('owner')?.trim();
+	if (owner) {
+		// SERVICE OR ADMIN ONLY. A friend-tier caller is a signed-in human in a
+		// browser; letting one pass a name would make every profile route a way
+		// to read and edit somebody else's companies and scoring.
+		if (!tierAtLeast(c.get('authContext'), 'service')) {
+			return c.json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'Only a service or admin caller may act on behalf of a named owner.',
+				},
+				403
+			);
+		}
+		const resolved = await resolveGranteeVia(c.env.EDGE, {
+			serviceKey: c.env.SCRAPER_USER_KEY ?? '',
+			name: owner,
+		});
+		if (isIdentityError(resolved)) {
+			const status = ([404, 409, 503] as const).includes(resolved.status as 404 | 409 | 503)
+				? (resolved.status as 404 | 409 | 503)
+				: 503;
+			return c.json(
+				{
+					success: false,
+					error: status === 503 ? 'Unavailable' : status === 409 ? 'Conflict' : 'Not found',
+					message: resolved.error,
+					...(resolved.code ? { code: resolved.code } : {}),
+				},
+				status
+			);
+		}
+		c.set('ownerUserId', resolved.userId);
+	}
+
 	await next();
 }
 
@@ -68,7 +123,13 @@ async function requireIdentity(
 // across key rotation and is the only thing that establishes who is calling
 // (R1). There is no fallback — see userId.ts for why the credential hash that
 // used to be one was worse than an error.
-async function currentUserId(c: Parameters<typeof resolveUserId>[0]): Promise<string> {
+async function currentUserId(
+	c: Parameters<typeof resolveUserId>[0] & { get?: (k: 'ownerUserId') => string | undefined }
+): Promise<string> {
+	// An owner named on the request wins, having already been RESOLVED against
+	// the registry by `requireIdentity` — never a string off the request (R5).
+	const onBehalfOf = c.get?.('ownerUserId');
+	if (onBehalfOf) return onBehalfOf;
 	return resolveUserId(c);
 }
 
