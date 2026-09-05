@@ -26,6 +26,7 @@ import {
 	DEFAULT_HADOKU_ORIGINS,
 	type HadokuAuthContext,
 } from '@wolffm/worker-utils';
+import type { ExecutionContext } from '@cloudflare/workers-types';
 import type { AppEnv } from './types.js';
 import { logger } from './logger.js';
 import { healthRoutes } from './routes/health.js';
@@ -95,9 +96,17 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 
 // Keep legacy export shape so existing hadoku_site host worker compiles
 // until it's updated to call createJobPlatformHandler directly.
+//
+// `ctx` is optional only so an old host keeps compiling; pass it. Without it
+// Hono has no ExecutionContext, every `c.executionCtx?.waitUntil()` in this
+// worker throws, and the background work behind it is left unattached — which
+// on Workers means killed the moment the response returns. That is not a
+// degraded mode, it is silent: the request succeeds and the work never runs.
+// It is how the feed's lazy rank build and triggerSearchBg's scrape kick both
+// did nothing in production while passing their tests.
 export function createFetchHandler(env: AppEnv) {
 	const app = createJobPlatformHandler();
-	return (request: Request) => app.fetch(request, env);
+	return (request: Request, ctx?: ExecutionContext) => app.fetch(request, env, ctx);
 }
 
 export function createScheduledHandler(_env: AppEnv) {
