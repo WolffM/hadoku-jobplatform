@@ -65,14 +65,16 @@ describe('profiles ?owner', () => {
 			'the service sees its own'
 		);
 
-		const theirs = await get<{ data: { profiles: { id: string }[] } }>('/profiles?owner=Hadoku');
+		const theirs = await get<{ data: { profiles: { id: string }[] } }>(
+			'/profiles?ownerName=Hadoku'
+		);
 		assert.ok(theirs.body.data.profiles.some((p) => p.id === 'prof-hadoku'));
 	});
 
 	it("reaches the owner's companies — the rows the directives are built from", async () => {
 		const pid = await seedOwnerProfile();
 		const { body } = await get<{ data: { companies: { slug: string }[] } }>(
-			`/profiles/${pid}/companies?owner=Hadoku`
+			`/profiles/${pid}/companies?ownerName=Hadoku`
 		);
 		assert.deepEqual(
 			body.data.companies.map((c) => c.slug),
@@ -84,13 +86,13 @@ describe('profiles ?owner', () => {
 		// The gate. Otherwise any signed-in human could edit another person's
 		// scoring profiles and, through the directives, what the fleet scrapes.
 		await seedOwnerProfile();
-		const { status, body } = await get('/profiles?owner=Hadoku', 'friend', 'some-human');
+		const { status, body } = await get('/profiles?ownerName=Hadoku', 'friend', 'some-human');
 		assert.equal(status, 403);
 		assert.match(body.message, /service or admin/i);
 	});
 
 	it('an unknown owner is 404, never a silent fallback to the caller', async () => {
-		const { status, body } = await get('/profiles?owner=Nobody');
+		const { status, body } = await get('/profiles?ownerName=Nobody');
 		assert.equal(status, 404);
 		assert.equal(body.code, 'NAME_NOT_FOUND');
 	});
@@ -98,5 +100,21 @@ describe('profiles ?owner', () => {
 	it('still serves a caller their own profiles with no owner named', async () => {
 		const { status } = await get('/profiles');
 		assert.equal(status, 200);
+	});
+
+	it('the WIRE name is ownerName — a stale spelling must not read as "no owner"', async () => {
+		// The failure this pins: zod/hono hand an undeclared key to nobody, so
+		// the old spelling produced a 200 over the CALLER's rows instead of an
+		// error. A parameter that decides whose data you get has to fail loudly.
+		await seedOwnerProfile();
+		const stale = await get<{ data: { profiles: { id: string }[] } }>('/profiles?owner=Hadoku');
+		assert.ok(
+			!stale.body.data.profiles.some((p) => p.id === 'prof-hadoku'),
+			'the old spelling does not act on behalf of anyone'
+		);
+		const correct = await get<{ data: { profiles: { id: string }[] } }>(
+			'/profiles?ownerName=Hadoku'
+		);
+		assert.ok(correct.body.data.profiles.some((p) => p.id === 'prof-hadoku'));
 	});
 });
