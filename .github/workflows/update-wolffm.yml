@@ -180,8 +180,14 @@ jobs:
             gh issue create --title "$title" --body "$(printf 'The auto-update workflow is failing, so @wolffm package updates are frozen until this is fixed.\n\nFirst red run: %s\n\nThis issue closes itself when a run goes green. Playbook: docs/incident-2026-08-04-ci-failures.md' "$run_url")"
           fi
 
+      # continue-on-error: this is tidy-up, not the payload. Before this was
+      # added, a transient `gh issue list`/`close` hiccup here (rate limit,
+      # network blip) failed THIS step under the default `bash -e`, which
+      # flips the whole job red — so a genuinely successful @wolffm update
+      # paged @here over a failed issue-close, not a failed update. (P6.7)
       - name: Close alert issue on recovery
         if: success()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
