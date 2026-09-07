@@ -81,7 +81,11 @@ async function requireIdentity(
 	// layer that can already return a response. Doing it deeper would mean
 	// throwing from a helper seven routes call, and an identity refusal would
 	// surface as a 500 instead of the 403/404/409/503 it actually is.
-	const owner = c.req.query('owner')?.trim();
+	// `ownerName`, matching the rest of the fleet (jobplatform renamed it in
+	// 54903fd — "the on-behalf-of field is `ownerName`, because it is a name").
+	// This route was added with the old spelling and so silently ignored the
+	// parameter, falling back to the caller's own rows and reporting success.
+	const owner = c.req.query('ownerName')?.trim();
 	if (owner) {
 		// SERVICE OR ADMIN ONLY. A friend-tier caller is a signed-in human in a
 		// browser; letting one pass a name would make every profile route a way
