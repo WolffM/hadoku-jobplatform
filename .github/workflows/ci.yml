@@ -2,9 +2,15 @@ name: CI
 
 # This repo had NO pull-request CI: publish.yml and update-wolffm.yml run on
 # push to main, so nothing has ever verified a pull request here. Its only gate
-# was .husky/pre-commit, which `prepare: husky` builds from a gitignored
+# was .husky/pre-commit, which `prepare: husky` built from a gitignored
 # .husky/_ that does not exist on a CI runner — so it never ran there either,
-# and a git worktree never has it locally.
+# and a git worktree never had it locally.
+#
+# That last part STOPPED BEING TRUE when core.hooksPath moved to `.husky`
+# itself, which is tracked (see the hook's own preamble). The hook then began
+# firing on CI runners too, and broke the auto-update workflow's commit step on
+# a private-registry 401. It now stands down when CI or GITHUB_ACTIONS is set,
+# and the "Pre-commit hook stands down in CI" step below asserts that.
 #
 # The commands are the ones already in package.json. Nothing invented.
 #
@@ -75,7 +81,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}")"
           echo "changed files:"; echo "$changed" | sed 's/^/  /'
-          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
+          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|^\.husky/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -135,7 +141,7 @@ jobs:
             "${{ github.event.pull_request.base.sha }}" \
             "${{ github.event.pull_request.head.sha }}")"
           echo "changed files:"; echo "$changed" | sed 's/^/  /'
-          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
+          if echo "$changed" | grep -qE '(^src/|^worker/|^scripts/|^\.husky/|package\.json|pnpm-lock\.yaml|tsconfig|eslint\.config|stylelintrc|\.github/workflows/ci\.yml)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -174,6 +180,15 @@ jobs:
       - name: Stylelint + theme-token gate
         if: steps.scope.outputs.run == 'true'
         run: pnpm run lint:css
+
+      # The pre-commit hook must stand down in CI. It did not, and that broke
+      # the @wolffm auto-update workflow's commit step on a private-registry
+      # 401 — a failure that only surfaces when that workflow has something to
+      # commit, which is too rare to call verification. Asserted here instead,
+      # on every run. No `if:` — the scope step now watches .husky/, but this
+      # costs milliseconds and the thing it guards is CI itself.
+      - name: Pre-commit hook stands down in CI
+        run: ./scripts/check-husky-ci-guard.sh
 
   # ONE report per RUN, not one per job — and this is a correctness constraint,
   # not tidiness.
