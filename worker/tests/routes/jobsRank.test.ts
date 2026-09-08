@@ -13,7 +13,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { BASE, createHarness, type Harness } from '../helpers/harness.ts';
-import { seedJob, seedProfile } from '../helpers/seed.ts';
+import { seedJob, seedJobState, seedProfile, seedProfileCompany } from '../helpers/seed.ts';
 
 interface FeedBody {
 	success: boolean;
@@ -294,5 +294,117 @@ describe('lazy rank building', () => {
 			after = await stored();
 		}
 		assert.notEqual(after, before, 'the ranking was rebuilt against the saved criteria');
+	});
+});
+
+/**
+ * The company-scoped ranked feed.
+ *
+ * This is the shape the owner's own profile has — a handful of companies out of
+ * a wide corpus — and it is the one the join order matters for. `job_profile_rank`
+ * covers EVERY job, not just the slice, so a query that leads with the rank
+ * index has to walk the whole corpus before LIMIT fills. Leading with
+ * profile_companies instead reads only the slice.
+ *
+ * The tests below are about what that reordering must not change: the page has
+ * to stay inside the slice, and it has to be the same page ranking live returns.
+ */
+describe('company-scoped ranking', () => {
+	const SCOPED = 'rank-p2';
+	const SCOPED_AUTH = { tier: 'friend' as const, userId: 'rank-user' };
+
+	before(async () => {
+		await seedProfile(h.db, {
+			id: SCOPED,
+			user_id: 'rank-user',
+			name: 'Scoped',
+			keywords: ['software engineer', 'platform', 'ai'],
+			track: 'either',
+			levels: ['senior', 'staff'],
+			remote_pref: 'remote',
+		});
+		// Two boards. Only `acme` is in the profile's slice, so every `other/beta`
+		// job is a row the feed must not return however well it ranks.
+		await seedProfileCompany(h.db, {
+			id: 'pc-1',
+			profile_id: SCOPED,
+			ats: 'greenhouse',
+			slug: 'acme',
+		});
+		for (let i = 0; i < 6; i++) {
+			await seedJob(h.db, {
+				id: `sc-off-${i}`,
+				title: 'Staff Software Engineer, Platform AI',
+				company: 'Offslice',
+				location: 'Remote - USA',
+				workplace_type: 'remote',
+				ats: 'lever',
+				slug: 'beta',
+				url: `https://jobs.lever.co/beta/${i}`,
+				scraped_at: `2026-08-${String(20 + i).padStart(2, '0')}T00:00:00.000Z`,
+			});
+		}
+	});
+
+	const scopedFeed = async () => {
+		const { body } = await h.json<FeedBody>(
+			`${BASE}/jobs?profile_id=${SCOPED}&limit=10&sort=score`,
+			SCOPED_AUTH
+		);
+		return body.data;
+	};
+
+	const buildScopedRank = async () => {
+		const { status } = await h.json(`${BASE}/ingest/rebuild-rank?profile_id=${SCOPED}`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'rank-user',
+		});
+		assert.equal(status, 200);
+	};
+
+	it('returns the same page as ranking live, and stays inside the slice', async () => {
+		const live = await scopedFeed();
+		assert.ok(live.jobs.length > 0, 'the live path returned something to compare against');
+
+		await buildScopedRank();
+		const fast = await scopedFeed();
+
+		assert.deepEqual(
+			fast.jobs.map((j) => j.id),
+			live.jobs.map((j) => j.id),
+			'same order — pinning the join order must not change which page comes back'
+		);
+		assert.deepEqual(
+			fast.jobs.map((j) => j.score),
+			live.jobs.map((j) => j.score),
+			'same scores'
+		);
+		assert.equal(
+			fast.jobs.filter((j) => j.id.startsWith('sc-off-')).length,
+			0,
+			'a job on a board the profile does not subscribe to must not reach the feed'
+		);
+		assert.ok(
+			fast.jobs.every((j) => j.id.startsWith('rk-')),
+			'every returned job is one of the slice rows'
+		);
+	});
+
+	it('still applies the per-user state filter through the pinned join order', async () => {
+		await buildScopedRank();
+		const all = await scopedFeed();
+		const victim = all.jobs[0].id;
+
+		await seedJobState(h.db, { job_id: victim, user_id: 'rank-user', state: 'dismissed' });
+		const { body } = await h.json<FeedBody>(
+			`${BASE}/jobs?profile_id=${SCOPED}&limit=10&sort=score&hide_dismissed=true`,
+			SCOPED_AUTH
+		);
+		assert.ok(
+			!body.data.jobs.some((j) => j.id === victim),
+			'hide_dismissed reaches the LEFT JOIN even though profile_companies now leads'
+		);
+		await h.db.prepare('DELETE FROM job_states WHERE job_id = ?').bind(victim).run();
 	});
 });

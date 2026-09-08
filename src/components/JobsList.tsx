@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   listJobs,
+  setJobState,
   JobsApiError,
   type JobStateRead,
   type FeedbackReason,
   type JobSort,
   type VoteValue
 } from '../api/jobs'
+import { invalidateResource } from '../api/resource'
 import type { Auth } from '../api/auth'
 import { useResource } from '../api/useResource'
 import { JobCard } from './JobCard'
@@ -28,6 +30,9 @@ interface Props {
   // card reflects it immediately, instead of the feed re-ranking 30k rows to
   // learn that one badge changed.
   stateOverrides: Record<string, JobStateRead>
+  // Where a card's own Apply reports the state it just wrote, so the badge and
+  // the drawer agree without the feed re-ranking the corpus.
+  onStateChange: (jobId: string, state: JobStateRead) => void
   // Hold the request while the sidebar is still resolving which profile is
   // selected. Without it the feed fires an unscored request on mount and
   // discards the answer a moment later, when the sidebar picks a profile.
@@ -51,9 +56,11 @@ export function JobsList({
   voteOverrides,
   onVote,
   stateOverrides,
+  onStateChange,
   awaitingProfile
 }: Props) {
   const [page, setPage] = useState(1)
+  const [applyError, setApplyError] = useState<string | null>(null)
 
   const [sort, setSort] = useState<JobSort>('score')
   // Salary is a view control, not a profile criterion — it narrows what you're
@@ -134,6 +141,38 @@ export function JobsList({
     return list
   }, [patched, search, effectiveHideDismissed])
 
+  /**
+   * Apply from the card: the browser is already opening the posting in a new
+   * tab (the card renders a real link, so the popup blocker leaves it alone),
+   * and this records the triage that used to cost a trip through the drawer.
+   *
+   * Optimistic on purpose. The badge flips from the override the moment the
+   * click lands, and only a FAILED write is worth stopping for — which is why
+   * the error is a line above the list rather than a revert: the tab is open
+   * either way, and silently un-marking a job the owner did apply to is the
+   * worse of the two wrong answers.
+   */
+  const handleApply = useCallback(
+    (jobId: string) => {
+      setApplyError(null)
+      onStateChange(jobId, 'applied')
+      void setJobState(jobId, 'applied', auth)
+        .then(() => {
+          // The cached posting still carries the old state, so reopening this
+          // job in the drawer would show it. Drop it; the next open re-reads.
+          invalidateResource(`job:${jobId}:`)
+        })
+        .catch((err: unknown) => {
+          setApplyError(
+            err instanceof JobsApiError
+              ? `Couldn’t mark that applied: ${err.message}`
+              : 'Couldn’t mark that applied — the posting still opened.'
+          )
+        })
+    },
+    [auth, onStateChange]
+  )
+
   const totalPages = Math.max(1, Math.ceil(total / limit))
   // Auth-gated filters: the API requires admin/friend for state=.
   // We don't pre-flight whoami here — instead, rely on a real state value in the
@@ -210,6 +249,7 @@ export function JobsList({
       )}
 
       {error && <p className="jp-error">{error}</p>}
+      {applyError && <p className="jp-error">{applyError}</p>}
 
       {loading ? (
         <p className="jp-muted">Loading jobs…</p>
@@ -233,6 +273,7 @@ export function JobsList({
                   voteReasons={voteReasons}
                   onClick={() => onSelect(job.id, vote)}
                   onVote={onVote}
+                  onApply={handleApply}
                 />
               </li>
             )

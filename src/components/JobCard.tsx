@@ -11,6 +11,10 @@ interface Props {
   voteReasons: FeedbackReason[]
   onClick: () => void
   onVote: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
+  // Apply straight from the card: open the posting and mark it applied. The
+  // list owns the write so one handler covers every card, and so the failure
+  // message has somewhere to live.
+  onApply: (jobId: string) => void
 }
 
 function formatSalary(min: number | null, max: number | null): string | null {
@@ -36,13 +40,25 @@ function scoreTier(score: number): 'high' | 'mid' | 'low' {
   return 'low'
 }
 
-export function JobCard({ job, showScore, auth, vote, voteReasons, onClick, onVote }: Props) {
+export function JobCard({
+  job,
+  showScore,
+  auth,
+  vote,
+  voteReasons,
+  onClick,
+  onVote,
+  onApply
+}: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
   const tier = showScore ? scoreTier(job.score) : null
   const hasState = job.state && job.state !== 'new'
   // Voting is per-user; an unauthenticated feed has state: null on every job.
   const canVote = job.state !== null && job.state !== undefined
+  // Same signal for triage: unauthed, Apply is a plain link to the posting and
+  // marks nothing, because there is no user to mark it for.
+  const canMark = canVote
 
   const cardClasses = ['jp-jobcard']
   if (tier) cardClasses.push(`jp-jobcard--score-${tier}`)
@@ -114,6 +130,34 @@ export function JobCard({ job, showScore, auth, vote, voteReasons, onClick, onVo
           {job.source_site} ↗
         </a>
         {posted && <span>{posted}</span>}
+        {/*
+          Apply without opening the drawer. It is an <a target="_blank"> rather
+          than a button that calls window.open, because the popup blocker only
+          spares a real user-gesture navigation — and marking the job applied is
+          an await, so a window.open after it would be blocked.
+
+          Marking is optimistic and deliberately does not wait for the tab: the
+          point is ripping through a feed, and a state write that has to be
+          confirmed before the next card is the thing that made it slow.
+        */}
+        <a
+          className="jp-jobcard__apply"
+          href={job.application_url ?? job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="card-apply"
+          title={
+            canMark
+              ? 'Open the application form and mark this applied'
+              : 'Open the application form'
+          }
+          onClick={e => {
+            e.stopPropagation()
+            if (canMark) onApply(job.id)
+          }}
+        >
+          {job.state === 'applied' ? 'Applied ↗' : 'Apply ↗'}
+        </a>
       </div>
     </div>
   )

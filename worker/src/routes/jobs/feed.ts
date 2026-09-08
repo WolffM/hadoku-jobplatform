@@ -99,6 +99,7 @@ interface HeavyRow {
 	salary_min: number | null;
 	source_site: string;
 	url: string;
+	application_url: string | null;
 	ats: string | null;
 	slug: string | null;
 	role_track: string;
@@ -226,22 +227,22 @@ export function registerFeedRoute(app: JobsApp): void {
 				);
 			}
 
-			const joins: string[] = [];
 			const wheres: string[] = [];
-			const binds: (string | number)[] = [];
+			// Binds for the WHERE clause only. The FROM clause's own binds (the
+			// per-user joins, the company slice, the rank table) are assembled per
+			// query below, because which table leads the join changes between them.
+			const whereBinds: (string | number)[] = [];
 
 			// LEFT JOIN job_states once when authed so we can both surface state on
-			// every row AND filter by it cheaply. js.user_id binds first if present
-			// because the join clause has to come before any state filter binds.
+			// every row AND filter by it cheaply.
 			const stateCols = userId
 				? 'js.state as row_state, jf.vote as row_vote, jf.reason as row_vote_reasons'
 				: 'NULL as row_state, NULL as row_vote, NULL as row_vote_reasons';
-			if (userId) {
-				joins.push('LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?');
-				binds.push(userId);
-				joins.push('LEFT JOIN job_feedback jf ON jf.job_id = j.id AND jf.user_id = ?');
-				binds.push(userId);
-			}
+			const userJoins = userId
+				? `LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?
+				   LEFT JOIN job_feedback jf ON jf.job_id = j.id AND jf.user_id = ?`
+				: '';
+			const userBinds: (string | number)[] = userId ? [userId, userId] : [];
 
 			// Companies are an OPTIONAL filter, not a required scope. When a profile
 			// has companies, restrict its feed to their jobs; when it has none, the
@@ -249,17 +250,13 @@ export function registerFeedRoute(app: JobsApp): void {
 			// (keywords / levels / remote). An empty profile ⇒ everything, newest
 			// first.
 			let profile = null as Awaited<ReturnType<typeof loadScorableProfile>> | null;
+			let hasCompanies = false;
 			if (profile_id) {
 				const companyCount = await db
 					.prepare('SELECT COUNT(*) as n FROM profile_companies WHERE profile_id = ?')
 					.bind(profile_id)
 					.first<{ n: number }>();
-				if ((companyCount?.n ?? 0) > 0) {
-					joins.push(
-						'INNER JOIN profile_companies pc ON pc.ats = j.ats AND pc.slug = j.slug AND pc.profile_id = ?'
-					);
-					binds.push(profile_id);
-				}
+				hasCompanies = (companyCount?.n ?? 0) > 0;
 
 				// Track is a HARD filter, not a score factor — "I want management
 				// roles" is a different question from "rank management roles higher",
@@ -268,13 +265,13 @@ export function registerFeedRoute(app: JobsApp): void {
 				profile = await loadScorableProfile(db, profile_id);
 				if (profile.track !== 'either') {
 					wheres.push('j.role_track = ?');
-					binds.push(profile.track);
+					whereBinds.push(profile.track);
 				}
 			}
 
 			if (workplace) {
 				wheres.push('j.workplace_type = ?');
-				binds.push(workplace);
+				whereBinds.push(workplace);
 			}
 
 			// Salary is a view filter now, never a scoring criterion. Jobs with no
@@ -282,7 +279,7 @@ export function registerFeedRoute(app: JobsApp): void {
 			// postings, so excluding them would empty the feed rather than narrow it.
 			if (min_salary !== undefined) {
 				wheres.push('(j.salary_max IS NULL OR j.salary_max >= ?)');
-				binds.push(min_salary);
+				whereBinds.push(min_salary);
 			}
 
 			// State / hide_dismissed clauses reference the LEFT JOIN above, which
@@ -293,14 +290,14 @@ export function registerFeedRoute(app: JobsApp): void {
 					wheres.push('js.state IS NULL');
 				} else if (stateFilter) {
 					wheres.push('js.state = ?');
-					binds.push(stateFilter);
+					whereBinds.push(stateFilter);
 				} else if (hideDismissed) {
 					wheres.push("(js.state IS NULL OR js.state != 'dismissed')");
 				}
 			}
 
 			const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
-			const joinClause = joins.join(' ');
+			const andWheres = wheres.length > 0 ? ` AND ${wheres.join(' AND ')}` : '';
 
 			// ── Score-on-read path ────────────────────────────────────────────────
 			// A profile scores its candidate set live, in-request: pull the rows
@@ -339,32 +336,80 @@ export function registerFeedRoute(app: JobsApp): void {
 					scheduleRankBuild(c, db, profile_id, profile);
 				}
 
-				const candSql = rankUsable
-					? `
+				// WHICH TABLE LEADS THE JOIN is the whole performance story here, and
+				// SQLite will not get it right on its own.
+				//
+				// A company-scoped profile is a narrow slice of a wide corpus — three
+				// companies, 953 of 33,103 jobs. Written as a plain join, the planner
+				// sees `ORDER BY r.bound DESC` and leads with idx_job_profile_rank_order
+				// so it can skip the sort, then probes jobs + profile_companies for every
+				// rank row it walks. Because the slice is 3% of the corpus, LIMIT 800
+				// does not fill until nearly all of it is walked: 61,673 rows read and
+				// ~1.97s of SQL per feed request. That is the cost the owner feels, and
+				// it is also what starves the drawer's own query — one isolate, one
+				// thread, so a deep link into a posting waits behind its own feed.
+				//
+				// Leading with profile_companies instead reads 2,866 rows in 32ms and
+				// sorts 953 rows in memory, which is free at this size. CROSS JOIN is
+				// how that is said in SQLite: same semantics as INNER JOIN, but it
+				// pins the loop order instead of letting the planner choose. A CTE
+				// (even AS MATERIALIZED) does NOT work — the planner still leads with
+				// the rank index inside it.
+				const rankedFrom = hasCompanies
+					? `FROM profile_companies pc
+					   CROSS JOIN jobs j ON j.ats = pc.ats AND j.slug = pc.slug
+					   CROSS JOIN job_profile_rank r ON r.profile_id = ? AND r.job_id = j.id
+					   ${userJoins}
+					   WHERE pc.profile_id = ?${andWheres}`
+					: `FROM job_profile_rank r
+					   JOIN jobs j ON j.id = r.job_id
+					   ${userJoins}
+					   WHERE r.profile_id = ?${andWheres}`;
+				// Same reasoning for the live fallback: without a leading
+				// profile_companies it scans jobs by scraped_at and discards 97% of
+				// what it reads.
+				const liveFrom = hasCompanies
+					? `FROM profile_companies pc
+					   CROSS JOIN jobs j ON j.ats = pc.ats AND j.slug = pc.slug
+					   ${userJoins}
+					   WHERE pc.profile_id = ?${andWheres}`
+					: `FROM jobs j
+					   ${userJoins}
+					   ${whereClause}`;
+
+				const candCols = `
 					SELECT
 						j.id, j.title, j.location, j.workplace_type, j.salary_max,
 						j.posted_date, j.scraped_at, j.last_seen_at, j.role_level,
-						${stateCols}
-					FROM job_profile_rank r
-					JOIN jobs j ON j.id = r.job_id
-					${joinClause}
-					${whereClause ? whereClause + ' AND' : 'WHERE'} r.profile_id = ?
+						${stateCols}`;
+				const candSql = rankUsable
+					? `${candCols}
+					${rankedFrom}
 					ORDER BY r.bound DESC, j.scraped_at DESC
 					LIMIT ${FULL_SCORE_CAP}`
-					: `
-					SELECT
-						j.id, j.title, j.location, j.workplace_type, j.salary_max,
-						j.posted_date, j.scraped_at, j.last_seen_at, j.role_level,
-						${stateCols}
-					FROM jobs j
-					${joinClause}
-					${whereClause}
+					: `${candCols}
+					${liveFrom}
 					ORDER BY j.scraped_at DESC
 					LIMIT ${LIGHT_CANDIDATE_CAP}`;
 
+				// Binds follow the order the placeholders appear in the FROM clause:
+				// the rank join's profile_id, then the user joins, then the company
+				// slice's profile_id, then the WHERE clause.
+				const candBinds = rankUsable
+					? hasCompanies
+						? // pc.profile_id is in the WHERE, so it binds after the joins;
+							// the rank join's own profile_id binds before them.
+							[profile_id, ...userBinds, profile_id, ...whereBinds]
+						: // No company slice: the rank table leads, and its profile_id
+							// moves to the WHERE — so it binds after the user joins.
+							[...userBinds, profile_id, ...whereBinds]
+					: hasCompanies
+						? [...userBinds, profile_id, ...whereBinds]
+						: [...userBinds, ...whereBinds];
+
 				const candidates = await db
 					.prepare(candSql)
-					.bind(...(rankUsable ? [...binds, profile_id] : binds))
+					.bind(...candBinds)
 					.all<LightRow>();
 
 				if (candidates.results.length >= LIGHT_CANDIDATE_CAP) {
@@ -454,7 +499,8 @@ export function registerFeedRoute(app: JobsApp): void {
 						chunks.map((ids) =>
 							db
 								.prepare(
-									`SELECT id, company, salary_min, source_site, url, ats, slug, role_track, description
+									`SELECT id, company, salary_min, source_site, url, application_url,
+									        ats, slug, role_track, description
 									 FROM jobs WHERE id IN (${ids.map(() => '?').join(',')})`
 								)
 								.bind(...ids)
@@ -490,6 +536,7 @@ export function registerFeedRoute(app: JobsApp): void {
 								salary_max: r.salary_max,
 								source_site: h?.source_site ?? '',
 								url: h?.url ?? '',
+								application_url: h?.application_url ?? null,
 								posted_date: r.posted_date,
 								scraped_at: r.scraped_at,
 								ats: h?.ats ?? null,
@@ -575,10 +622,15 @@ export function registerFeedRoute(app: JobsApp): void {
 			// ── Unscored path ─────────────────────────────────────────────────────
 			// No profile: list the corpus (optionally per-user filtered), paginated
 			// in SQL. Scores are absent, so every row reports a neutral 0.
-			const countSql = `SELECT COUNT(*) as total FROM jobs j ${joinClause} ${whereClause}`;
+			//
+			// No company slice here — `profile_companies` is only ever joined for a
+			// profile, and this branch is the one without one — so the plain join
+			// order is the right one and no CROSS JOIN pinning is needed.
+			const plainBinds = [...userBinds, ...whereBinds];
+			const countSql = `SELECT COUNT(*) as total FROM jobs j ${userJoins} ${whereClause}`;
 			const countRow = await db
 				.prepare(countSql)
-				.bind(...binds)
+				.bind(...plainBinds)
 				.first<{ total: number }>();
 			const total = countRow?.total ?? 0;
 
@@ -593,19 +645,19 @@ export function registerFeedRoute(app: JobsApp): void {
 			const dataSql = `
 				SELECT
 					j.id, j.title, j.company, j.location, j.workplace_type,
-					j.salary_min, j.salary_max, j.source_site, j.url,
+					j.salary_min, j.salary_max, j.source_site, j.url, j.application_url,
 					j.posted_date, j.scraped_at, j.ats, j.slug,
 					j.role_track, j.role_level,
 					${stateCols}
 				FROM jobs j
-				${joinClause}
+				${userJoins}
 				${whereClause}
 				${orderBy}
 				LIMIT ? OFFSET ?`;
 
 			const rows = await db
 				.prepare(dataSql)
-				.bind(...binds, limit, offset)
+				.bind(...plainBinds, limit, offset)
 				.all<LightRow & HeavyRow>();
 
 			const jobs = rows.results.map((r) => ({
@@ -618,6 +670,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				salary_max: r.salary_max,
 				source_site: r.source_site,
 				url: r.url,
+				application_url: r.application_url,
 				posted_date: r.posted_date,
 				scraped_at: r.scraped_at,
 				ats: r.ats,

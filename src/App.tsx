@@ -307,6 +307,7 @@ function Dashboard({ auth }: { auth: Auth }) {
           voteOverrides={voteOverrides}
           onVote={onJobVoted}
           stateOverrides={stateOverrides}
+          onStateChange={onJobStateChanged}
           awaitingProfile={awaitingProfile}
           onSelect={(jobId, vote) => {
             const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
