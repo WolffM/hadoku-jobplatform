@@ -452,65 +452,35 @@ authedDescribe('triage state (V2)', () => {
   /**
    * Apply straight from the card (the "slam applications" path).
    *
-   * The button does two things at once — opens the posting in a new tab AND
-   * records the triage — so both halves are asserted here. The popup is caught
-   * rather than allowed to load: what matters is WHERE it was pointed, and
-   * actually fetching a live ATS page from a test would be slow and rude.
+   * This deliberately does NOT click through the whole sequence. A real click
+   * spends two LLM generations and leaves a queued application on the owner's
+   * dashboard — a test must not put work in a human's approval queue. What is
+   * asserted is the part that regressed before: that Apply is a BUTTON which
+   * hands the posting to the runner, not a link that navigates away.
    */
-  test('card Apply opens the posting and marks the job applied; cleanup', async ({
-    page,
-    request
-  }) => {
-    const sessionId = await freshSessionId(request)
-    const profileId = await firstProfileId(request)
+  test('card Apply is a runner hand-off, not a link out', async ({ page }) => {
+    await gotoAuthed(page, '/')
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
 
-    const list = await request.get(
-      `http://localhost:5173/jobplatform/api/jobs?limit=10&profile_id=${encodeURIComponent(profileId)}`,
-      { headers: { 'X-Session-Id': sessionId } }
-    )
-    const jobs = (
-      (await list.json()) as {
-        data: { jobs: Array<{ id: string; state: string; url: string }> }
-      }
-    ).data.jobs
-    const target = jobs.find(j => j.state === 'new') ?? jobs[0]
-    expect(target).toBeDefined()
-    await clearState(request, target.id, sessionId)
+    const card = page.locator('.jp-jobcard').first()
+    const apply = card.getByTestId('card-apply')
+    await expect(apply).toBeVisible()
+    await expect(apply).toBeEnabled()
+    // A link would carry href/target and take the tab off-site on click.
+    expect(await apply.evaluate(el => el.tagName)).toBe('BUTTON')
+    expect(await apply.getAttribute('href')).toBeNull()
+    await expect(apply).toHaveText('Apply')
 
-    try {
-      await gotoAuthed(page, `/?profile=${encodeURIComponent(profileId)}`)
-      await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+    // Opening the posting is still one click away — that is the source link.
+    const source = card.locator('.jp-jobcard__source--link')
+    await expect(source).toHaveAttribute('target', '_blank')
+    expect(await source.getAttribute('href')).toMatch(/^https?:\/\//)
+  })
 
-      const applyLink = page.locator('.jp-jobcard').first().getByTestId('card-apply')
-      await expect(applyLink).toBeVisible()
-      // It must be a real link, not a scripted window.open — that is what keeps
-      // the popup blocker out of the way once a state write is in flight.
-      const href = await applyLink.getAttribute('href')
-      expect(href).toMatch(/^https?:\/\//)
-      await expect(applyLink).toHaveAttribute('target', '_blank')
-
-      const setRespPromise = page.waitForResponse(
-        r => r.url().includes('/state') && r.request().method() === 'PUT' && r.ok()
-      )
-      const popupPromise = page.context().waitForEvent('page')
-      await applyLink.click()
-
-      const popup = await popupPromise
-      expect(popup.url()).toBe(href)
-      await popup.close()
-
-      const setBody = (await (await setRespPromise).json()) as {
-        data: { state: string; job_id: string }
-      }
-      expect(setBody.data.state).toBe('applied')
-
-      // The card badges from the optimistic override, without a feed refetch.
-      await expect(
-        page.getByTestId('card-state-badge').filter({ hasText: 'applied' }).first()
-      ).toBeVisible({ timeout: 10_000 })
-    } finally {
-      await clearState(request, target.id, sessionId)
-    }
+  test('card Apply is inert for a signed-out visitor', async ({ page }) => {
+    await page.goto('/jobplatform/')
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('.jp-jobcard').first().getByTestId('card-apply')).toBeDisabled()
   })
 
   test('public visitor cannot see triage filters or PUT state', async ({ page, request }) => {
