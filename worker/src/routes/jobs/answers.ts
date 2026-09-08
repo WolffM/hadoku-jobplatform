@@ -16,6 +16,7 @@ import {
 	isEffectiveUserError,
 	maybeUserId,
 	type JobsApp,
+	ownerNameQuery,
 } from './shared.js';
 
 /**
@@ -191,12 +192,7 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			tags: ['Answers'],
 			summary: "The caller's standing answers to application questions",
 			request: {
-				query: z.object({
-					ownerName: z.string().optional().openapi({
-						description:
-							"Act as this registry display name. SERVICE or ADMIN callers only — the form runner reads the owner's saved answers while authenticating as itself.",
-					}),
-				}),
+				query: ownerNameQuery,
 			},
 			responses: {
 				200: {
@@ -350,11 +346,7 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			tags: ['Answers'],
 			summary: 'Questions the runner could not answer, most costly first',
 			request: {
-				query: z.object({
-					ownerName: z.string().optional().openapi({
-						description: 'Act as this registry display name. SERVICE or ADMIN callers only.',
-					}),
-				}),
+				query: ownerNameQuery,
 			},
 			responses: {
 				200: {

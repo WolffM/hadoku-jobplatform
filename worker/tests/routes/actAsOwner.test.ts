@@ -107,6 +107,85 @@ describe('acting on behalf of a named owner', () => {
 		assert.equal(status, 200);
 	});
 
+	it('takes ownerName from the QUERY on a POST, not only from the body', async () => {
+		// The bug this holds shut: the POSTs read the body and the GETs read the
+		// query, so `POST /jobs/j1/apply?ownerName=Hadoku` was accepted, ignored,
+		// and the row queued onto the CALLER. Nothing in the response says so —
+		// it is a 200 with a valid-looking application belonging to the wrong
+		// person, and it is only visible when the owner's dashboard stays empty.
+		await seedJobState(h.db, {
+			job_id: 'j1',
+			user_id: HADOKU,
+			state: 'interested',
+			variant_slug: 'packet-1',
+		});
+		const { status } = await req('/jobs/j1/apply?ownerName=Hadoku', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({}),
+		});
+		assert.equal(status, 200);
+		const row = await h.db
+			.prepare('SELECT user_id FROM applications WHERE job_id = ?')
+			.bind('j1')
+			.first<{ user_id: string }>();
+		assert.equal(row?.user_id, HADOKU, 'the query form must reach the same person as the body');
+	});
+
+	it('rejects an unknown owner name given in the query, rather than silently using the caller', async () => {
+		// The tell that the parameter was being dropped: a name that resolves to
+		// nobody came back 200 instead of 404.
+		await seedJobState(h.db, {
+			job_id: 'j1',
+			user_id: HADOKU,
+			state: 'interested',
+			variant_slug: 'packet-1',
+		});
+		const { status, body } = await req('/jobs/j1/apply?ownerName=Nobody', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({}),
+		});
+		assert.equal(status, 404);
+		assert.equal(body.code, 'NAME_NOT_FOUND');
+	});
+
+	it('lets the body win when both name it', async () => {
+		await seedJobState(h.db, {
+			job_id: 'j1',
+			user_id: HADOKU,
+			state: 'interested',
+			variant_slug: 'packet-1',
+		});
+		const { status } = await req('/jobs/j1/apply?ownerName=Nobody', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({ ownerName: 'Hadoku' }),
+		});
+		assert.equal(status, 200, 'the body is the explicit one and outranks the query');
+	});
+
+	it('transitions a row using the query form too', async () => {
+		const now = new Date().toISOString();
+		await h.db
+			.prepare(
+				`INSERT INTO applications (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
+				 VALUES ('a3', ?, 'j1', 'v', 'review', 'queued', ?, ?)`
+			)
+			.bind(HADOKU, now, now)
+			.run();
+		const { status } = await req('/applications/a3/status?ownerName=Hadoku', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({ status: 'filled' }),
+		});
+		assert.equal(status, 200);
+	});
+
 	it("reads the owner's question queue", async () => {
 		// The queue is derived from the owner's applications, so it has to be
 		// scoped the same way. Missing this left the reassignment looking like

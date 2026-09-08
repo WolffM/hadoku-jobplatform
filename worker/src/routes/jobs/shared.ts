@@ -1,4 +1,4 @@
-import type { OpenAPIHono } from '@hono/zod-openapi';
+import { z, type OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
 import type { Fetcher } from '@cloudflare/workers-types';
@@ -10,6 +10,19 @@ export interface RouteContext {
 	Bindings: AppEnv;
 	Variables: { authContext: HadokuAuthContext };
 }
+
+/**
+ * `?ownerName=` — declared on every route that honours it, GET and POST alike.
+ *
+ * The POSTs also take it in the body and the body wins; this is the half that
+ * is discoverable from the schema. See `effectiveUserId` for why both are read.
+ */
+export const ownerNameQuery = z.object({
+	ownerName: z.string().optional().openapi({
+		description:
+			"Act as this registry display name. SERVICE or ADMIN callers only — this is how the PC-side runner reaches the owner's rows while authenticating as itself. Resolved against the key registry; never stored.",
+	}),
+});
 
 /** The app every module in this directory registers onto. */
 export type JobsApp = OpenAPIHono<RouteContext>;
@@ -134,6 +147,17 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  * The name is resolved, never trusted (R5). What comes back is a userId from
  * the registry; `ownerName` itself never reaches a database column.
  *
+ * IT IS READ FROM THE BODY *OR* THE QUERY, and the body wins. The routes split
+ * on method — a GET has no body, a POST validates one — so the same caller had
+ * to remember which shape each route wanted, and a POST silently ignored
+ * `?ownerName=` and queued onto the CALLER's rows instead. That failure is
+ * invisible from the response: the write succeeds, returns 200, and reports a
+ * perfectly valid application that simply belongs to the wrong person. It cost
+ * a debugging round on 2026-09-07 and would have cost another one every time.
+ * Reading both here rather than per-route means no future route can reintroduce
+ * it. Accepting the query adds no privilege: the service-or-admin gate below
+ * and the resolve-never-trust rule apply to the value whatever carried it.
+ *
  * IT IS CALLED `ownerName`, NOT `owner`, AND THAT IS LOAD-BEARING. The field
  * carries a display NAME to be resolved — never an already-resolved identity —
  * and `owner` is one of the names the identity-model contract reserves for the
@@ -147,12 +171,16 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  */
 export async function effectiveUserId(
 	c: {
-		req: { header: (name: string) => string | undefined };
+		req: {
+			header: (name: string) => string | undefined;
+			query?: (name: string) => string | undefined;
+		};
 		get: (k: 'authContext') => HadokuAuthContext;
 		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string };
 	},
 	ownerName: string | undefined
 ): Promise<EffectiveUser> {
+	const named = ownerName?.trim() ? ownerName : c.req.query?.('ownerName');
 	const callerId = await maybeUserId(c);
 	if (!callerId) {
 		return {
@@ -162,7 +190,7 @@ export async function effectiveUserId(
 			},
 		};
 	}
-	if (!ownerName || !ownerName.trim()) return { userId: callerId, onBehalfOf: null };
+	if (!named || !named.trim()) return { userId: callerId, onBehalfOf: null };
 
 	if (!tierAtLeast(c.get('authContext'), 'service')) {
 		return {
@@ -179,7 +207,7 @@ export async function effectiveUserId(
 
 	const resolved = await resolveGranteeVia(c.env.EDGE, {
 		serviceKey: c.env.SCRAPER_USER_KEY ?? '',
-		name: ownerName,
+		name: named,
 	});
 	if (isIdentityError(resolved)) {
 		// The three codes mean different things; 503 especially must not read as
