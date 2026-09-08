@@ -64,6 +64,10 @@ export default [
 				process: 'readonly',
 				setTimeout: 'readonly',
 				clearTimeout: 'readonly',
+				// A workers-types type, used only in the cast that hands miniflare a
+				// stub ctx. It is a TYPE, so `no-undef` — which cannot tell types
+				// from values in TS — flagged it as an undefined global.
+				ExecutionContext: 'readonly',
 			},
 		},
 	},

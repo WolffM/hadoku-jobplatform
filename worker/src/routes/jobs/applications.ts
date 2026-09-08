@@ -15,6 +15,7 @@ import {
 	isEffectiveUserError,
 	maybeUserId,
 	type JobsApp,
+	ownerNameQuery,
 } from './shared.js';
 
 /**
@@ -154,6 +155,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			summary: 'Queue this job for the form runner (requires a minted packet)',
 			request: {
 				params: z.object({ id: z.string() }),
+				query: ownerNameQuery,
 				body: {
 					content: { 'application/json': { schema: ApplyRequestSchema } },
 					required: false,
@@ -281,13 +283,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			tags: ['Applications'],
 			summary: "List the caller's queued applications, newest first",
 			request: {
-				query: z.object({
-					status: ApplicationStatusSchema.optional(),
-					ownerName: z.string().optional().openapi({
-						description:
-							"Act as this registry display name. SERVICE or ADMIN callers only — this is how the PC-side runner reads the owner's queue while authenticating as itself. Resolved against the key registry; never stored.",
-					}),
-				}),
+				query: ownerNameQuery.extend({ status: ApplicationStatusSchema.optional() }),
 			},
 			responses: {
 				200: {
@@ -353,6 +349,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			summary: 'Record a status transition (runner endpoint; loose for v1)',
 			request: {
 				params: z.object({ id: z.string() }),
+				query: ownerNameQuery,
 				body: { content: { 'application/json': { schema: SetApplicationStatusSchema } } },
 			},
 			responses: {
