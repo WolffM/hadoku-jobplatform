@@ -234,17 +234,23 @@ combobox that refuses a value leaves the field empty while the page still report
 
 ## 7. Open decisions — for the owner, not for you to pick
 
-**1. `PUT /application-answers` cannot act on behalf of an owner.**
-Verified: the PUT and `DELETE /application-answers/{key}` use `maybeUserId(c)`,
-so they are caller-only, while the matching GET supports `ownerName`. A service
-can _read_ the owner's standing answers but cannot _write_ one.
+**1. ~~`PUT /application-answers` cannot act on behalf of an owner.~~ DECIDED
+2026-09-08 by the owner: it was an oversight. Fixed — both the PUT and
+`DELETE /application-answers/{key}` now take `ownerName` like their neighbours.**
 
-This is arguably right — a screening answer is the owner's own statement, like
-approval — but it is nowhere documented as deliberate, and it is inconsistent
-with `POST /applications/:id/status`, which a service _does_ write on the owner's
-behalf. You will hit this the moment you try to clear the six Pinterest questions
-programmatically. **Ask before changing it**: if it is deliberate it should be
-commented; if it is an oversight it should take `ownerName` like its neighbours.
+The PUT reads it from the body or the query and prefers the body, matching
+`POST /jobs/:id/apply`; the DELETE has no body, so the query is its only
+channel. Five tests in `worker/tests/routes/actAsOwner.test.ts` cover it, and I
+confirmed four of them fail against the old handlers by reverting — the fifth
+("still writes to the caller when no owner is named") is the no-regression
+guard and passes either way.
+
+**The asymmetry with `POST /applications/:id/approve` is deliberate and stays**,
+and the reason is now a comment on `SetAnswerSchema` so nobody has to re-derive
+it: approval is CONSENT to send a specific filled form, and a service must never
+give it. A standing answer is a fact about the owner that the runner already
+collects from them; storing one sends nothing. Those are different things, and
+only one of them is a consent gate.
 
 **2. Board application limits are unmodelled.** Nothing tracks how many
 applications we have sent to one employer, or any per-board cap. Not urgent while

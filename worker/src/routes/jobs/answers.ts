@@ -14,7 +14,6 @@ import {
 	effectiveUserId,
 	gateAuthed,
 	isEffectiveUserError,
-	maybeUserId,
 	type JobsApp,
 	ownerNameQuery,
 } from './shared.js';
@@ -41,11 +40,9 @@ interface AnswerRow {
 	updated_at: string;
 }
 
-const FORBIDDEN = {
-	success: false as const,
-	error: 'Forbidden',
-	message: 'Authentication required',
-};
+// The 403 for an unauthenticated caller now comes from `effectiveUserId`, which
+// every handler in this file routes through — so the local copy is gone rather
+// than left as a second place the same message could drift.
 
 /** Every question this user has been unable to answer, with what it blocked. */
 async function unansweredQuestions(db: D1Database, userId: string) {
@@ -238,7 +235,10 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			path: '/application-answers',
 			tags: ['Answers'],
 			summary: 'Save (or replace) the answer to one question',
-			request: { body: { content: { 'application/json': { schema: SetAnswerSchema } } } },
+			request: {
+				query: ownerNameQuery,
+				body: { content: { 'application/json': { schema: SetAnswerSchema } } },
+			},
 			responses: {
 				200: {
 					description: 'Saved',
@@ -252,12 +252,25 @@ export function registerAnswerRoutes(app: JobsApp): void {
 					description: 'Forbidden',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
-			const { question, answer } = c.req.valid('json');
+			const { question, answer, ownerName } = c.req.valid('json');
+			const who = await effectiveUserId(c, ownerName);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const key = questionKey(question);
 			if (!key) {
 				// A question of nothing but punctuation normalizes away entirely,
@@ -307,7 +320,13 @@ export function registerAnswerRoutes(app: JobsApp): void {
 			path: '/application-answers/{key}',
 			tags: ['Answers'],
 			summary: 'Forget one standing answer',
-			request: { params: z.object({ key: z.string() }) },
+			request: {
+				params: z.object({ key: z.string() }),
+				// No body on a DELETE, so the query string is the only way to name
+				// an owner here — unlike the PUT, which reads either and prefers
+				// the body.
+				query: ownerNameQuery,
+			},
 			responses: {
 				200: {
 					description: 'Deleted (or was already absent)',
@@ -317,11 +336,25 @@ export function registerAnswerRoutes(app: JobsApp): void {
 					description: 'Forbidden',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
-			const userId = await maybeUserId(c);
-			if (!userId) return c.json(FORBIDDEN, 403);
+			const { ownerName } = c.req.valid('query');
+			const who = await effectiveUserId(c, ownerName);
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const { key } = c.req.valid('param');
 			const db = c.env.JOB_PLATFORM_DB;
 			await db

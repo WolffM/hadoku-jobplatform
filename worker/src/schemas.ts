@@ -358,6 +358,20 @@ export const SetAnswerSchema = z
 		 * forever with no way to dismiss it.
 		 */
 		answer: z.string(),
+		/**
+		 * Save this answer for the named person instead of the caller. SERVICE or
+		 * ADMIN only, resolved against the registry; the string never reaches a
+		 * database column (R5).
+		 *
+		 * A standing answer is the owner's own statement, which is an argument for
+		 * keeping this caller-only — the same argument that keeps `ownerName` off
+		 * `POST /applications/:id/approve`. The owner decided otherwise on
+		 * 2026-09-08, and the two cases are not alike: approval is CONSENT to send
+		 * a specific filled form, while an answer is a fact about the owner that
+		 * the runner already collects from them and merely stores here. Writing one
+		 * on their behalf sends nothing.
+		 */
+		ownerName: z.string().optional(),
 	})
 	.openapi('SetAnswer');
 
