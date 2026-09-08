@@ -1,4 +1,5 @@
 import type { FeedbackReason, JobSummary, VoteValue } from '../api/jobs'
+import type { ApplyPhase, ApplyStatus } from '../api/applyQueue'
 import type { Auth } from '../api/auth'
 import { VoteControl } from './VoteControl'
 
@@ -11,10 +12,11 @@ interface Props {
   voteReasons: FeedbackReason[]
   onClick: () => void
   onVote: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
-  // Apply straight from the card: open the posting and mark it applied. The
-  // list owns the write so one handler covers every card, and so the failure
-  // message has somewhere to live.
+  // Hand this posting to the form runner. The list owns the call so one
+  // handler covers every card, and so the shared queue has one caller.
   onApply: (jobId: string) => void
+  // Where this job is in that sequence, when it has been started this session.
+  applyStatus?: ApplyStatus
 }
 
 function formatSalary(min: number | null, max: number | null): string | null {
@@ -34,6 +36,23 @@ function formatDate(iso: string | null): string | null {
   return d.toLocaleDateString()
 }
 
+/**
+ * What the button says at each step.
+ *
+ * It narrates rather than spinning, because the sequence is genuinely slow
+ * (two LLM generations) and a card that just says "…" for thirty seconds is
+ * indistinguishable from one that has hung. "Queued" is the honest end state:
+ * the runner has not filled anything yet, and nothing has been sent.
+ */
+const APPLY_LABEL: Record<ApplyPhase, string> = {
+  idle: 'Apply',
+  waiting: 'Waiting…',
+  preparing: 'Tailoring…',
+  queueing: 'Queueing…',
+  queued: 'Queued ✓',
+  error: 'Retry'
+}
+
 function scoreTier(score: number): 'high' | 'mid' | 'low' {
   if (score >= 0.75) return 'high'
   if (score >= 0.5) return 'mid'
@@ -48,7 +67,8 @@ export function JobCard({
   voteReasons,
   onClick,
   onVote,
-  onApply
+  onApply,
+  applyStatus
 }: Props) {
   const salary = formatSalary(job.salary_min, job.salary_max)
   const posted = formatDate(job.posted_date ?? job.scraped_at)
@@ -59,6 +79,10 @@ export function JobCard({
   // Same signal for triage: unauthed, Apply is a plain link to the posting and
   // marks nothing, because there is no user to mark it for.
   const canMark = canVote
+  const phase = applyStatus?.phase ?? 'idle'
+  // Any phase between the click and the answer. The button is inert through
+  // all of them so a second click cannot enqueue the same posting twice.
+  const busy = phase === 'waiting' || phase === 'preparing' || phase === 'queueing'
 
   const cardClasses = ['jp-jobcard']
   if (tier) cardClasses.push(`jp-jobcard--score-${tier}`)
@@ -131,33 +155,32 @@ export function JobCard({
         </a>
         {posted && <span>{posted}</span>}
         {/*
-          Apply without opening the drawer. It is an <a target="_blank"> rather
-          than a button that calls window.open, because the popup blocker only
-          spares a real user-gesture navigation — and marking the job applied is
-          an await, so a window.open after it would be blocked.
+          Apply WITHOUT leaving the feed: this hands the posting to the form
+          runner rather than opening the employer's site. Opening a tab is
+          still one click away — that is what the source link to the left is —
+          but it is no longer what the button labelled Apply does.
 
-          Marking is optimistic and deliberately does not wait for the tab: the
-          point is ripping through a feed, and a state write that has to be
-          confirmed before the next card is the thing that made it slow.
+          The click only ever ENQUEUES. Each job costs two LLM generations, so
+          the shared lane in applyQueue.ts runs them one at a time; a card
+          clicked while another is running says "waiting" and still lands.
         */}
-        <a
-          className="jp-jobcard__apply"
-          href={job.application_url ?? job.url}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
+          className={`jp-jobcard__apply jp-jobcard__apply--${phase}`}
           data-testid="card-apply"
+          disabled={!canMark || busy || phase === 'queued'}
           title={
             canMark
-              ? 'Open the application form and mark this applied'
-              : 'Open the application form'
+              ? 'Build the application packet and hand it to the form runner'
+              : 'Sign in to hand postings to the runner'
           }
           onClick={e => {
             e.stopPropagation()
             if (canMark) onApply(job.id)
           }}
         >
-          {job.state === 'applied' ? 'Applied ↗' : 'Apply ↗'}
-        </a>
+          {APPLY_LABEL[phase]}
+        </button>
       </div>
     </div>
   )

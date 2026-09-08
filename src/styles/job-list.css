@@ -230,9 +230,11 @@
 }
 
 /*
- * Apply, straight off the card. `margin-left: auto` pins it to the trailing
- * edge so it sits in the same place on every row — the whole point is that it
- * can be hit repeatedly without re-aiming.
+ * Apply, straight off the card — the runner hand-off, not a link out.
+ *
+ * `margin-left: auto` pins it to the trailing edge so it sits in the same
+ * place on every row: the whole point is that it can be hit repeatedly
+ * without re-aiming.
  *
  * Filled primary surface, so `--color-on-primary` is the only legible text
  * token here; the -bg/on--bg pair is for tint badges, not for this.
@@ -240,35 +242,59 @@
 .jp-jobcard__apply {
   margin-left: auto;
   padding: 3px var(--hdk-space-md);
+  border: none;
   border-radius: var(--hdk-radius-sm);
   background-color: var(--color-primary);
   color: var(--color-on-primary);
   font-size: var(--hdk-text-xs);
   font-weight: var(--font-weight-semibold);
-  text-decoration: none;
+  font-family: inherit;
   white-space: nowrap;
+  cursor: pointer;
+  /*
+   * The label changes length as the sequence advances (Apply -> Tailoring… ->
+   * Queued ✓). Without a floor the button resizes under the cursor mid-rip and
+   * the next card's button lands somewhere else.
+   */
+  min-width: 5.5rem;
+  text-align: center;
 }
 
-.jp-jobcard__apply:hover,
-.jp-jobcard__apply:focus-visible {
+.jp-jobcard__apply:hover:not(:disabled),
+.jp-jobcard__apply:focus-visible:not(:disabled) {
   background-color: var(--color-primary-hover);
   color: var(--color-on-primary);
 }
 
 /*
- * Already applied: the button stays where it is (so the row does not reflow
- * under the cursor mid-rip) but stops advertising itself, since pressing it
- * again only reopens a form that has been sent.
+ * In flight. Dimmed rather than spinner'd — the sequence is two LLM calls and
+ * can run half a minute, and a card is one row among many.
  */
-.jp-jobcard--state-applied .jp-jobcard__apply {
-  background-color: var(--color-neutral-bg);
-  color: var(--color-text-secondary);
+.jp-jobcard__apply:disabled {
+  cursor: default;
+  opacity: 0.75;
 }
 
-.jp-jobcard--state-applied .jp-jobcard__apply:hover,
-.jp-jobcard--state-applied .jp-jobcard__apply:focus-visible {
-  background-color: var(--color-neutral-bg);
-  color: var(--color-text);
+/*
+ * Queued is a TINT, not a filled success surface. It deliberately reads
+ * quieter than the un-pressed button: nothing has been applied to yet, and a
+ * loud green tick here is exactly the "it's done" misreading to avoid.
+ */
+.jp-jobcard__apply--queued {
+  background-color: var(--color-success-bg);
+  color: var(--color-on-success-bg);
+  opacity: 1;
+}
+
+.jp-jobcard__apply--error {
+  background-color: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.jp-jobcard__apply--error:hover:not(:disabled),
+.jp-jobcard__apply--error:focus-visible:not(:disabled) {
+  background-color: var(--color-danger-dark);
+  color: var(--color-on-danger);
 }
 
 /*

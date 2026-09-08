@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   getJob,
   setJobState,
-  generateResume,
-  generateCoverLetter,
   generateApplicationExtras,
   mintPacketLink,
   queueApplication,
@@ -19,6 +17,7 @@ import {
 import type { Auth } from '../api/auth'
 import { invalidateResource } from '../api/resource'
 import { useResource } from '../api/useResource'
+import { prepareApplicationPacket } from '../api/applyQueue'
 import { VoteControl } from './VoteControl'
 
 interface Props {
@@ -261,73 +260,46 @@ export function JobDrawer({
    * Returns the slug rather than leaning on `packetSlug` state, because Apply
    * calls this and then queues in the same tick — the setState above has not
    * landed by then, so reading it back would queue against `null`.
+   *
+   * The generation sequence itself lives in `api/applyQueue.ts`, shared with
+   * the feed cards: two LLM calls per posting, and the drawer must not open a
+   * second lane beside a feed rip that is already running.
    */
   const prepareApplication = async (): Promise<string | null> => {
     if (preparing) return null
     setPreparing(true)
     setPacketError(null)
     setExtrasError(null)
-    // A fresh preparation invalidates any previously minted link + extras.
     setExtras(null)
     setPacketLink(null)
     setPacketSlug(null)
     setLinkError(null)
     setCopied(false)
     try {
-      // Two sequenced Groq requests. The résumé (itself block-selection +
-      // rewrite) is the token-heavy one, so it runs alone first; then a single
-      // application-extras call returns the cover letter AND the rest of the kit
-      // together. Firing the cover letter and extras as separate back-to-back
-      // calls used to stack past Groq's per-minute token cap so the trailing one
-      // (extras) 500'd — leaving a cold packet with a résumé + cover but no kit.
-      const resume = await generateResume(jobId, auth)
-      // Surface the résumé the moment it lands; the cover letter + kit fill in.
-      setPacket({ resume: resume.resume_markdown, coverLetter: '' })
-
+      const built = await prepareApplicationPacket(jobId, auth, () => {
+        // The drawer already renders its own "Preparing…" affordance.
+      })
+      setPacket({ resume: built.resume, coverLetter: built.coverLetter })
+      setPacketLink(built.url)
+      setPacketSlug(built.slug)
+      // The kit is fetched separately here (and only here): the feed never
+      // shows it, so applyQueue does not carry it, but the drawer's copy
+      // blocks are the whole point of opening a posting.
       try {
-        const kit = await generateApplicationExtras(
-          jobId,
-          { resume_markdown: resume.resume_markdown },
-          auth
-        )
-        // The cover letter now comes back with the kit; fall back to a separate
-        // fetch only if it didn't (older resume-api, or the model dropped it).
-        const coverLetter =
-          kit.cover_letter_markdown ||
-          (await generateCoverLetter(jobId, auth)).cover_letter_markdown
-        setPacket({ resume: resume.resume_markdown, coverLetter })
+        const kit = await generateApplicationExtras(jobId, { resume_markdown: built.resume }, auth)
         setExtras(kit)
-        // Auto-mint: preparing an application IS creating the packet. The mint
-        // is instant (no LLM) and records the slug on the job, so the Packets
-        // view always finds it — the owner generated two kits that vanished
-        // because this was a separate button. Failure is non-fatal; the manual
-        // link button remains.
-        try {
-          const { url, slug } = await mintPacketLink(
-            jobId,
-            {
-              resume_markdown: resume.resume_markdown,
-              ...(coverLetter ? { cover_letter_markdown: coverLetter } : {})
-            },
-            auth
-          )
-          setPacketLink(url)
-          setPacketSlug(slug)
-          return slug
-        } catch {
-          // leave the manual "Create link" path available
-        }
       } catch (err) {
         setExtrasError(
           err instanceof JobsApiError ? err.message : 'Failed to generate the application kit'
         )
       }
+      return built.slug
     } catch (err) {
       setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate résumé')
+      return null
     } finally {
       setPreparing(false)
     }
-    return null
   }
 
   const handlePrepare = () => void prepareApplication()

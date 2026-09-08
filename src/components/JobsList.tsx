@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   listJobs,
-  setJobState,
-  JobsApiError,
   type JobStateRead,
   type FeedbackReason,
   type JobSort,
-  type VoteValue
+  type VoteValue,
+  JobsApiError
 } from '../api/jobs'
-import { invalidateResource } from '../api/resource'
+import { enqueueApply, type ApplyStatus } from '../api/applyQueue'
 import type { Auth } from '../api/auth'
 import { useResource } from '../api/useResource'
 import { JobCard } from './JobCard'
@@ -30,9 +29,6 @@ interface Props {
   // card reflects it immediately, instead of the feed re-ranking 30k rows to
   // learn that one badge changed.
   stateOverrides: Record<string, JobStateRead>
-  // Where a card's own Apply reports the state it just wrote, so the badge and
-  // the drawer agree without the feed re-ranking the corpus.
-  onStateChange: (jobId: string, state: JobStateRead) => void
   // Hold the request while the sidebar is still resolving which profile is
   // selected. Without it the feed fires an unscored request on mount and
   // discards the answer a moment later, when the sidebar picks a profile.
@@ -56,11 +52,12 @@ export function JobsList({
   voteOverrides,
   onVote,
   stateOverrides,
-  onStateChange,
   awaitingProfile
 }: Props) {
   const [page, setPage] = useState(1)
-  const [applyError, setApplyError] = useState<string | null>(null)
+  // Per-job progress through the prepare→queue sequence, for cards started
+  // this session. Keyed by job id so a card narrates only its own run.
+  const [applyStatus, setApplyStatus] = useState<Record<string, ApplyStatus>>({})
 
   const [sort, setSort] = useState<JobSort>('score')
   // Salary is a view control, not a profile criterion — it narrows what you're
@@ -142,36 +139,59 @@ export function JobsList({
   }, [patched, search, effectiveHideDismissed])
 
   /**
-   * Apply from the card: the browser is already opening the posting in a new
-   * tab (the card renders a real link, so the popup blocker leaves it alone),
-   * and this records the triage that used to cost a trip through the drawer.
+   * Hand this posting to the form runner.
    *
-   * Optimistic on purpose. The badge flips from the override the moment the
-   * click lands, and only a FAILED write is worth stopping for — which is why
-   * the error is a line above the list rather than a revert: the tab is open
-   * either way, and silently un-marking a job the owner did apply to is the
-   * worse of the two wrong answers.
+   * Deliberately does NOT mark the job applied: nothing has been applied to at
+   * this point, and nothing will be until the runner fills the form and the
+   * owner approves the screenshot. The card reports the true state — queued —
+   * and the Applications tab is where it moves from there.
    */
   const handleApply = useCallback(
     (jobId: string) => {
-      setApplyError(null)
-      onStateChange(jobId, 'applied')
-      void setJobState(jobId, 'applied', auth)
-        .then(() => {
-          // The cached posting still carries the old state, so reopening this
-          // job in the drawer would show it. Drop it; the next open re-reads.
-          invalidateResource(`job:${jobId}:`)
-        })
-        .catch((err: unknown) => {
-          setApplyError(
-            err instanceof JobsApiError
-              ? `Couldn’t mark that applied: ${err.message}`
-              : 'Couldn’t mark that applied — the posting still opened.'
-          )
-        })
+      void enqueueApply(jobId, auth, status =>
+        setApplyStatus(prev => ({ ...prev, [jobId]: status }))
+      )
     },
-    [auth, onStateChange]
+    [auth]
   )
+
+  /**
+   * One line above the list summarising every hand-off started this session.
+   *
+   * It exists to say the thing the button cannot fit: queueing is not sending.
+   * The runner has to be run, and the owner still approves each filled form
+   * before anything leaves. A card that just went green would otherwise read
+   * as "applied", which is the misunderstanding this whole control invites.
+   */
+  const applyNotice = useMemo(() => {
+    const all = Object.values(applyStatus)
+    if (all.length === 0) return null
+    const queued = all.filter(s => s.phase === 'queued').length
+    const working = all.filter(
+      s => s.phase === 'waiting' || s.phase === 'preparing' || s.phase === 'queueing'
+    ).length
+    const failed = all.filter(s => s.phase === 'error')
+    return (
+      <>
+        {(queued > 0 || working > 0) && (
+          <p className="jp-muted">
+            {queued > 0 && `${queued} queued for the runner`}
+            {queued > 0 && working > 0 && ' · '}
+            {working > 0 && `${working} still tailoring`}
+            {queued > 0 &&
+              ' — nothing is sent yet. Run the form runner, then approve each filled form under Applications.'}
+          </p>
+        )}
+        {failed.length > 0 && (
+          <p className="jp-error">
+            {failed.length === 1
+              ? failed[0].error
+              : `${failed.length} postings could not be handed to the runner — press Retry on a card for its reason.`}
+          </p>
+        )}
+      </>
+    )
+  }, [applyStatus])
 
   const totalPages = Math.max(1, Math.ceil(total / limit))
   // Auth-gated filters: the API requires admin/friend for state=.
@@ -249,7 +269,7 @@ export function JobsList({
       )}
 
       {error && <p className="jp-error">{error}</p>}
-      {applyError && <p className="jp-error">{applyError}</p>}
+      {applyNotice}
 
       {loading ? (
         <p className="jp-muted">Loading jobs…</p>
@@ -274,6 +294,7 @@ export function JobsList({
                   onClick={() => onSelect(job.id, vote)}
                   onVote={onVote}
                   onApply={handleApply}
+                  applyStatus={applyStatus[job.id]}
                 />
               </li>
             )
