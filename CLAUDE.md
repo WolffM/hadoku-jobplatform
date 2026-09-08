@@ -102,6 +102,18 @@ pre-flight auth check.
   key and one-off probe. `POST /ingest/rebuild-rank` remains as the operator's
   override, for when the SCORER changes (the criteria hash covers the profile,
   not the code).
+- **The feed's candidate query pins its own join order, and must keep doing
+  so.** `job_profile_rank` covers every job, not a profile's slice, so with
+  `ORDER BY r.bound DESC` in view SQLite leads with the rank index and probes
+  `jobs` + `profile_companies` per row it walks. On a 3-company profile (953 of
+  33,103 jobs) `LIMIT 800` then never fills until nearly the whole corpus has
+  been walked — 61,673 rows and ~1.97s of SQL per request, which also starves
+  every other request in the isolate (a deep link to one posting waits behind
+  its own feed). Leading with `profile_companies` costs 2,866 rows and 32ms.
+  `CROSS JOIN` is what pins it; a CTE, even `AS MATERIALIZED`, does not.
+  Rewriting those back to plain `INNER JOIN`s reintroduces the whole regression
+  silently — `worker/tests/routes/jobsRank.test.ts` guards the RESULT, not the
+  plan, so it will not catch that.
 - **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
   (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
   reads `GET /directives` (the union of every profile's companies + keywords)
