@@ -298,3 +298,100 @@ describe('only a service or admin may act as someone else', () => {
 		}
 	});
 });
+
+/**
+ * Standing answers, written on the owner's behalf.
+ *
+ * The GET here has always taken `ownerName`; the PUT and DELETE did not, so a
+ * service could read the owner's answers but never store one — which meant the
+ * runner could be blocked on six screening questions it had no way to resolve
+ * except by a human opening the dashboard.
+ *
+ * The asymmetry with `POST /applications/:id/approve` is deliberate and stays:
+ * approval is CONSENT to send a specific filled form, so it is owner-only. An
+ * answer is a fact about the owner that writing does not send anywhere.
+ */
+describe('standing answers on behalf of a named owner', () => {
+	const put = (body: Record<string, unknown>, init: Record<string, unknown>) =>
+		req<{ data: { answer: { question_key: string } } }>('/application-answers', {
+			method: 'PUT',
+			body: JSON.stringify(body),
+			...init,
+		});
+
+	const storedFor = async (userId: string) =>
+		(
+			await h.db
+				.prepare('SELECT question, answer FROM application_answers WHERE user_id = ?')
+				.bind(userId)
+				.all<{ question: string; answer: string }>()
+		).results;
+
+	it('stores the answer under the OWNER, not the service', async () => {
+		const { status } = await put(
+			{
+				question: 'What U.S State do you currently reside in?',
+				answer: 'Washington',
+				ownerName: 'Hadoku',
+			},
+			{ tier: 'service', userId: SERVICE }
+		);
+		assert.equal(status, 200);
+
+		assert.deepEqual(
+			(await storedFor(HADOKU)).map((r) => r.answer),
+			['Washington'],
+			'the answer must land on the person the runner is acting for'
+		);
+		assert.deepEqual(await storedFor(SERVICE), [], 'and nothing on the service itself');
+	});
+
+	it('lets the service delete one on the owner’s behalf, by query', async () => {
+		await put(
+			{ question: 'Website', answer: 'https://hadoku.me', ownerName: 'Hadoku' },
+			{ tier: 'service', userId: SERVICE }
+		);
+		const key = (await storedFor(HADOKU)).length;
+		assert.equal(key, 1, 'seeded');
+
+		// DELETE carries no body, so the query string is the only channel.
+		const { status } = await req('/application-answers/website?ownerName=Hadoku', {
+			method: 'DELETE',
+			tier: 'service',
+			userId: SERVICE,
+		});
+		assert.equal(status, 200);
+		assert.deepEqual(await storedFor(HADOKU), [], 'the owner’s answer is gone');
+	});
+
+	it('refuses a friend-tier caller naming someone else', async () => {
+		const { status, body } = await put(
+			{ question: 'Website', answer: 'https://evil.example', ownerName: 'Hadoku' },
+			{ tier: 'friend', userId: 'some-human' }
+		);
+		assert.equal(status, 403, 'a signed-in human must not write to another person’s answers');
+		assert.match(body.message, /service or admin/i);
+		assert.deepEqual(await storedFor(HADOKU), []);
+	});
+
+	it('still writes to the caller when no owner is named', async () => {
+		const { status } = await put(
+			{ question: 'Website', answer: 'https://mine.example' },
+			{ tier: 'friend', userId: 'some-human' }
+		);
+		assert.equal(status, 200);
+		assert.deepEqual(
+			(await storedFor('some-human')).map((r) => r.answer),
+			['https://mine.example']
+		);
+	});
+
+	it('404s on a name that cannot be resolved, rather than writing to the caller', async () => {
+		const { status } = await put(
+			{ question: 'Website', answer: 'https://nope.example', ownerName: 'Nobody' },
+			{ tier: 'service', userId: SERVICE }
+		);
+		assert.equal(status, 404, 'the one-request test: an unresolvable name must never 200');
+		assert.deepEqual(await storedFor(SERVICE), [], 'and must not fall back to the caller');
+	});
+});
