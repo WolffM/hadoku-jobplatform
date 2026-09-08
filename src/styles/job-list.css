@@ -230,6 +230,48 @@
 }
 
 /*
+ * Apply, straight off the card. `margin-left: auto` pins it to the trailing
+ * edge so it sits in the same place on every row — the whole point is that it
+ * can be hit repeatedly without re-aiming.
+ *
+ * Filled primary surface, so `--color-on-primary` is the only legible text
+ * token here; the -bg/on--bg pair is for tint badges, not for this.
+ */
+.jp-jobcard__apply {
+  margin-left: auto;
+  padding: 3px var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.jp-jobcard__apply:hover,
+.jp-jobcard__apply:focus-visible {
+  background-color: var(--color-primary-hover);
+  color: var(--color-on-primary);
+}
+
+/*
+ * Already applied: the button stays where it is (so the row does not reflow
+ * under the cursor mid-rip) but stops advertising itself, since pressing it
+ * again only reopens a form that has been sent.
+ */
+.jp-jobcard--state-applied .jp-jobcard__apply {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text-secondary);
+}
+
+.jp-jobcard--state-applied .jp-jobcard__apply:hover,
+.jp-jobcard--state-applied .jp-jobcard__apply:focus-visible {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-text);
+}
+
+/*
  * A refresh happens over the list that is already on screen — the rows stay
  * put and are dimmed while the new page lands, instead of being replaced by a
  * "Loading jobs…" line. Only a cold read with nothing cached still blanks.

@@ -48,6 +48,12 @@ export interface JobSummary {
   salary_max: number | null
   source_site: string
   url: string
+  /**
+   * Where the form actually lives, when the posting names somewhere other than
+   * `url`. The card's Apply uses `application_url ?? url` — the same expression
+   * the drawer uses — so the two buttons can never open different pages.
+   */
+  application_url: string | null
   posted_date: string | null
   scraped_at: string
   ats: string | null
@@ -77,7 +83,6 @@ export interface JobSummary {
 export interface JobDetail extends JobSummary {
   job_type: string
   description: string
-  application_url: string | null
   department: string | null
   scraper_used: string | null
   run_id: string | null

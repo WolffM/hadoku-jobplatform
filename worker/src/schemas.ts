@@ -109,6 +109,13 @@ export const JobSummarySchema = z
 		salary_max: z.number().nullable(),
 		source_site: z.string(),
 		url: z.string(),
+		/**
+		 * Where the form actually lives, when the posting names somewhere other
+		 * than `url`. The feed carries it so a card's Apply lands on the same
+		 * page the drawer's does — an Apply button that opens a different URL
+		 * depending on which one you pressed is worse than no button.
+		 */
+		application_url: z.string().nullable(),
 		posted_date: z.string().nullable(),
 		scraped_at: z.string(),
 		ats: z.string().nullable(),
@@ -134,13 +141,12 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	 * Whether the form runner has an adapter for this posting. A PREDICTION
 	 * read off the URL — no page has been opened. See worker/src/applyTier.ts.
 	 *
-	 * Detail-only, not on JobSummary, for two reasons. The feed's first pass is
-	 * deliberately light over tens of thousands of rows and does not select
-	 * `application_url`; computing the tier from `url` instead would disagree
-	 * with this field on exactly the embedded case — a Greenhouse posting whose
-	 * board URL looks supported while its real application URL is the
-	 * employer's own site. An indicator that contradicts itself between the
-	 * card and the drawer is worse than no indicator.
+	 * Detail-only, still, though the reason has narrowed: the feed now carries
+	 * `application_url` (stage 2 selects it for the shortlist only, never for
+	 * the whole corpus), so a card COULD compute the same tier this does. What
+	 * is missing is the other half of the pair — `apply_verified` costs a query
+	 * per board, and a tier shown without the evidence beside it reads as a
+	 * check when it is a guess. The card links; the drawer explains.
 	 */
 	/**
 	 * Where `slug` came from. 'scraped' is authoritative (the scraper fetched
@@ -157,7 +163,6 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	apply_verified: z.boolean(),
 	job_type: z.string(),
 	description: z.string(),
-	application_url: z.string().nullable(),
 	department: z.string().nullable(),
 	scraper_used: z.string().nullable(),
 	run_id: z.string().nullable(),

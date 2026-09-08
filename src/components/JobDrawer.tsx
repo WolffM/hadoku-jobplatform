@@ -255,8 +255,15 @@ export function JobDrawer({
     }
   }
 
-  const handlePrepare = async () => {
-    if (preparing) return
+  /**
+   * Build the apply kit, and return the packet slug the queue needs.
+   *
+   * Returns the slug rather than leaning on `packetSlug` state, because Apply
+   * calls this and then queues in the same tick — the setState above has not
+   * landed by then, so reading it back would queue against `null`.
+   */
+  const prepareApplication = async (): Promise<string | null> => {
+    if (preparing) return null
     setPreparing(true)
     setPacketError(null)
     setExtrasError(null)
@@ -306,6 +313,7 @@ export function JobDrawer({
           )
           setPacketLink(url)
           setPacketSlug(slug)
+          return slug
         } catch {
           // leave the manual "Create link" path available
         }
@@ -319,7 +327,10 @@ export function JobDrawer({
     } finally {
       setPreparing(false)
     }
+    return null
   }
+
+  const handlePrepare = () => void prepareApplication()
 
   const handleCreateLink = async () => {
     if (!packet || linking) return
@@ -344,15 +355,28 @@ export function JobDrawer({
    * Queue this job for the PC-side form runner.
    *
    * Clicking this IS the consent step — the runner only ever drains the queue
-   * and never chooses jobs itself. It needs a minted packet, because the
-   * variant_slug is copied onto the row so a later re-tailor cannot change
-   * what an in-flight application sends; the button stays disabled until
-   * "Prepare application" has produced one.
+   * and never chooses jobs itself.
+   *
+   * Queueing needs a minted packet, because the variant_slug is copied onto the
+   * row so a later re-tailor cannot change what an in-flight application sends.
+   * That requirement used to be expressed by HIDING this button until Prepare
+   * had run, which read as "the runner cannot do this board" — the opposite of
+   * what the tier chip right above it says. So the prerequisite is satisfied
+   * here instead of being enforced by absence: no packet yet means build one
+   * first, then queue, on the one click.
    */
   async function handleApply() {
     setQueueing(true)
     setQueueError(null)
     try {
+      const slug = packetSlug ?? (await prepareApplication())
+      if (!slug) {
+        setQueueError(
+          'The application packet could not be built, so there is nothing to queue — ' +
+            'see the error above.'
+        )
+        return
+      }
       await queueApplication(jobId, 'review', auth)
       setQueued(true)
     } catch (err) {
@@ -507,7 +531,7 @@ export function JobDrawer({
                 <button
                   type="button"
                   className="jp-drawer__cta"
-                  onClick={() => void handlePrepare()}
+                  onClick={handlePrepare}
                   disabled={!stateButtonsEnabled || preparing}
                   data-testid="prepare-application"
                 >
@@ -519,6 +543,44 @@ export function JobDrawer({
                 </button>
               </div>
               {packetError && <p className="jp-error">{packetError}</p>}
+
+              {/*
+                Hand it to the runner. This sits beside the manual apply rather
+                than inside the generated packet, because it is the thing the
+                tier chip above is talking about — hidden until a packet existed,
+                it read as "the runner cannot drive this board" on exactly the
+                postings where it can.
+              */}
+              <div className="jp-drawer__apply">
+                <button
+                  type="button"
+                  className="jp-drawer__cta jp-drawer__cta--primary"
+                  onClick={() => void handleApply()}
+                  disabled={!stateButtonsEnabled || queueing || queued || preparing}
+                  data-testid="queue-application"
+                  title={
+                    packetSlug
+                      ? 'Queue this application for the form runner'
+                      : 'Builds the application packet, then queues it for the form runner'
+                  }
+                >
+                  {queued
+                    ? 'Queued ✓'
+                    : queueing
+                      ? packetSlug
+                        ? 'Queueing…'
+                        : 'Preparing, then queueing…'
+                      : 'Hand to runner'}
+                </button>
+                <span className="jp-muted">
+                  {queued
+                    ? 'The runner will fill the form and stop for your review.'
+                    : packetSlug
+                      ? 'Review mode: the runner fills the form and pauses for approval.'
+                      : 'Builds the packet first, then queues it. Review mode: the runner fills the form and pauses for approval.'}
+                </span>
+              </div>
+              {queueError && <p className="jp-error">{queueError}</p>}
 
               {packet && (
                 <div className="jp-drawer__packet">
@@ -561,28 +623,6 @@ export function JobDrawer({
                     )}
                   </div>
                   {linkError && <p className="jp-error">{linkError}</p>}
-
-                  <div className="jp-drawer__apply">
-                    <button
-                      type="button"
-                      className="jp-drawer__cta jp-drawer__cta--primary"
-                      onClick={() => void handleApply()}
-                      disabled={queueing || queued || !packetSlug}
-                      title={
-                        packetSlug
-                          ? 'Queue this application for the form runner'
-                          : 'Create the shareable link first — the queue pins that packet'
-                      }
-                    >
-                      {queued ? 'Queued ✓' : queueing ? 'Queueing…' : 'Apply'}
-                    </button>
-                    <span className="jp-muted">
-                      {queued
-                        ? 'The runner will fill the form and stop for your review.'
-                        : 'Review mode: the runner fills the form and pauses for approval.'}
-                    </span>
-                  </div>
-                  {queueError && <p className="jp-error">{queueError}</p>}
 
                   {preparing && !extras && (
                     <p className="jp-muted">Preparing the rest of the kit…</p>
