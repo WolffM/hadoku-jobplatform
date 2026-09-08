@@ -142,8 +142,3 @@ export function enqueueApply(
     void drain()
   })
 }
-
-/** How many jobs are still waiting their turn. For a "3 queued…" hint. */
-export function pendingApplyCount(): number {
-  return lane.length
-}

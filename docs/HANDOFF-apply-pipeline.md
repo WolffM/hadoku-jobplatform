@@ -10,7 +10,25 @@ writing. Where I could not verify something, it says so.
 
 ## 1. Read this before you touch a credential
 
-**Your vault grant is friend-tier. You cannot act as the owner from this repo.**
+**Your vault grant is friend-tier. You cannot act as the owner over the HTTP API
+from this repo — but you can read every table directly, which is usually what you
+actually wanted.**
+
+Added 2026-09-08: `.devvault.json` here also grants `CLOUDFLARE_API_TOKEN`, so
+this works from this repo with no borrowed credential and no service key:
+
+```sh
+node ../hadoku_site/scripts/secrets/dev-vault.mjs -- bash -c \
+  "cd ../hadoku_site/workers/jobplatform-api && \
+   npx wrangler d1 execute jobplatform --remote --json --command \"SELECT ...\""
+```
+
+Every "live state" fact in this document was re-verified that way, including the
+three corrections marked below. It is read-only in practice and it shows you the
+WHOLE table rather than one identity's slice — which is exactly the blind spot
+that produced the two false leads in §7.3. Reach for a service key when you need
+to exercise the API's own auth path; reach for D1 when you need to know what is
+true.
 
 `.devvault.json` here asks for four keys, and the only registry credential among
 them is `FRIEND_KEY` (registry name `jobplatform-e2e`, tier **friend**). Verified:
@@ -83,8 +101,19 @@ Live as of 2026-09-08, read via `GET /applications?ownerName=hadoku`:
 | `greenhouse_8154983` (Coinbase)  | `filled`       | 25     | 0        | **owner to click Approve** |
 | `greenhouse_7888329` (Pinterest) | `needs_manual` | 8      | 0        | 6 answers, below           |
 
-**No application has ever been successfully submitted.** Both Coinbase rows
-previously sat at `failed` — the click landed, the form failed its own
+**No application has ever been submitted FOR THIS OWNER.** Corrected 2026-09-08
+by reading `applications` directly: the table holds seven rows across three
+identities, and one of them — `4b31a445…`, an Ashby posting at Pinecone,
+2026-08-21 — is `submitted` with evidence. So the pipeline HAS carried a row to
+the end at least once; it has not done so for `de5c2a05…` (hadoku). The
+distinction matters, because "never submitted" invites the theory that submit is
+broken end-to-end, and it is not.
+
+The three rows under `fe658f71…` are the previous agent's own test identity, all
+`failed`, all with `evidence IS NULL`. They are noise, not signal — do not read
+them as the feature failing.
+
+Both Coinbase rows previously sat at `failed` — the click landed, the form failed its own
 client-side validation, and zero network requests fired. That is now fixed and
 they fill clean, but they are still waiting on a human.
 
@@ -221,12 +250,30 @@ commented; if it is an oversight it should take `ownerName` like its neighbours.
 applications we have sent to one employer, or any per-board cap. Not urgent while
 zero have been sent; it becomes urgent the moment volume picks up.
 
-**3. Reported earlier, NOT re-verified this session** — treat as leads, confirm
-before acting: ~214 `profile_companies` rows said to live on a profile no
-nameable identity can see, and four stale directive entries (`datadoghq`,
-`pinterestcareers`, `toasttab`, `withwaymo`). What I _did_ verify today is that
-`GET /profiles?ownerName=hadoku` returns exactly one profile, `Default` — so if
-those rows exist, they are not on the profile the owner can reach.
+**3. ~~Orphaned rows and stale directives~~ — CHECKED 2026-09-08, both dissolve.
+Do not clean either up.**
+
+The 214 `profile_companies` rows are real and they are not orphans. They belong
+to profile `6823d011…`, named `discovery-auto (probation boards 2026-08-17)`,
+owned by `4b31a445…` — the same identity that holds the one `submitted`
+application in the system. It is a second ACTIVE user, not a leak. Both it and
+hadoku's Default are the only two profiles with a built ranking in
+`job_profile_rank_state`, which is independent evidence that both feeds get used.
+
+The four "stale" directives are all on that same profile and all producing:
+
+| board                         | jobs in corpus |
+| ----------------------------- | -------------- |
+| `greenhouse/datadoghq`        | 77             |
+| `greenhouse/pinterestcareers` | 81             |
+| `greenhouse/toasttab`         | 129            |
+| `greenhouse/withwaymo`        | 90             |
+
+The earlier reasoning — "`GET /profiles?ownerName=hadoku` returns one profile,
+so anything else is unreachable" — is the trap. That query is scoped to ONE
+identity by design. Absence from one owner's list is not evidence of
+orphanhood, and deleting on it would have destroyed another user's entire
+company slice. **Query the table, not one identity's view of it.**
 
 ---
 
