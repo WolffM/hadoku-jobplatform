@@ -156,40 +156,22 @@ export function JobsList({
   )
 
   /**
-   * One line above the list summarising every hand-off started this session.
+   * Failures only.
    *
-   * It exists to say the thing the button cannot fit: queueing is not sending.
-   * The runner has to be run, and the owner still approves each filled form
-   * before anything leaves. A card that just went green would otherwise read
-   * as "applied", which is the misunderstanding this whole control invites.
+   * There used to be a running commentary here — "2 queued for the runner · 1
+   * still tailoring — nothing is sent yet…" — narrating work the cards already
+   * show on their own buttons. Progress belongs on the thing making progress;
+   * a banner that recounts it is noise directly above the list you are trying
+   * to read. What a banner IS for is the thing no card can tell you: that
+   * something failed.
    */
   const applyNotice = useMemo(() => {
-    const all = Object.values(applyStatus)
-    if (all.length === 0) return null
-    const queued = all.filter(s => s.phase === 'queued').length
-    const working = all.filter(
-      s => s.phase === 'waiting' || s.phase === 'preparing' || s.phase === 'queueing'
-    ).length
-    const failed = all.filter(s => s.phase === 'error')
+    const failed = Object.values(applyStatus).filter(s => s.phase === 'error')
+    if (failed.length === 0) return null
     return (
-      <>
-        {(queued > 0 || working > 0) && (
-          <p className="jp-muted">
-            {queued > 0 && `${queued} queued for the runner`}
-            {queued > 0 && working > 0 && ' · '}
-            {working > 0 && `${working} still tailoring`}
-            {queued > 0 &&
-              ' — nothing is sent yet. Run the form runner, then approve each filled form under Applications.'}
-          </p>
-        )}
-        {failed.length > 0 && (
-          <p className="jp-error">
-            {failed.length === 1
-              ? failed[0].error
-              : `${failed.length} postings could not be handed to the runner — press Retry on a card for its reason.`}
-          </p>
-        )}
-      </>
+      <p className="jp-error">
+        {failed.length === 1 ? failed[0].error : `${failed.length} postings failed — press Retry.`}
+      </p>
     )
   }, [applyStatus])
 

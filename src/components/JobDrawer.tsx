@@ -546,10 +546,8 @@ export function JobDrawer({
                 </button>
                 <span className="jp-muted">
                   {queued
-                    ? 'The runner will fill the form and stop for your review.'
-                    : packetSlug
-                      ? 'Review mode: the runner fills the form and pauses for approval.'
-                      : 'Builds the packet first, then queues it. Review mode: the runner fills the form and pauses for approval.'}
+                    ? 'Fills, then waits for your approval.'
+                    : 'Review mode — nothing is sent without your approval.'}
                 </span>
               </div>
               {queueError && <p className="jp-error">{queueError}</p>}
