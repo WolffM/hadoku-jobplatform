@@ -150,6 +150,8 @@ export function ApplicationsList({ auth }: Props) {
           // Fall back to the raw blob only when the worker predates
           // reconciliation, so an older deployment still lists what is owed.
           const stillUnanswered = app.still_unanswered ?? (app.answered_since ? [] : blanks)
+          // Everything it was blocked on has since been answered.
+          const blockerResolved = answeredSince.length > 0 && stillUnanswered.length === 0
           return (
             <li key={app.id} className={`jp-applications__row jp-applications__row--${app.status}`}>
               <div className="jp-applications__head">
@@ -162,7 +164,15 @@ export function ApplicationsList({ auth }: Props) {
               <p className="jp-applications__meta">
                 {STATUS_COPY[app.status]} · {app.mode} mode · updated {formatWhen(app.updated_at)}
               </p>
-              {app.error && <p className="jp-error">{app.error}</p>}
+              {/*
+                A `needs_manual` error names the questions the fill could not
+                answer, and it is written once and never re-read — so it kept
+                listing questions that had since been answered, in a second
+                place the reconciliation did not reach. When every question it
+                blocked on now has an answer, the error describes a state that
+                no longer exists and saying so beats repeating it.
+              */}
+              {app.error && !blockerResolved && <p className="jp-error">{app.error}</p>}
               {/*
                 The fill itself. Open by default on a row awaiting approval,
                 because that is the one moment the contents matter, and collapsed
@@ -223,7 +233,11 @@ export function ApplicationsList({ auth }: Props) {
               )}
               {answeredSince.length > 0 && (
                 <div className="jp-applications__resolved">
-                  <p>Answered since this fill — re-queue to apply:</p>
+                  <p>
+                    {blockerResolved
+                      ? 'No longer blocked — answered since this fill. Re-queue:'
+                      : 'Answered since this fill — re-queue to apply:'}
+                  </p>
                   <ul>
                     {answeredSince.map(a => (
                       <li key={a.question}>

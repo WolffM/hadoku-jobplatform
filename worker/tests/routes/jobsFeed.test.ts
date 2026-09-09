@@ -6,7 +6,7 @@
  * in how they filter, sort and count, so both are exercised here against real
  * rows in real D1.
  */
-import { after, before, describe, it } from 'node:test';
+import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { BASE, createHarness, type Harness } from '../helpers/harness.ts';
 import { seedJob, seedProfile, seedProfileCompany, seedJobState } from '../helpers/seed.ts';
@@ -412,5 +412,113 @@ describe('GET /jobs — two-stage scoring', () => {
 			'description keyword raises relevance vs non-matching'
 		);
 		assert.ok(byId['g-1'].score > byId['a-1'].score, 'desc-matching job outranks non-matching');
+	});
+});
+
+/**
+ * A posting already handed to the runner leaves the feed.
+ *
+ * The feed is for postings not yet acted on. Leaving a queued one in it offered
+ * an Apply button that would queue it a second time — and worse, a card read as
+ * untouched after a reload, because the only thing the feed knew was that
+ * minting a packet had landed a `job_states` row as 'saved'. That says a kit was
+ * generated; it says nothing about whether the runner ever got the job.
+ */
+describe('jobs already queued for the runner', () => {
+	const OWNER = 'queued-owner';
+
+	before(async () => {
+		await seedJob(h.db, { id: 'f1', title: 'Staff Software Engineer', company: 'Acme' });
+		await seedJob(h.db, { id: 'f2', title: 'Senior Software Engineer', company: 'Acme' });
+	});
+	beforeEach(async () => {
+		await h.db.prepare('DELETE FROM applications').run();
+		await h.db.prepare('DELETE FROM job_states WHERE user_id = ?').bind(OWNER).run();
+	});
+
+	const queueFor = async (jobId: string, status = 'queued', userId = OWNER) => {
+		const now = new Date().toISOString();
+		await h.db
+			.prepare(
+				`INSERT INTO applications
+				   (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
+				 VALUES (?, ?, ?, 'v1', 'review', ?, ?, ?)`
+			)
+			.bind(`app-${userId}-${jobId}`, userId, jobId, status, now, now)
+			.run();
+	};
+
+	const feed = async (qs = '', userId: string | null = OWNER) => {
+		const { body } = await h.json<{
+			data: { jobs: { id: string; application_status: string | null }[] };
+		}>(
+			`${BASE}/jobs?limit=50${qs}`,
+			userId ? { method: 'GET', tier: 'friend', userId } : { method: 'GET' }
+		);
+		return body.data.jobs;
+	};
+
+	it('reports the application status on the card', async () => {
+		await queueFor('f1', 'filled');
+		const jobs = await feed();
+		assert.equal(jobs.find((j) => j.id === 'f1')?.application_status, 'filled');
+		assert.equal(
+			jobs.find((j) => j.id === 'f2')?.application_status,
+			null,
+			'a posting with no application says so, rather than guessing from job_states'
+		);
+	});
+
+	it('drops it from the feed when hide_queued is on', async () => {
+		await queueFor('f1');
+		const jobs = await feed('&hide_queued=true');
+		assert.ok(
+			!jobs.some((j) => j.id === 'f1'),
+			'a queued posting belongs under Applications, not in the feed'
+		);
+		assert.ok(
+			jobs.some((j) => j.id === 'f2'),
+			'and everything else is untouched'
+		);
+	});
+
+	it('hides it whatever the application status is, not just queued', async () => {
+		// submitted and job_closed are as done as a posting gets; needs_manual is
+		// being worked in the Applications tab. None of them wants an Apply button.
+		for (const status of ['filled', 'approved', 'submitted', 'needs_manual', 'job_closed']) {
+			await h.db.prepare('DELETE FROM applications').run();
+			await queueFor('f1', status);
+			const jobs = await feed('&hide_queued=true');
+			assert.ok(!jobs.some((j) => j.id === 'f1'), `status ${status} should leave the feed`);
+		}
+	});
+
+	it("does not hide another user's queued job from me", async () => {
+		await queueFor('f1', 'queued', 'someone-else');
+		const jobs = await feed('&hide_queued=true');
+		assert.ok(
+			jobs.some((j) => j.id === 'f1'),
+			'the join is per-user; another account queueing must not empty my feed'
+		);
+	});
+
+	it('an explicit state filter still reaches queued jobs', async () => {
+		await seedJobState(h.db, { job_id: 'f1', user_id: OWNER, state: 'saved' });
+		await queueFor('f1');
+		const jobs = await feed('&hide_queued=true&state=saved');
+		assert.ok(
+			jobs.some((j) => j.id === 'f1'),
+			'asking for a specific slice is a different question, and it wins'
+		);
+	});
+
+	it('is a no-op for an anonymous caller', async () => {
+		await queueFor('f1');
+		const jobs = await feed('&hide_queued=true', null);
+		assert.ok(
+			jobs.some((j) => j.id === 'f1'),
+			'no per-user join, so nothing to hide'
+		);
+		assert.equal(jobs.find((j) => j.id === 'f1')?.application_status, null);
 	});
 });

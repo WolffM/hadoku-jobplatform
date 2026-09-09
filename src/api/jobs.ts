@@ -73,6 +73,12 @@ export interface JobSummary {
   // null when caller is unauthenticated (no per-user join). 'new' when
   // there's no job_states row for the authed user.
   state: JobStateRead | null
+  /**
+   * The caller's application for this job, when one exists. Distinct from
+   * `state`: minting a packet lands a job_states row as 'saved', which says a
+   * kit was generated and nothing about whether the runner ever got the job.
+   */
+  application_status?: ApplicationStatus | null
   // The caller's curation vote, when authenticated. Only the feed populates
   // it — the detail endpoint doesn't — so undefined means "unknown", not
   // "unvoted".
@@ -101,6 +107,8 @@ export interface ListJobsOptions {
   profile_id?: string
   state?: JobStateRead
   hide_dismissed?: boolean
+  /** Drop jobs already queued for the runner — they live under Applications. */
+  hide_queued?: boolean
   page?: number
   limit?: number
   sort?: JobSort
@@ -142,6 +150,7 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   if (opts.profile_id) params.set('profile_id', opts.profile_id)
   if (opts.state) params.set('state', opts.state)
   if (opts.hide_dismissed) params.set('hide_dismissed', 'true')
+  if (opts.hide_queued) params.set('hide_queued', 'true')
   if (opts.page) params.set('page', String(opts.page))
   if (opts.limit) params.set('limit', String(opts.limit))
   if (opts.sort) params.set('sort', opts.sort)

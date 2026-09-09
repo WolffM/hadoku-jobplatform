@@ -84,7 +84,11 @@ export function JobsList({
       page,
       limit,
       sort: effectiveSort,
-      workplace: workplace || undefined
+      workplace: workplace || undefined,
+      // A posting handed to the runner belongs under Applications and Packets
+      // from that point on. Leaving it in the feed offered an Apply button that
+      // would queue it a second time.
+      hide_queued: true
     }),
     [profileId, stateFilter, page, limit, effectiveSort, workplace]
   )
@@ -123,9 +127,17 @@ export function JobsList({
   )
 
   const filtered = useMemo(() => {
+    // Queued this session: the server will omit it on the next load, and until
+    // then it should not sit there offering to be queued again.
+    const justQueued = new Set(
+      Object.entries(applyStatus)
+        .filter(([, v]) => v.phase === 'queued')
+        .map(([id]) => id)
+    )
     // Hide-dismissed is a VIEW filter over the already-loaded page — toggling
     // it must never refetch (a feed reload re-scores the corpus, seconds).
     let list = effectiveHideDismissed ? patched.filter(j => j.state !== 'dismissed') : patched
+    list = list.filter(j => !justQueued.has(j.id) && !j.application_status)
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -136,7 +148,7 @@ export function JobsList({
       )
     }
     return list
-  }, [patched, search, effectiveHideDismissed])
+  }, [patched, search, effectiveHideDismissed, applyStatus])
 
   /**
    * Hand this posting to the form runner.

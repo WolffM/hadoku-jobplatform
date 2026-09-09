@@ -4,6 +4,7 @@ import { scoreJob } from '../../scoring.js';
 import { applyTier } from '../../applyTier.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import {
+	asApplicationStatus,
 	asRoleLevel,
 	asRoleTrack,
 	asSlugSource,
@@ -106,13 +107,25 @@ export function registerDetailRoute(app: JobsApp): void {
 					.first<{ 1: number }>();
 				applyVerified = proven !== null;
 			}
+			// The caller's application for this posting, if they have queued one.
+			// Distinct from `state`: minting a packet lands a job_states row as
+			// 'saved', which says a kit exists and nothing about whether the runner
+			// was ever given the job.
+			let applicationStatus: string | null = null;
 			if (userId) {
-				const stateRow = await db
-					.prepare('SELECT state, updated_at FROM job_states WHERE job_id = ? AND user_id = ?')
-					.bind(id, userId)
-					.first<{ state: string; updated_at: string }>();
+				const [stateRes, appRes] = await db.batch<Record<string, unknown>>([
+					db
+						.prepare('SELECT state, updated_at FROM job_states WHERE job_id = ? AND user_id = ?')
+						.bind(id, userId),
+					db
+						.prepare('SELECT status FROM applications WHERE job_id = ? AND user_id = ?')
+						.bind(id, userId),
+				]);
+				const stateRow = stateRes.results[0] as { state: string; updated_at: string } | undefined;
 				state = stateRow ? (stateRow.state as StateRead) : 'new';
 				stateUpdatedAt = stateRow?.updated_at ?? null;
+				const appRow = appRes.results[0] as { status?: string } | undefined;
+				applicationStatus = appRow?.status ?? null;
 			}
 
 			const job = {
@@ -146,6 +159,7 @@ export function registerDetailRoute(app: JobsApp): void {
 				score,
 				score_breakdown,
 				state,
+				application_status: asApplicationStatus(applicationStatus),
 				state_updated_at: stateUpdatedAt,
 			};
 
