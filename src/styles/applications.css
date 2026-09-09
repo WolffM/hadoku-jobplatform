@@ -109,6 +109,59 @@
   color: var(--color-on-warning-bg);
 }
 
+/*
+ * The fill has gone out of date, one way or another.
+ *
+ * `override` is danger-tinted and `resolved`/`owed` are informational, because
+ * they are different kinds of news: an override means the form says something
+ * the owner did not choose and is about to be sent that way, while a resolved
+ * question means the snapshot is merely behind and a re-queue fixes it.
+ */
+.jp-applications__override,
+.jp-applications__resolved,
+.jp-applications__owed {
+  margin-top: var(--hdk-space-md);
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-applications__override {
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+}
+
+.jp-applications__resolved {
+  background-color: var(--color-success-bg);
+  color: var(--color-on-success-bg);
+}
+
+.jp-applications__owed {
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-applications__override p,
+.jp-applications__resolved p,
+.jp-applications__owed p {
+  margin: 0 0 var(--hdk-space-xs);
+}
+
+.jp-applications__override ul,
+.jp-applications__resolved ul,
+.jp-applications__owed ul {
+  margin: 0;
+  padding-left: var(--hdk-space-lg);
+}
+
+.jp-applications__override li {
+  margin-bottom: var(--hdk-space-sm);
+}
+
+.jp-applications__override-q {
+  font-weight: var(--font-weight-semibold);
+}
+
 .jp-applications__fill {
   margin-top: var(--hdk-space-md);
   font-size: var(--hdk-text-sm);

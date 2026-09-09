@@ -17,6 +17,7 @@ import {
 	type JobsApp,
 	ownerNameQuery,
 } from './shared.js';
+import { questionKey } from '../../questionKey.js';
 
 /**
  * The approve-to-apply queue (issue #15).
@@ -79,6 +80,70 @@ function toApplication(row: ApplicationRow) {
 		created_at: row.created_at,
 		updated_at: row.updated_at,
 	};
+}
+
+/**
+ * Reconciling a stored fill against the answers that exist NOW.
+ *
+ * A row's `evidence` is a PHOTOGRAPH taken when the runner filled the form, and
+ * nothing has ever re-read it. So a fill from 2026-09-08 kept reporting six
+ * "unanswered required questions" that were all answered on 2026-09-09 — the
+ * dashboard's own queue said zero owed while the application row listed six,
+ * and both were reading the same database. A snapshot rendered as if it were a
+ * live check is worse than either fact alone, because the two disagree in
+ * public and neither says which is current.
+ *
+ * Neither of these rewrites the evidence. The photograph stays exactly as the
+ * runner took it — it is what an approval refers to — and this says what has
+ * changed underneath it.
+ */
+interface Reconciled {
+	/** Questions this fill could not answer that HAVE been answered since. */
+	answered_since: { question: string; answer: string }[];
+	/** Still owed: the fill missed them and nothing has answered them yet. */
+	still_unanswered: string[];
+	/**
+	 * Questions the fill answered with something OTHER than the stored standing
+	 * answer.
+	 *
+	 * The runner merges the dashboard's answers under a local private file and
+	 * lets the local one win, so a question answered in both places is filled
+	 * from the local copy silently. Four demographic questions were being
+	 * submitted as "decline to self identify" while the dashboard displayed
+	 * real answers to the same questions. The dashboard was not wrong about
+	 * what it had stored; it was wrong to imply that was what got sent.
+	 */
+	overridden: { question: string; filled: string; stored: string }[];
+}
+
+function reconcile(
+	evidence: Record<string, unknown> | null,
+	stored: Map<string, { question: string; answer: string }>
+): Reconciled {
+	const out: Reconciled = { answered_since: [], still_unanswered: [], overridden: [] };
+	if (!evidence) return out;
+
+	const unmatched = Array.isArray(evidence.unmatched) ? evidence.unmatched : [];
+	for (const raw of unmatched) {
+		if (typeof raw !== 'string' || !raw.trim()) continue;
+		const hit = stored.get(questionKey(raw));
+		if (hit) out.answered_since.push({ question: raw, answer: hit.answer });
+		else out.still_unanswered.push(raw);
+	}
+
+	// `answers` is keyed by the NORMALIZED question, the same key the standing
+	// answers are stored under, so the two are directly comparable.
+	const answers = evidence.answers;
+	if (typeof answers === 'object' && answers !== null && !Array.isArray(answers)) {
+		for (const [key, filled] of Object.entries(answers as Record<string, unknown>)) {
+			if (typeof filled !== 'string') continue;
+			const hit = stored.get(key);
+			if (hit && hit.answer !== filled) {
+				out.overridden.push({ question: hit.question, filled, stored: hit.answer });
+			}
+		}
+	}
+	return out;
 }
 
 /**
@@ -327,12 +392,28 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				ApplicationRow & { title: string; company: string; location: string }
 			>();
 
-			const applications = rows.results.map((r) => ({
-				...toApplication(r),
-				title: r.title,
-				company: r.company,
-				location: r.location,
-			}));
+			// One read for the whole list: every row is reconciled against the same
+			// standing answers, and a per-row query would be N+1 for a value that
+			// cannot change between them.
+			const answerRows = await c.env.JOB_PLATFORM_DB.prepare(
+				'SELECT question_key, question, answer FROM application_answers WHERE user_id = ?'
+			)
+				.bind(userId)
+				.all<{ question_key: string; question: string; answer: string }>();
+			const stored = new Map(
+				answerRows.results.map((a) => [a.question_key, { question: a.question, answer: a.answer }])
+			);
+
+			const applications = rows.results.map((r) => {
+				const app = toApplication(r);
+				return {
+					...app,
+					title: r.title,
+					company: r.company,
+					location: r.location,
+					...reconcile(app.evidence, stored),
+				};
+			});
 
 			return c.json({ success: true as const, data: { applications } }, 200);
 		}

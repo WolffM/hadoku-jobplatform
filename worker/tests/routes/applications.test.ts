@@ -597,3 +597,128 @@ describe('job_closed', () => {
 		assert.equal(requeued.data.application.approved_fingerprint, null);
 	});
 });
+
+/**
+ * Reconciling a stored fill against the answers that exist now.
+ *
+ * `evidence` is a photograph taken at fill time and never rewritten — it is
+ * what an approval refers to. The bug this covers is what happens AFTERWARDS:
+ * a fill from one day reported six unanswered questions, all of which were
+ * answered the next, and the dashboard kept rendering the snapshot as though
+ * it were a live check. Its own queue said zero owed at the same moment. Both
+ * were reading the same database.
+ */
+describe('a stored fill, reconciled against the answers that exist now', () => {
+	const OWNER = 'recon-owner';
+
+	const seedFilled = async (jobId: string, evidence: Record<string, unknown>) => {
+		await seedJob(h.db, { id: jobId, company: 'Pinterest' });
+		const now = new Date().toISOString();
+		await h.db
+			.prepare(
+				`INSERT INTO applications
+				   (id, user_id, job_id, variant_slug, mode, status, evidence, created_at, updated_at)
+				 VALUES (?, ?, ?, 'v1', 'review', 'filled', ?, ?, ?)`
+			)
+			.bind(`app-${jobId}`, OWNER, jobId, JSON.stringify(evidence), now, now)
+			.run();
+	};
+
+	const putAnswer = (question: string, answer: string) =>
+		h.json(`${BASE}/application-answers`, {
+			method: 'PUT',
+			tier: 'friend',
+			userId: OWNER,
+			body: JSON.stringify({ question, answer }),
+		});
+
+	const list = async () => {
+		const { body } = await h.json<{
+			data: {
+				applications: {
+					job_id: string;
+					answered_since: { question: string; answer: string }[];
+					still_unanswered: string[];
+					overridden: { question: string; filled: string; stored: string }[];
+				}[];
+			};
+		}>(`${BASE}/applications`, { method: 'GET', tier: 'friend', userId: OWNER });
+		return body.data.applications;
+	};
+
+	it('separates questions answered since the fill from those still owed', async () => {
+		await seedFilled('r-1', {
+			unmatched: ['Website', 'What U.S State do you currently reside in? *'],
+			answers: {},
+		});
+		await putAnswer('Website', 'https://hadoku.me');
+
+		const [app] = await list();
+		assert.deepEqual(
+			app.answered_since,
+			[{ question: 'Website', answer: 'https://hadoku.me' }],
+			'answered after the photograph was taken — the row must stop calling it unanswered'
+		);
+		assert.deepEqual(
+			app.still_unanswered,
+			['What U.S State do you currently reside in? *'],
+			'and the ones genuinely still owed stay owed'
+		);
+	});
+
+	it('matches on the normalized key, so punctuation and case do not hide an answer', async () => {
+		// The fill reports the board's exact label, asterisk and all; the answer
+		// was stored from the dashboard's own wording.
+		await seedFilled('r-2', { unmatched: ['Are you at least 18 years of age?*'], answers: {} });
+		await putAnswer('Are you at least 18 years of age?', 'Yes');
+
+		const [app] = await list();
+		assert.equal(app.answered_since.length, 1);
+		assert.deepEqual(app.still_unanswered, []);
+	});
+
+	it('flags a fill that used something other than the stored answer', async () => {
+		await putAnswer('Veteran Status', 'I am not a protected veteran');
+		await seedFilled('r-3', {
+			unmatched: [],
+			// The runner merges the dashboard under a local private file and lets
+			// the local one win, so this is what actually went on the form.
+			answers: { 'veteran status': "I don't wish to answer" },
+		});
+
+		const [app] = await list();
+		assert.deepEqual(app.overridden, [
+			{
+				question: 'Veteran Status',
+				filled: "I don't wish to answer",
+				stored: 'I am not a protected veteran',
+			},
+		]);
+	});
+
+	it('says nothing when the fill used exactly what was stored', async () => {
+		await putAnswer('Veteran Status', 'I am not a protected veteran');
+		await seedFilled('r-4', {
+			unmatched: [],
+			answers: { 'veteran status': 'I am not a protected veteran' },
+		});
+
+		const [app] = await list();
+		assert.deepEqual(app.overridden, [], 'agreement is not worth a warning');
+	});
+
+	it('leaves the evidence photograph untouched — an approval still refers to it', async () => {
+		await putAnswer('Website', 'https://hadoku.me');
+		await seedFilled('r-5', { unmatched: ['Website'], answers: {}, fingerprint: 'abc123' });
+
+		const [app] = await list();
+		assert.equal(app.answered_since.length, 1);
+		const row = await h.db
+			.prepare('SELECT evidence FROM applications WHERE job_id = ?')
+			.bind('r-5')
+			.first<{ evidence: string }>();
+		const ev = JSON.parse(row!.evidence) as Record<string, unknown>;
+		assert.deepEqual(ev.unmatched, ['Website'], 'the stored blob is not rewritten');
+		assert.equal(ev.fingerprint, 'abc123');
+	});
+});

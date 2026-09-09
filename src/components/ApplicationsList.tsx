@@ -150,6 +150,11 @@ export function ApplicationsList({ auth }: Props) {
           const digest = fillDigest(app) ?? app.approved_fingerprint
           const answers = filledAnswers(app)
           const blanks = blankQuestions(app)
+          const answeredSince = app.answered_since ?? []
+          const overridden = app.overridden ?? []
+          // Fall back to the raw blob only when the worker predates
+          // reconciliation, so an older deployment still lists what is owed.
+          const stillUnanswered = app.still_unanswered ?? (app.answered_since ? [] : blanks)
           return (
             <li key={app.id} className={`jp-applications__row jp-applications__row--${app.status}`}>
               <div className="jp-applications__head">
@@ -204,6 +209,61 @@ export function ApplicationsList({ auth }: Props) {
                     </>
                   )}
                 </details>
+              )}
+              {/*
+                What has changed since the photograph was taken. The stored
+                evidence is left exactly as the runner wrote it — an approval
+                refers to it — so this is the only place that says the snapshot
+                has gone out of date.
+              */}
+              {overridden.length > 0 && (
+                <div className="jp-applications__override">
+                  <p className="jp-applications__override-head">
+                    {overridden.length} answer{overridden.length === 1 ? ' was' : 's were'} filled
+                    with something other than what you have saved. The runner&rsquo;s local profile
+                    wins over the dashboard, so this is what the form actually says:
+                  </p>
+                  <ul>
+                    {overridden.map(o => (
+                      <li key={o.question}>
+                        <span className="jp-applications__override-q">{o.question}</span>
+                        <br />
+                        on the form: <strong>{o.filled}</strong>
+                        <br />
+                        you saved: <span className="jp-muted">{o.stored}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {answeredSince.length > 0 && (
+                <div className="jp-applications__resolved">
+                  <p>
+                    {answeredSince.length} question{answeredSince.length === 1 ? '' : 's'} this fill
+                    could not answer {answeredSince.length === 1 ? 'has' : 'have'} been answered
+                    since. Re-queue to apply {answeredSince.length === 1 ? 'it' : 'them'}:
+                  </p>
+                  <ul>
+                    {answeredSince.map(a => (
+                      <li key={a.question}>
+                        {a.question} &rarr; <strong>{a.answer}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {stillUnanswered.length > 0 && (
+                <div className="jp-applications__owed">
+                  <p>
+                    Still unanswered &mdash; answer {stillUnanswered.length === 1 ? 'it' : 'these'}{' '}
+                    under Unanswered questions, then re-queue:
+                  </p>
+                  <ul>
+                    {stillUnanswered.map(q => (
+                      <li key={q}>{q}</li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {answers.length === 0 && digest && app.status === 'filled' && (
                 <p className="jp-applications__evidence jp-applications__evidence--warn">

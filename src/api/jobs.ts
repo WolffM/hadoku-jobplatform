@@ -436,6 +436,18 @@ export interface ApplicationSummary {
   title: string
   company: string
   location: string
+  /**
+   * The stored fill, reconciled against the answers that exist now.
+   *
+   * `evidence` is a photograph taken when the runner filled the form and is
+   * never rewritten — it is what an approval refers to. These say what changed
+   * underneath it, so a day-old snapshot is not rendered as a live check.
+   * Optional because an older worker does not send them.
+   */
+  answered_since?: { question: string; answer: string }[]
+  still_unanswered?: string[]
+  /** Filled with something other than the stored standing answer. */
+  overridden?: { question: string; filled: string; stored: string }[]
 }
 
 /**
