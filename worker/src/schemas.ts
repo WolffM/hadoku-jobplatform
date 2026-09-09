@@ -98,6 +98,17 @@ export const JobStateReadSchema = z
 	.enum(['new', 'interested', 'dismissed', 'saved', 'applied'])
 	.openapi('JobStateRead');
 
+// The application lifecycle. 'needs_manual', 'failed' and 'job_closed' are the
+// honest failure exits. The runner posts transitions via /applications/:id/status;
+// only 'approved' is owner-only (via /applications/:id/approve).
+//
+// Declared here rather than beside the other application schemas because
+// JobSummary now references it: a feed card has to be able to say that a
+// posting is already queued.
+export const ApplicationStatusSchema = z
+	.enum(['queued', 'filled', 'approved', 'submitted', 'needs_manual', 'failed', 'job_closed'])
+	.openapi('ApplicationStatus');
+
 export const JobSummarySchema = z
 	.object({
 		id: z.string(),
@@ -127,6 +138,13 @@ export const JobSummarySchema = z
 		// 'new' when no row in job_states for the caller, or null when
 		// unauthenticated (we don't know which user is asking).
 		state: JobStateReadSchema.nullable(),
+		/**
+		 * The status of the caller's application for this job, or null if they
+		 * have not queued one. Distinct from `state`: minting a packet lands a
+		 * job_states row as 'saved', which says a kit was generated and nothing
+		 * about whether the runner was ever given the job.
+		 */
+		application_status: ApplicationStatusSchema.nullable(),
 		// The caller's curation vote + reasons, when authenticated; feed-only.
 		vote: z
 			.union([z.literal(1), z.literal(-1)])
@@ -260,12 +278,6 @@ export const JobResponseSchema = S(z.object({ job: JobDetailSchema })).openapi('
 export const ApplicationModeSchema = z.enum(['review', 'auto']).openapi('ApplicationMode');
 
 // queued → filled → approved → submitted, with needs_manual / failed as the
-// honest failure exits. The runner posts transitions via /applications/:id/status;
-// only 'approved' is owner-only (via /applications/:id/approve).
-export const ApplicationStatusSchema = z
-	.enum(['queued', 'filled', 'approved', 'submitted', 'needs_manual', 'failed', 'job_closed'])
-	.openapi('ApplicationStatus');
-
 export const ApplyRequestSchema = z
 	.object({
 		mode: ApplicationModeSchema.optional(),

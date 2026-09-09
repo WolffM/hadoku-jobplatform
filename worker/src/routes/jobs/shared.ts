@@ -229,3 +229,37 @@ export async function effectiveUserId(
 	}
 	return { userId: resolved.userId, onBehalfOf: resolved.name };
 }
+
+/**
+ * Narrow D1's plain TEXT `applications.status` to the union the schema declares.
+ *
+ * Same job as `asRoleTrack`/`asRoleLevel`: the column has no CHECK constraint,
+ * so a value written by an older runner (or by hand) must not be handed to a
+ * response typed as the union. Anything unrecognised reads as "no application",
+ * which is the safe answer — a card then offers Apply rather than claiming a
+ * status nothing else understands.
+ */
+export function asApplicationStatus(
+	value: string | null
+):
+	| 'queued'
+	| 'filled'
+	| 'approved'
+	| 'submitted'
+	| 'needs_manual'
+	| 'failed'
+	| 'job_closed'
+	| null {
+	switch (value) {
+		case 'queued':
+		case 'filled':
+		case 'approved':
+		case 'submitted':
+		case 'needs_manual':
+		case 'failed':
+		case 'job_closed':
+			return value;
+		default:
+			return null;
+	}
+}

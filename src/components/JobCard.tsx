@@ -45,6 +45,17 @@ function formatDate(iso: string | null): string | null {
  * actionable — the work happens whichever phase it is in. "Queued" is the
  * honest end state: nothing has been filled and nothing has been sent.
  */
+/** What a posting that already has an application says instead of "Apply". */
+const QUEUED_LABEL: Record<NonNullable<JobSummary['application_status']>, string> = {
+  queued: 'Queued',
+  filled: 'Filled',
+  approved: 'Approved',
+  submitted: 'Submitted',
+  needs_manual: 'Needs you',
+  failed: 'Failed',
+  job_closed: 'Closed'
+}
+
 const APPLY_LABEL: Record<ApplyPhase, string> = {
   idle: 'Apply',
   waiting: '…',
@@ -80,7 +91,10 @@ export function JobCard({
   // Same signal for triage: unauthed, Apply is a plain link to the posting and
   // marks nothing, because there is no user to mark it for.
   const canMark = canVote
-  const phase = applyStatus?.phase ?? 'idle'
+  // A persisted application outranks this session's progress: after a reload
+  // the local phase is gone, and a posting already handed to the runner must
+  // not read as un-applied just because the tab is new.
+  const phase: ApplyPhase = job.application_status ? 'queued' : (applyStatus?.phase ?? 'idle')
   // Any phase between the click and the answer. The button is inert through
   // all of them so a second click cannot enqueue the same posting twice.
   const busy = phase === 'waiting' || phase === 'preparing' || phase === 'queueing'
@@ -180,7 +194,7 @@ export function JobCard({
             if (canMark) onApply(job.id)
           }}
         >
-          {APPLY_LABEL[phase]}
+          {job.application_status ? QUEUED_LABEL[job.application_status] : APPLY_LABEL[phase]}
         </button>
       </div>
     </div>

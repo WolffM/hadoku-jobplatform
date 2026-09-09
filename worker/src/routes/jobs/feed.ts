@@ -3,7 +3,14 @@ import { JobsResponseSchema, ErrorResponseSchema } from '../../schemas.js';
 import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
-import { asRoleLevel, asRoleTrack, maybeUserId, ZERO_BREAKDOWN, type JobsApp } from './shared.js';
+import {
+	asApplicationStatus,
+	asRoleLevel,
+	asRoleTrack,
+	maybeUserId,
+	ZERO_BREAKDOWN,
+	type JobsApp,
+} from './shared.js';
 import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
 
 // Two-stage score-on-read. Descriptions are what make whole-corpus scoring
@@ -90,6 +97,7 @@ interface LightRow {
 	row_state: string | null;
 	row_vote: number | null;
 	row_vote_reasons: string | null;
+	row_application: string | null;
 }
 
 /** The display half, fetched only for rows that survive the light pass. */
@@ -140,6 +148,15 @@ export function registerFeedRoute(app: JobsApp): void {
 						description:
 							'If true, exclude state=dismissed for the authed user. No effect when unauthed (no per-user join).',
 					}),
+					hide_queued: z
+						.enum(['true', 'false'])
+						.optional()
+						.openapi({
+							description:
+								'If true, exclude jobs the caller has already queued an application for, whatever ' +
+								'its status. They live under Applications and Packets from that point on, and a ' +
+								'feed is for postings not yet acted on. No effect when unauthed.',
+						}),
 					page: z.coerce
 						.number()
 						.int()
@@ -199,6 +216,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				profile_id,
 				state: stateFilter,
 				hide_dismissed: hideDismissedRaw,
+				hide_queued: hideQueuedRaw,
 				page,
 				limit,
 				sort,
@@ -207,6 +225,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				min_salary,
 			} = c.req.valid('query');
 			const hideDismissed = hideDismissedRaw === 'true';
+			const hideQueued = hideQueuedRaw === 'true';
 			const db = c.env.JOB_PLATFORM_DB;
 			const offset = (page - 1) * limit;
 
@@ -236,13 +255,20 @@ export function registerFeedRoute(app: JobsApp): void {
 			// LEFT JOIN job_states once when authed so we can both surface state on
 			// every row AND filter by it cheaply.
 			const stateCols = userId
-				? 'js.state as row_state, jf.vote as row_vote, jf.reason as row_vote_reasons'
-				: 'NULL as row_state, NULL as row_vote, NULL as row_vote_reasons';
+				? `js.state as row_state, jf.vote as row_vote, jf.reason as row_vote_reasons,
+				   ap.status as row_application`
+				: `NULL as row_state, NULL as row_vote, NULL as row_vote_reasons,
+				   NULL as row_application`;
+			// The applications join is what lets a card say "queued" after a reload.
+			// Without it the feed knew only that a packet had been minted (which
+			// lands a job_states row as 'saved'), so a posting already handed to the
+			// runner still offered an Apply button that would queue it again.
 			const userJoins = userId
 				? `LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?
-				   LEFT JOIN job_feedback jf ON jf.job_id = j.id AND jf.user_id = ?`
+				   LEFT JOIN job_feedback jf ON jf.job_id = j.id AND jf.user_id = ?
+				   LEFT JOIN applications ap ON ap.job_id = j.id AND ap.user_id = ?`
 				: '';
-			const userBinds: (string | number)[] = userId ? [userId, userId] : [];
+			const userBinds: (string | number)[] = userId ? [userId, userId, userId] : [];
 
 			// Companies are an OPTIONAL filter, not a required scope. When a profile
 			// has companies, restrict its feed to their jobs; when it has none, the
@@ -294,6 +320,10 @@ export function registerFeedRoute(app: JobsApp): void {
 				} else if (hideDismissed) {
 					wheres.push("(js.state IS NULL OR js.state != 'dismissed')");
 				}
+				// An explicit state= filter is the owner asking to see a specific
+				// slice, so it wins: hiding queued rows there would answer a
+				// different question than the one asked.
+				if (hideQueued && !stateFilter) wheres.push('ap.id IS NULL');
 			}
 
 			const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
@@ -549,6 +579,7 @@ export function registerFeedRoute(app: JobsApp): void {
 								),
 								score_breakdown: breakdown,
 								state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+								application_status: asApplicationStatus(r.row_application),
 								vote: (r.row_vote as 1 | -1 | null) ?? null,
 								vote_reasons: r.row_vote_reasons ? String(r.row_vote_reasons).split(',') : [],
 							};
@@ -680,6 +711,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				score: 0,
 				score_breakdown: ZERO_BREAKDOWN,
 				state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+				application_status: asApplicationStatus(r.row_application),
 			}));
 
 			return c.json(
