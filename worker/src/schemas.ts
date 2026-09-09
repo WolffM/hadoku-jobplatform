@@ -311,6 +311,18 @@ export const ApplicationSummarySchema = ApplicationSchema.extend({
 	title: z.string(),
 	company: z.string(),
 	location: z.string(),
+	/**
+	 * The stored fill, reconciled against the answers that exist NOW.
+	 *
+	 * `evidence` is a photograph taken when the runner filled the form and is
+	 * never rewritten — it is what an approval refers to. These three say what
+	 * has changed underneath it, so a day-old snapshot stops being rendered as
+	 * though it were a live check.
+	 */
+	answered_since: z.array(z.object({ question: z.string(), answer: z.string() })),
+	still_unanswered: z.array(z.string()),
+	/** Filled with something other than the stored standing answer. */
+	overridden: z.array(z.object({ question: z.string(), filled: z.string(), stored: z.string() })),
 }).openapi('ApplicationSummary');
 
 export const ApplicationResponseSchema = S(z.object({ application: ApplicationSchema })).openapi(
