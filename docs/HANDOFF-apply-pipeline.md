@@ -101,17 +101,11 @@ Live as of 2026-09-08, read via `GET /applications?ownerName=hadoku`:
 | `greenhouse_8154983` (Coinbase)  | `filled`       | 25     | 0        | **owner to click Approve** |
 | `greenhouse_7888329` (Pinterest) | `needs_manual` | 8      | 0        | 6 answers, below           |
 
-**No application has ever been submitted FOR THIS OWNER.** Corrected 2026-09-08
-by reading `applications` directly: the table holds seven rows across three
-identities, and one of them — `4b31a445…`, an Ashby posting at Pinecone,
-2026-08-21 — is `submitted` with evidence. So the pipeline HAS carried a row to
-the end at least once; it has not done so for `de5c2a05…` (hadoku). The
-distinction matters, because "never submitted" invites the theory that submit is
-broken end-to-end, and it is not.
-
-The three rows under `fe658f71…` are the previous agent's own test identity, all
-`failed`, all with `evidence IS NULL`. They are noise, not signal — do not read
-them as the feature failing.
+**No application has ever been submitted by a person.** The one `submitted` row
+in the table is a TEST ARTIFACT — see the identity table in §3.1. The handoff's
+original wording was right; a correction I made earlier on 2026-09-08 ("one has
+been submitted, under identity 4b31a445") was wrong, because I had not yet
+worked out what 4b31a445 is.
 
 Both Coinbase rows previously sat at `failed` — the click landed, the form failed its own
 client-side validation, and zero network requests fired. That is now fixed and
@@ -256,17 +250,16 @@ only one of them is a consent gate.
 applications we have sent to one employer, or any per-board cap. Not urgent while
 zero have been sent; it becomes urgent the moment volume picks up.
 
-**3. ~~Orphaned rows and stale directives~~ — CHECKED 2026-09-08, both dissolve.
-Do not clean either up.**
+**3. ~~Orphaned rows and stale directives~~ — CHECKED 2026-09-08. Both dissolve,
+but not for the reason I first gave. Do not clean either up.**
 
-The 214 `profile_companies` rows are real and they are not orphans. They belong
-to profile `6823d011…`, named `discovery-auto (probation boards 2026-08-17)`,
-owned by `4b31a445…` — the same identity that holds the one `submitted`
-application in the system. It is a second ACTIVE user, not a leak. Both it and
-hadoku's Default are the only two profiles with a built ranking in
-`job_profile_rank_state`, which is independent evidence that both feeds get used.
+The 214 `profile_companies` rows are real. They sit on profile `6823d011…`,
+`discovery-auto (probation boards 2026-08-17)`, owned by `4b31a445…` — which is
+**this repo's own e2e test credential**, not a person. See §3.1. They are the
+fixture the local Playwright suite ranks against; deleting them changes what
+`pnpm test:e2e` sees.
 
-The four "stale" directives are all on that same profile and all producing:
+The four "stale" directives are on that same profile and all producing:
 
 | board                         | jobs in corpus |
 | ----------------------------- | -------------- |
@@ -275,13 +268,43 @@ The four "stale" directives are all on that same profile and all producing:
 | `greenhouse/toasttab`         | 129            |
 | `greenhouse/withwaymo`        | 90             |
 
-The earlier reasoning — "`GET /profiles?ownerName=hadoku` returns one profile,
-so anything else is unreachable" — is the trap. That query is scoped to ONE
-identity by design. Absence from one owner's list is not evidence of
-orphanhood, and deleting on it would have destroyed another user's entire
-company slice. **Query the table, not one identity's view of it.**
+The reasoning trap is worth more than the finding, and it caught me twice.
+`GET /profiles?ownerName=hadoku` is scoped to ONE identity by design, so absence
+from it is not evidence of orphanhood — that is the first trap, and it produced
+the original "orphaned rows" lead. The second is subtler and I fell in it while
+correcting the first: seeing rows under an unfamiliar UUID and concluding "another
+user". **Resolve the UUID before you characterise it.** One `whoami` with the key
+from this repo's own `.devvault.json` would have answered it immediately, and did.
 
 ---
+
+## 3.1 Who the identities in this database actually are
+
+`user_id` is a registry UUID that edge-router injects and that SURVIVES key
+rotation (`worker/src/userId.ts`) — so two UUIDs are two registry entries, never
+one person's rotated key. Seven appear in D1:
+
+| user_id                             | what it is                                                                                 | evidence                                                                                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `de5c2a05…`                         | **the owner (hadoku)**                                                                     | 1 Default profile (3 companies), 7 triage rows, 6 votes, 22 standing answers, 3 applications                                                                   |
+| `4b31a445…`                         | **`jobplatform-e2e` — this repo's own test key**                                           | `whoami` with `FRIEND_KEY` from `.devvault.json` returns exactly this UUID. 2 profiles (Default + discovery-auto/214 companies), 1 `submitted` application     |
+| `fe658f71…`                         | profile named "Matthaeus"; 3 `failed` applications, all `evidence IS NULL`, all 2026-09-08 | unidentified — behaviourally a test/agent identity, but the profile NAME is a human's, so ask before assuming                                                  |
+| `991c8143…` `bfc57178…` `ecd0d30b…` | probe residue                                                                              | three Default profiles created 2026-09-07 at 06:35:39, :40 and :41 — one second apart. This is the `GET /profiles`-is-a-write side effect, exactly as §6 warns |
+| `71657d36…`                         | one triage row, nothing else                                                               | —                                                                                                                                                              |
+
+**Only `de5c2a05…` has votes or standing answers.** That is the sharpest tell in
+the table: those two are things a human does in a browser and no automation in
+this system writes. Use it before you attribute activity to a person.
+
+Two consequences worth knowing:
+
+- **The Playwright suite writes to PRODUCTION as `4b31a445…`.** `tests/jobplatform.spec.ts`
+  sets and clears triage on live rows through the dev proxy. It cleans up after
+  itself, but a killed run leaves state behind, and that state is indistinguishable
+  from a real one except by which identity holds it.
+- The e2e suite's fixture profile is `profiles[0]` for that key, currently the
+  0-company `Default` — so it ranks the whole corpus. That is why the suite's
+  feed calls are the slow ones.
 
 ## 8. House rules that bit me
 
