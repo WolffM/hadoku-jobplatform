@@ -301,8 +301,17 @@ test credential, the runner, and probe residue.
 jobs as the owner's, `evidence IS NULL` on all of them, all stamped
 2026-09-08T04:58. Dead artifacts, not attempts that failed on their merits, and
 they will surface in the runner's own queue if it is ever run without `--owner`.
-Safe to delete — ask first, since they are also the only physical evidence the
-bug was real.
+**Deleted 2026-09-09 on the owner's instruction.** Their text is preserved here,
+because it was the only physical evidence the bug was real — each of the three
+carried, verbatim:
+
+> queued in error onto the service account: ownerName was sent as a query param,
+> which this route reads from the body. The owners real row is on hadoku.
+
+The three were `65c3a46d…` (greenhouse_7888329), `0eae5794…` (greenhouse_8051871)
+and `2e4d96bf…` (greenhouse_8154983), created within 0.6s of each other at
+2026-09-08T04:53:46–47 and marked failed at 04:58. All had `evidence` and
+`approved_fingerprint` NULL, so nothing was lost but the note above.
 
 **Do not read a profile's NAME as an identity.** "Matthaeus" on the runner's key
 sent me looking for a second human, and so did identical curated criteria: the
