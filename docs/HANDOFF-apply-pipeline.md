@@ -284,13 +284,32 @@ from this repo's own `.devvault.json` would have answered it immediately, and di
 rotation (`worker/src/userId.ts`) — so two UUIDs are two registry entries, never
 one person's rotated key. Seven appear in D1:
 
-| user_id                             | what it is                                                                                 | evidence                                                                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `de5c2a05…`                         | **the owner (hadoku)**                                                                     | 1 Default profile (3 companies), 7 triage rows, 6 votes, 22 standing answers, 3 applications                                                                   |
-| `4b31a445…`                         | **`jobplatform-e2e` — this repo's own test key**                                           | `whoami` with `FRIEND_KEY` from `.devvault.json` returns exactly this UUID. 2 profiles (Default + discovery-auto/214 companies), 1 `submitted` application     |
-| `fe658f71…`                         | profile named "Matthaeus"; 3 `failed` applications, all `evidence IS NULL`, all 2026-09-08 | unidentified — behaviourally a test/agent identity, but the profile NAME is a human's, so ask before assuming                                                  |
-| `991c8143…` `bfc57178…` `ecd0d30b…` | probe residue                                                                              | three Default profiles created 2026-09-07 at 06:35:39, :40 and :41 — one second apart. This is the `GET /profiles`-is-a-write side effect, exactly as §6 warns |
-| `71657d36…`                         | one triage row, nothing else                                                               | —                                                                                                                                                              |
+| user_id                             | what it is                                                                                            | evidence                                                                                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `de5c2a05…`                         | **the owner** — registry name `hadoku` / `Hadoku`                                                     | resolved: `GET /applications?ownerName=hadoku` returns exactly its rows. 1 Default profile (3 companies), 7 triage rows, 6 votes, 22 standing answers, 3 applications                      |
+| `4b31a445…`                         | **`jobplatform-e2e` — this repo's own test key**                                                      | `whoami` with `FRIEND_KEY` from `.devvault.json` returns this UUID. 2 profiles (Default + discovery-auto/214 companies), 1 `submitted` application                                         |
+| `fe658f71…`                         | **the scraper's SERVICE key** (`KEY_SERVICE_SCRAPER` / `HADOKU_SERVICE_KEY`) — the form runner itself | `whoami` with the scraper repo's grant returns this UUID. Its profile is named "Matthaeus", which is misleading: a profile name is user-chosen text and says nothing about whose key it is |
+| `991c8143…` `bfc57178…` `ecd0d30b…` | probe residue                                                                                         | three Default profiles created 2026-09-07 at 06:35:39, :40 and :41 — one second apart. The `GET /profiles`-is-a-write side effect, exactly as §6 warns                                     |
+| `71657d36…`                         | one triage row, nothing else                                                                          | —                                                                                                                                                                                          |
+
+**No human but the owner has rows here.** Every other identity is a key: the
+test credential, the runner, and probe residue.
+
+**The three `failed` applications under `fe658f71…` are the wreckage of the bug
+`ee59c53` fixed** — the runner queueing onto ITS OWN rows because
+`POST /jobs/:id/apply?ownerName=Hadoku` was accepted and ignored. Same three
+jobs as the owner's, `evidence IS NULL` on all of them, all stamped
+2026-09-08T04:58. Dead artifacts, not attempts that failed on their merits, and
+they will surface in the runner's own queue if it is ever run without `--owner`.
+Safe to delete — ask first, since they are also the only physical evidence the
+bug was real.
+
+**Do not read a profile's NAME as an identity.** "Matthaeus" on the runner's key
+sent me looking for a second human, and so did identical curated criteria: the
+owner's Default, the e2e key's Default and the runner's profile carry
+byte-identical `stack`/`interests_like`/`interests_avoid`/`salary_floor`
+(sha `2bf7643a…` over all three). Migration 0011 defaults those columns to `[]`,
+so that was not a backfill — but it was not three people typing either.
 
 **Only `de5c2a05…` has votes or standing answers.** That is the sharpest tell in
 the table: those two are things a human does in a browser and no automation in
