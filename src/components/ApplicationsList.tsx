@@ -30,19 +30,15 @@ function formatWhen(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
 }
 
-/**
- * The screenshot the runner stored for this row, if it left one.
+/*
+ * `evidence.screenshot` is deliberately NOT rendered.
  *
- * It is a path on the RUNNER'S machine (`data/apply/shots/<id>/filled.png`),
- * not a URL — nothing serves it, so it cannot be linked or rendered here. It is
- * shown as a path, labelled as one, because a browser that silently fails to
- * load an image reads as "there was no screenshot" rather than "it is over
- * there". The answers table below is what actually makes this row reviewable.
+ * It is a path on the runner's machine (`data/apply/shots/<id>/filled.png`),
+ * not a URL — nothing serves it, so it can be neither linked nor displayed.
+ * Printing it gave the reader a string they could do nothing with, next to the
+ * answers table that actually makes the row reviewable. If the screenshot is
+ * ever wanted here, the fix is to upload it, not to name it.
  */
-function evidenceShot(app: ApplicationSummary): string | null {
-  const shot = app.evidence?.screenshot
-  return typeof shot === 'string' && shot ? shot : null
-}
 
 /**
  * What the runner actually entered, question by question.
@@ -146,7 +142,6 @@ export function ApplicationsList({ auth }: Props) {
       {error && <p className="jp-error">{error}</p>}
       <ul className="jp-applications__list">
         {apps.map(app => {
-          const shot = evidenceShot(app)
           const digest = fillDigest(app) ?? app.approved_fingerprint
           const answers = filledAnswers(app)
           const blanks = blankQuestions(app)
@@ -168,11 +163,6 @@ export function ApplicationsList({ auth }: Props) {
                 {STATUS_COPY[app.status]} · {app.mode} mode · updated {formatWhen(app.updated_at)}
               </p>
               {app.error && <p className="jp-error">{app.error}</p>}
-              {shot && (
-                <p className="jp-applications__evidence">
-                  Screenshot (on the runner&rsquo;s machine, not served): <code>{shot}</code>
-                </p>
-              )}
               {/*
                 The fill itself. Open by default on a row awaiting approval,
                 because that is the one moment the contents matter, and collapsed
@@ -198,9 +188,7 @@ export function ApplicationsList({ auth }: Props) {
                   )}
                   {blanks.length > 0 && (
                     <>
-                      <p className="jp-applications__blank-head">
-                        Left blank &mdash; approving covers these too:
-                      </p>
+                      <p className="jp-applications__blank-head">Left blank:</p>
                       <ul className="jp-applications__blanks">
                         {blanks.map(q => (
                           <li key={q}>{q}</li>
@@ -219,18 +207,15 @@ export function ApplicationsList({ auth }: Props) {
               {overridden.length > 0 && (
                 <div className="jp-applications__override">
                   <p className="jp-applications__override-head">
-                    {overridden.length} answer{overridden.length === 1 ? ' was' : 's were'} filled
-                    with something other than what you have saved. The runner&rsquo;s local profile
-                    wins over the dashboard, so this is what the form actually says:
+                    Filled with something other than your saved answer:
                   </p>
                   <ul>
                     {overridden.map(o => (
                       <li key={o.question}>
                         <span className="jp-applications__override-q">{o.question}</span>
                         <br />
-                        on the form: <strong>{o.filled}</strong>
-                        <br />
-                        you saved: <span className="jp-muted">{o.stored}</span>
+                        <strong>{o.filled}</strong>{' '}
+                        <span className="jp-muted">(saved: {o.stored})</span>
                       </li>
                     ))}
                   </ul>
@@ -238,11 +223,7 @@ export function ApplicationsList({ auth }: Props) {
               )}
               {answeredSince.length > 0 && (
                 <div className="jp-applications__resolved">
-                  <p>
-                    {answeredSince.length} question{answeredSince.length === 1 ? '' : 's'} this fill
-                    could not answer {answeredSince.length === 1 ? 'has' : 'have'} been answered
-                    since. Re-queue to apply {answeredSince.length === 1 ? 'it' : 'them'}:
-                  </p>
+                  <p>Answered since this fill — re-queue to apply:</p>
                   <ul>
                     {answeredSince.map(a => (
                       <li key={a.question}>
@@ -254,10 +235,7 @@ export function ApplicationsList({ auth }: Props) {
               )}
               {stillUnanswered.length > 0 && (
                 <div className="jp-applications__owed">
-                  <p>
-                    Still unanswered &mdash; answer {stillUnanswered.length === 1 ? 'it' : 'these'}{' '}
-                    under Unanswered questions, then re-queue:
-                  </p>
+                  <p>Still unanswered:</p>
                   <ul>
                     {stillUnanswered.map(q => (
                       <li key={q}>{q}</li>

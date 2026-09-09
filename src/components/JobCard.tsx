@@ -39,17 +39,18 @@ function formatDate(iso: string | null): string | null {
 /**
  * What the button says at each step.
  *
- * It narrates rather than spinning, because the sequence is genuinely slow
- * (two LLM generations) and a card that just says "…" for thirty seconds is
- * indistinguishable from one that has hung. "Queued" is the honest end state:
- * the runner has not filled anything yet, and nothing has been sent.
+ * The three in-flight phases deliberately share one label. Naming each of them
+ * ("Waiting…", "Tailoring…", "Queueing…") turned a row you had already dealt
+ * with into something that kept asking to be read, and the distinction is not
+ * actionable — the work happens whichever phase it is in. "Queued" is the
+ * honest end state: nothing has been filled and nothing has been sent.
  */
 const APPLY_LABEL: Record<ApplyPhase, string> = {
   idle: 'Apply',
-  waiting: 'Waiting…',
-  preparing: 'Tailoring…',
-  queueing: 'Queueing…',
-  queued: 'Queued ✓',
+  waiting: '…',
+  preparing: '…',
+  queueing: '…',
+  queued: 'Queued',
   error: 'Retry'
 }
 

@@ -55,21 +55,17 @@ function DuplicateFlags({
   if (similar.length === 0) return null
   return (
     <details className="jp-questions__dupes">
-      <summary>
-        Looks like {similar.length} question{similar.length === 1 ? '' : 's'} you&rsquo;ve already
-        answered
-      </summary>
+      <summary>{similar.length} similar answered</summary>
       <ul>
         {similar.map(s => (
           <li key={s.question_key} className="jp-questions__dupe">
             <p className="jp-questions__dupe-q">{s.question}</p>
             <p className="jp-questions__dupe-a">
-              You answered: <strong>{s.answer || <em>(blank)</em>}</strong>
+              <strong>{s.answer || <em>(blank)</em>}</strong>
             </p>
             {s.polarity_differs && (
               <p className="jp-questions__dupe-warn">
-                This one is phrased in the opposite direction — the same answer would state the
-                reverse. Read both before copying.
+                Opposite phrasing — copying would state the reverse.
               </p>
             )}
             {/*
@@ -79,19 +75,16 @@ function DuplicateFlags({
             */}
             {s.only_in_pending.length > 0 && (
               <p className="jp-questions__dupe-diff">
-                New question also asks about: <code>{s.only_in_pending.join(', ')}</code>
+                also asks: <code>{s.only_in_pending.join(', ')}</code>
               </p>
             )}
             {s.only_in_answered.length > 0 && (
               <p className="jp-questions__dupe-diff">
-                Your answer was to a question about: <code>{s.only_in_answered.join(', ')}</code>
+                yours was about: <code>{s.only_in_answered.join(', ')}</code>
               </p>
             )}
             {s.runner_would_match && (
-              <p className="jp-questions__dupe-diff">
-                The runner would already reuse your answer here — nothing in this question is
-                missing from the one you answered.
-              </p>
+              <p className="jp-questions__dupe-diff">covers this one already</p>
             )}
             <button
               type="button"
