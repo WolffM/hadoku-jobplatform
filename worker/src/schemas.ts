@@ -440,6 +440,33 @@ export const UnansweredQuestionSchema = z
 		 * a question with options must be answered by picking, never by typing.
 		 */
 		options: z.array(z.string()),
+		/**
+		 * Already-answered questions that look like this one — flagged for a
+		 * human to judge, never applied.
+		 *
+		 * The word difference is the payload, not the similarity: two questions
+		 * about work authorization that differ only by "United States" vs "the
+		 * country where the job is located" are the SAME question in every
+		 * respect except the one that decides the answer. Presenting a
+		 * pre-filled guess gets it rubber-stamped; presenting the difference
+		 * gets it read. Nothing here is stored until the owner saves it.
+		 */
+		similar: z.array(
+			z.object({
+				question_key: z.string(),
+				question: z.string(),
+				answer: z.string(),
+				shared_terms: z.array(z.string()),
+				/** Words this pending question adds — what it asks that the other did not. */
+				only_in_pending: z.array(z.string()),
+				/** Words only the answered one had — what that answer was scoped to. */
+				only_in_answered: z.array(z.string()),
+				/** One is negated and the other is not: a copied answer would state the opposite. */
+				polarity_differs: z.boolean(),
+				/** The runner's own rule would have transferred this unaided. */
+				runner_would_match: z.boolean(),
+			})
+		),
 	})
 	.openapi('UnansweredQuestion');
 

@@ -97,6 +97,71 @@
   color: var(--color-text-secondary);
 }
 
+/*
+ * A row whose fill predates the runner sending its answers. Warning-tinted
+ * rather than muted: "there is nothing here to review" is the opposite of an
+ * incidental note when the button underneath it is Approve.
+ */
+.jp-applications__evidence--warn {
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-applications__fill {
+  margin-top: var(--hdk-space-md);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-applications__fill summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * The answers as they will be submitted. A table rather than a list because
+ * the reader is checking a value against its question, and that comparison is
+ * what columns are for. Scrolls inside itself: a long free-text answer must
+ * not widen the whole queue.
+ */
+.jp-applications__answers {
+  width: 100%;
+  margin-top: var(--hdk-space-sm);
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.jp-applications__answers th,
+.jp-applications__answers td {
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.jp-applications__answers th {
+  width: 45%;
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-secondary);
+}
+
+.jp-applications__answers td {
+  color: var(--color-text);
+}
+
+.jp-applications__blank-head {
+  margin: var(--hdk-space-md) 0 var(--hdk-space-xs);
+  color: var(--color-text-secondary);
+}
+
+.jp-applications__blanks {
+  margin: 0;
+  padding-left: var(--hdk-space-lg);
+  color: var(--color-text-secondary);
+}
+
 /* Apply control inside the job drawer. */
 .jp-drawer__apply {
   display: flex;
@@ -193,6 +258,80 @@
 
 /* Answering ahead of a fill. Collapsed by default: the queue is the primary
    path, and this is for when the owner already knows what will be asked. */
+/*
+ * Flagged look-alikes, collapsed by default.
+ *
+ * Collapsed on purpose: the queue is a work list, and a panel of near-matches
+ * open on every row buries the questions themselves. The summary line is the
+ * flag; opening it is the owner choosing to compare.
+ */
+.jp-questions__dupes {
+  margin-top: var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-questions__dupes summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.jp-questions__dupes ul {
+  margin: var(--hdk-space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jp-questions__dupe {
+  padding: var(--hdk-space-sm) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.jp-questions__dupe-q {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.jp-questions__dupe-a {
+  margin: var(--hdk-space-xs) 0 0;
+  color: var(--color-text-secondary);
+}
+
+.jp-questions__dupe-diff {
+  margin: var(--hdk-space-xs) 0 0;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * A polarity flip is the dangerous look-alike: everything reads the same and
+ * the answer means the reverse. Danger tint, not muted text — this is the one
+ * line on the row that must not be skimmed past.
+ */
+.jp-questions__dupe-warn {
+  margin: var(--hdk-space-xs) 0 0;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+}
+
+.jp-questions__dupe-copy {
+  margin-top: var(--hdk-space-sm);
+  padding: 2px var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--hdk-text-xs);
+  cursor: pointer;
+}
+
+.jp-questions__dupe-copy:hover,
+.jp-questions__dupe-copy:focus-visible {
+  color: var(--color-text);
+  border-color: var(--color-text-secondary);
+}
+
 .jp-questions__add {
   margin-top: var(--hdk-space-md);
   border-top: 1px solid var(--color-border);

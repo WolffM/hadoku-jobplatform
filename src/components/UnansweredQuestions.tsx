@@ -5,6 +5,7 @@ import {
   listUnansweredQuestions,
   saveAnswer,
   JobsApiError,
+  type SimilarAnswer,
   type StandingAnswer,
   type UnansweredQuestion
 } from '../api/jobs'
@@ -30,6 +31,82 @@ interface Props {
  * it actually stopped — rather than by when it was seen, because it is a work
  * list and the expensive ones should be at the top.
  */
+/**
+ * Answered questions that look like this one, and how they differ.
+ *
+ * Deliberately NOT a pre-filled answer. The runner's own matcher refuses to
+ * transfer between these wordings, because the words that differ are usually
+ * the whole question — "authorized to work in the United States" and the same
+ * sentence ending "in Canada" share everything that is not the answer. Four
+ * real false statements about legal work authorization came from overlap
+ * scoring before that rule existed.
+ *
+ * So this shows the difference and offers to COPY the old answer into the box,
+ * where it still has to be read and saved. One click of typing saved; no
+ * clicks of judgement skipped.
+ */
+function DuplicateFlags({
+  similar,
+  onCopy
+}: {
+  similar: SimilarAnswer[]
+  onCopy: (answer: string) => void
+}) {
+  if (similar.length === 0) return null
+  return (
+    <details className="jp-questions__dupes">
+      <summary>
+        Looks like {similar.length} question{similar.length === 1 ? '' : 's'} you&rsquo;ve already
+        answered
+      </summary>
+      <ul>
+        {similar.map(s => (
+          <li key={s.question_key} className="jp-questions__dupe">
+            <p className="jp-questions__dupe-q">{s.question}</p>
+            <p className="jp-questions__dupe-a">
+              You answered: <strong>{s.answer || <em>(blank)</em>}</strong>
+            </p>
+            {s.polarity_differs && (
+              <p className="jp-questions__dupe-warn">
+                This one is phrased in the opposite direction — the same answer would state the
+                reverse. Read both before copying.
+              </p>
+            )}
+            {/*
+              The difference, spelled out. `only_in_pending` is what the new
+              question asks that the old answer never covered — the half that
+              actually decides whether it transfers.
+            */}
+            {s.only_in_pending.length > 0 && (
+              <p className="jp-questions__dupe-diff">
+                New question also asks about: <code>{s.only_in_pending.join(', ')}</code>
+              </p>
+            )}
+            {s.only_in_answered.length > 0 && (
+              <p className="jp-questions__dupe-diff">
+                Your answer was to a question about: <code>{s.only_in_answered.join(', ')}</code>
+              </p>
+            )}
+            {s.runner_would_match && (
+              <p className="jp-questions__dupe-diff">
+                The runner would already reuse your answer here — nothing in this question is
+                missing from the one you answered.
+              </p>
+            )}
+            <button
+              type="button"
+              className="jp-questions__dupe-copy"
+              onClick={() => onCopy(s.answer)}
+            >
+              Use this answer
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
   const [questions, setQuestions] = useState<UnansweredQuestion[]>([])
   const [answers, setAnswers] = useState<StandingAnswer[]>([])
@@ -185,6 +262,10 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
                   {saving === q.question_key ? 'Saving…' : 'Save'}
                 </button>
               </div>
+              <DuplicateFlags
+                similar={q.similar ?? []}
+                onCopy={answer => setDrafts(d => ({ ...d, [q.question_key]: answer }))}
+              />
             </li>
           ))}
         </ul>

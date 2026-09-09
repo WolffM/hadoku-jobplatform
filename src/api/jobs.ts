@@ -518,6 +518,31 @@ export interface UnansweredQuestion {
    * work — not suggestions.
    */
   options: string[]
+  /**
+   * Already-answered questions that look like this one.
+   *
+   * Flags, never suggestions, and nothing here is applied by itself. The word
+   * DIFFERENCE is the payload: two work-authorization questions that differ
+   * only by "United States" vs "the country where the job is located" are
+   * identical except in the one respect that decides the answer. A pre-filled
+   * guess gets rubber-stamped; a stated difference gets read.
+   */
+  similar: SimilarAnswer[]
+}
+
+export interface SimilarAnswer {
+  question_key: string
+  question: string
+  answer: string
+  shared_terms: string[]
+  /** Words this pending question adds that the answered one did not have. */
+  only_in_pending: string[]
+  /** Words only the answered one had — what that answer was scoped to. */
+  only_in_answered: string[]
+  /** One is negated and the other is not: copying would state the opposite. */
+  polarity_differs: boolean
+  /** The runner's own matcher would transfer this unaided. */
+  runner_would_match: boolean
 }
 
 export async function listUnansweredQuestions(auth: Auth): Promise<UnansweredQuestion[]> {

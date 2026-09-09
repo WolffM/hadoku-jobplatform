@@ -19,6 +19,16 @@ interface Answer {
 	answer: string;
 	updated_at: string;
 }
+interface Similar {
+	question_key: string;
+	question: string;
+	answer: string;
+	shared_terms: string[];
+	only_in_pending: string[];
+	only_in_answered: string[];
+	polarity_differs: boolean;
+	runner_would_match: boolean;
+}
 interface Unanswered {
 	options: string[];
 	question_key: string;
@@ -26,6 +36,7 @@ interface Unanswered {
 	companies: string[];
 	applications: number;
 	blocking: number;
+	similar: Similar[];
 }
 
 let h: Harness;
@@ -338,5 +349,106 @@ describe('question options', () => {
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
 		const q = met(body.data.questions).find((x) => x.question_key === 'odd question');
 		assert.deepEqual(q?.options, ['Fine']);
+	});
+});
+
+/**
+ * Flagging questions that look like ones already answered.
+ *
+ * The fixtures are the owner's REAL clusters, taken from production on
+ * 2026-09-09: four work-authorization questions and three sponsorship ones,
+ * every pair of which the runner's matcher refuses to collapse. That refusal is
+ * the point — these tests exist to prove the dashboard surfaces the difference
+ * rather than papering over it.
+ */
+describe('duplicate flagging on the unanswered queue', () => {
+	const US_AUTH = 'Are you legally authorized to work in the United States?';
+	const JOB_AUTH = 'Are you legally authorized to work in the country where the job is located?';
+
+	it('flags a look-alike and names the words that differ', async () => {
+		await putAnswer(US_AUTH, 'Yes');
+		await seedFill('j-dup', 'Pinterest', [JOB_AUTH]);
+
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions).find((x) => x.question === JOB_AUTH);
+		assert.ok(q, 'the pending question is still surfaced in full');
+
+		const hit = q.similar.find((s) => s.question === US_AUTH);
+		assert.ok(hit, 'the answered look-alike is flagged');
+		assert.equal(hit.answer, 'Yes', 'and carries what was said last time');
+		assert.deepEqual(hit.shared_terms, ['authorized', 'legally', 'work']);
+		// The difference is the whole question: one asks about the US, the other
+		// about wherever the job happens to be.
+		assert.ok(hit.only_in_answered.includes('united'));
+		assert.ok(hit.only_in_pending.includes('located'));
+		assert.equal(
+			hit.runner_would_match,
+			false,
+			'the runner would REFUSE this transfer — the flag must say so, not imply a match'
+		);
+	});
+
+	it('never applies the flagged answer by itself', async () => {
+		await putAnswer(US_AUTH, 'Yes');
+		await seedFill('j-noauto', 'Pinterest', [JOB_AUTH]);
+
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		assert.ok(
+			met(body.data.questions).some((q) => q.question === JOB_AUTH),
+			'a flagged question stays UNANSWERED until the owner saves something'
+		);
+		const stored = await h.db
+			.prepare('SELECT COUNT(*) AS n FROM application_answers WHERE user_id = ?')
+			.bind(OWNER)
+			.first<{ n: number }>();
+		assert.equal(stored?.n, 1, 'and nothing was written on its behalf');
+	});
+
+	it('marks a polarity flip, which is the dangerous look-alike', async () => {
+		await putAnswer('Will you require sponsorship for employment visa status?', 'No');
+		await seedFill('j-neg', 'Coinbase', [
+			'Are you able to work without sponsorship for employment visa status?',
+		]);
+
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions)[0];
+		const hit = q.similar[0];
+		assert.ok(hit, 'still flagged — a human should see it');
+		assert.equal(
+			hit.polarity_differs,
+			true,
+			'"without sponsorship" reverses the question; copying "No" would state the opposite'
+		);
+	});
+
+	it('reports runner_would_match when the stored wording really does cover it', async () => {
+		// form ⊆ stored: every meaningful word of the short question is in the
+		// long one, so the runner transfers it unaided.
+		await putAnswer(
+			'Will you now or in the future require employer sponsorship or other ' +
+				'assistance to obtain, extend, or maintain authorization to work?',
+			'No'
+		);
+		await seedFill('j-sub', 'Coinbase', ['Will you require sponsorship?']);
+
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions)[0];
+		assert.equal(q.similar[0]?.runner_would_match, true);
+		assert.deepEqual(q.similar[0].only_in_pending, [], 'nothing in the form the stored one lacks');
+	});
+
+	it('stays quiet on questions that merely share a generic frame', async () => {
+		await putAnswer('Veteran Status', 'I am not a protected veteran');
+		await seedFill('j-far', 'Pinterest', ['What U.S State do you currently reside in?']);
+
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = met(body.data.questions)[0];
+		assert.deepEqual(q.similar, [], 'two unrelated questions are not a duplicate pair');
+	});
+
+	it('every pending question carries the field, flagged or not', async () => {
+		await seedFill('j-none', 'Pinterest', ['Website']);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		assert.ok(body.data.questions.every((q) => Array.isArray(q.similar)));
 	});
 });

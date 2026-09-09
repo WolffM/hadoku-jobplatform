@@ -9,7 +9,7 @@ import {
 	UnansweredResponseSchema,
 } from '../../schemas.js';
 import { COMMON_QUESTIONS } from '../../commonQuestions.js';
-import { questionKey } from '../../questionKey.js';
+import { questionKey, questionNegated, questionTerms } from '../../questionKey.js';
 import {
 	effectiveUserId,
 	gateAuthed,
@@ -44,6 +44,95 @@ interface AnswerRow {
 // every handler in this file routes through — so the local copy is gone rather
 // than left as a second place the same message could drift.
 
+/**
+ * Answered questions that LOOK like the same question as `pendingKey`.
+ *
+ * Explicitly NOT a suggestion, and the distinction is the whole design. The
+ * runner's matcher (`_subsumes` in `hadoku_scrape/apply/_answers.py`) refuses to
+ * transfer an answer unless every meaningful word of the form's question appears
+ * in the stored one, because the words that DIFFER are usually the entire
+ * question: "authorized to work in the United States" and "...in Canada" share
+ * their whole generic frame and mean opposite things. Four real false statements
+ * about legal work authorization came out of overlap scoring before that rule
+ * existed.
+ *
+ * So this does not pick, pre-fill or rank-by-confidence. It hands back the
+ * related questions WITH THE WORDS THAT DIFFER called out, and a human decides.
+ * A near-match presented as an answer gets rubber-stamped; a near-match
+ * presented as "these two differ by 'united states' vs 'the country where the
+ * job is located'" gets read.
+ *
+ * Looser than `_subsumes` on purpose — it surfaces candidates the runner would
+ * refuse, which are exactly the ones worth a human's eye. That is only safe
+ * because nothing here is applied without the owner saving it.
+ */
+interface SimilarAnswer {
+	question_key: string;
+	question: string;
+	answer: string;
+	/** Meaningful words the two share. */
+	shared_terms: string[];
+	/** In the UNANSWERED question only — what this one asks that the other did not. */
+	only_in_pending: string[];
+	/** In the ANSWERED question only — what that one was scoped to. */
+	only_in_answered: string[];
+	/**
+	 * One carries a negation and the other does not, so a transferred answer
+	 * would state the opposite. The loudest thing on the row when true.
+	 */
+	polarity_differs: boolean;
+	/** True when the runner WOULD have transferred this itself (form ⊆ stored). */
+	runner_would_match: boolean;
+}
+
+// Below this many shared meaningful words, two questions are not plausibly the
+// same question and the row is noise. Two is low deliberately: the owner asked
+// to see everything that looks like a duplicate and judge it, so the cost of a
+// weak candidate is a glance, while the cost of hiding one is retyping.
+const MIN_SHARED_TERMS = 2;
+const MAX_SIMILAR = 4;
+
+function findSimilar(
+	pendingKey: string,
+	answered: { question_key: string; question: string; answer: string }[]
+): SimilarAnswer[] {
+	const pendingTerms = questionTerms(pendingKey);
+	if (pendingTerms.size === 0) return [];
+	const pendingNeg = questionNegated(pendingTerms);
+
+	const scored: (SimilarAnswer & { score: number })[] = [];
+	for (const a of answered) {
+		const terms = questionTerms(a.question_key);
+		if (terms.size === 0) continue;
+		const shared = [...pendingTerms].filter((t) => terms.has(t));
+		if (shared.length < MIN_SHARED_TERMS) continue;
+		const onlyPending = [...pendingTerms].filter((t) => !terms.has(t));
+		const onlyAnswered = [...terms].filter((t) => !pendingTerms.has(t));
+		const answeredNeg = questionNegated(terms);
+		scored.push({
+			question_key: a.question_key,
+			question: a.question,
+			answer: a.answer,
+			shared_terms: shared.sort(),
+			only_in_pending: onlyPending.sort(),
+			only_in_answered: onlyAnswered.sort(),
+			polarity_differs: pendingNeg !== answeredNeg,
+			// The runner's own rule, reported rather than acted on: every
+			// meaningful word of the pending question is already in the stored
+			// one, and polarity agrees.
+			runner_would_match:
+				pendingTerms.size >= 2 && onlyPending.length === 0 && pendingNeg === answeredNeg,
+			// Jaccard: rewards overlap but penalises each side's leftovers, so a
+			// short generic question does not top the list against everything.
+			score: shared.length / (pendingTerms.size + terms.size - shared.length),
+		});
+	}
+	return scored
+		.sort((a, b) => b.score - a.score)
+		.slice(0, MAX_SIMILAR)
+		.map(({ score: _score, ...rest }) => rest);
+}
+
 /** Every question this user has been unable to answer, with what it blocked. */
 async function unansweredQuestions(db: D1Database, userId: string) {
 	const rows = await db
@@ -56,10 +145,12 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 		.bind(userId)
 		.all<{ evidence: string; status: string; company: string }>();
 
+	// The question TEXT and the answer come back too, because a flagged duplicate
+	// has to show the owner what they said last time and to which wording.
 	const answered = await db
-		.prepare('SELECT question_key FROM application_answers WHERE user_id = ?')
+		.prepare('SELECT question_key, question, answer FROM application_answers WHERE user_id = ?')
 		.bind(userId)
-		.all<{ question_key: string }>();
+		.all<{ question_key: string; question: string; answer: string }>();
 	const known = new Set(answered.results.map((r) => r.question_key));
 
 	/**
@@ -169,6 +260,9 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				applications: v.applications,
 				options: v.options,
 				blocking: v.blocking,
+				// Every pending question is returned whether or not it looks like a
+				// duplicate — the owner asked to see them all. This only annotates.
+				similar: findSimilar(key, answered.results),
 			}))
 			// Most blocking first: the queue is a work list, so what is costing the
 			// most applications should be answered first.
