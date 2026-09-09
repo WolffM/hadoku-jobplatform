@@ -30,10 +30,42 @@ function formatWhen(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString()
 }
 
-/** The screenshot the runner stored for this row, if it left one. */
+/**
+ * The screenshot the runner stored for this row, if it left one.
+ *
+ * It is a path on the RUNNER'S machine (`data/apply/shots/<id>/filled.png`),
+ * not a URL — nothing serves it, so it cannot be linked or rendered here. It is
+ * shown as a path, labelled as one, because a browser that silently fails to
+ * load an image reads as "there was no screenshot" rather than "it is over
+ * there". The answers table below is what actually makes this row reviewable.
+ */
 function evidenceShot(app: ApplicationSummary): string | null {
   const shot = app.evidence?.screenshot
   return typeof shot === 'string' && shot ? shot : null
+}
+
+/**
+ * What the runner actually entered, question by question.
+ *
+ * This is the review material. It arrives only from runners at or past the
+ * scraper's `9bd3593`; before that the dashboard got the fingerprint — a digest
+ * of these values — without the values, so Approve was a gate over content it
+ * could not display. An older row therefore has a digest and no table, and
+ * saying so is better than rendering an empty panel that looks like an
+ * application with nothing in it.
+ */
+function filledAnswers(app: ApplicationSummary): [string, string][] {
+  const a = app.evidence?.answers
+  if (typeof a !== 'object' || a === null || Array.isArray(a)) return []
+  return Object.entries(a as Record<string, unknown>)
+    .filter((e): e is [string, string] => typeof e[1] === 'string')
+    .sort(([x], [y]) => x.localeCompare(y))
+}
+
+/** Questions the fill left blank — part of what an approval covers. */
+function blankQuestions(app: ApplicationSummary): string[] {
+  const u = app.evidence?.unmatched
+  return Array.isArray(u) ? u.filter((q): q is string => typeof q === 'string') : []
 }
 
 /**
@@ -116,6 +148,8 @@ export function ApplicationsList({ auth }: Props) {
         {apps.map(app => {
           const shot = evidenceShot(app)
           const digest = fillDigest(app) ?? app.approved_fingerprint
+          const answers = filledAnswers(app)
+          const blanks = blankQuestions(app)
           return (
             <li key={app.id} className={`jp-applications__row jp-applications__row--${app.status}`}>
               <div className="jp-applications__head">
@@ -131,7 +165,51 @@ export function ApplicationsList({ auth }: Props) {
               {app.error && <p className="jp-error">{app.error}</p>}
               {shot && (
                 <p className="jp-applications__evidence">
-                  Runner screenshot: <code>{shot}</code>
+                  Screenshot (on the runner&rsquo;s machine, not served): <code>{shot}</code>
+                </p>
+              )}
+              {/*
+                The fill itself. Open by default on a row awaiting approval,
+                because that is the one moment the contents matter, and collapsed
+                once the decision is made.
+              */}
+              {(answers.length > 0 || blanks.length > 0) && (
+                <details className="jp-applications__fill" open={app.status === 'filled'}>
+                  <summary>
+                    Review what was filled ({answers.length} answered
+                    {blanks.length > 0 && `, ${blanks.length} left blank`})
+                  </summary>
+                  {answers.length > 0 && (
+                    <table className="jp-applications__answers">
+                      <tbody>
+                        {answers.map(([q, a]) => (
+                          <tr key={q}>
+                            <th scope="row">{q}</th>
+                            <td>{a}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  {blanks.length > 0 && (
+                    <>
+                      <p className="jp-applications__blank-head">
+                        Left blank &mdash; approving covers these too:
+                      </p>
+                      <ul className="jp-applications__blanks">
+                        {blanks.map(q => (
+                          <li key={q}>{q}</li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </details>
+              )}
+              {answers.length === 0 && digest && app.status === 'filled' && (
+                <p className="jp-applications__evidence jp-applications__evidence--warn">
+                  This fill was recorded before the runner sent its answers, so there is nothing to
+                  review here &mdash; only the screenshot on the runner&rsquo;s machine. Re-run the
+                  fill to get a reviewable record.
                 </p>
               )}
               {digest && (
