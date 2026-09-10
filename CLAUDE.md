@@ -114,6 +114,17 @@ pre-flight auth check.
   Rewriting those back to plain `INNER JOIN`s reintroduces the whole regression
   silently — `worker/tests/routes/jobsRank.test.ts` guards the RESULT, not the
   plan, so it will not catch that.
+- **Company saturation is a LIVE multiplier, never a stored one.** A company
+  the caller already has applications out to is discounted on the feed —
+  ×0.85 from one application, ×0.6 from five, ×0.3 from twenty
+  (`COMPANY_SATURATION` in `feed.ts`). It sits beside `applyVote`,
+  `staleFactor` and `postedAgeFactor` rather than in `job_profile_rank`,
+  because that bound is per-PROFILE and trusted while its criteria hash holds,
+  whereas this is per-USER and moves on every queue — storing it would either
+  go stale silently or invalidate the whole ranking on every click. Only
+  applications that are actually out count (`queued`/`filled`/`approved`/
+  `submitted`/`needs_manual`); a `failed` or `job_closed` row usually reflects
+  our own runner, not the employer, and must not suppress their board.
 - **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
   (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
   reads `GET /directives` (the union of every profile's companies + keywords)
