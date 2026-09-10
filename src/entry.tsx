@@ -10,6 +10,15 @@ import './styles/index.css'
 
 // Props interface for configuration from parent app
 export interface JobPlatformProps {
+  /**
+   * The app's DISPLAY NAME, resolved by the platform from hadoku_site's
+   * spec/categories.json — the same file that titles the browser tab and the
+   * homepage tile. Render this; never hard-code the name in this repo.
+   *
+   * Absent when the app runs standalone (its own vite dev server, no host),
+   * which is what `__HADOKU_APP_NAME__` covers — see vite.config.ts.
+   */
+  appName?: string
   theme?: string
   /**
    * Session id from the parent's `hadoku_session` cookie. Sent as
