@@ -146,16 +146,43 @@ describe('POST /jobs/:id/apply', () => {
 		assert.equal(status, 404);
 	});
 
-	it('409s when the job has no job_states row at all', async () => {
+	/**
+	 * Queueing without a packet used to 409. It does not any more, and the
+	 * reason is worth keeping: a click had to carry ~21s of LLM work before
+	 * anything durable existed, and that work ran in the browser tab — so a
+	 * reload discarded every posting the lane had not reached, and the errors
+	 * with them. The row is written first now; the runner mints the packet
+	 * immediately before it fills.
+	 */
+	it('queues with an empty slug when the job has no job_states row at all', async () => {
 		const { status, body } = await apply('ap-2');
-		assert.equal(status, 409);
-		assert.match(body.message, /packet/i);
+		assert.equal(status, 200);
+		assert.equal(body.data.application.variant_slug, '', 'empty means "not minted yet"');
+		assert.equal(body.data.application.status, 'queued');
 	});
 
-	it('409s when the job_states row carries no variant_slug', async () => {
+	it('queues with an empty slug when the job_states row carries no variant_slug', async () => {
 		await seedJobState(h.db, { job_id: 'ap-2', user_id: OWNER, state: 'interested' });
-		const { status } = await apply('ap-2');
-		assert.equal(status, 409);
+		const { status, body } = await apply('ap-2');
+		assert.equal(status, 200);
+		assert.equal(body.data.application.variant_slug, '');
+	});
+
+	it('re-queueing without a packet does NOT wipe a pin the row already has', async () => {
+		// ap-1's job_states row carries 'acme-slug'.
+		const first = await apply('ap-1');
+		assert.equal(first.body.data.application.variant_slug, 'acme-slug');
+
+		// Drop the packet from job_states, then re-queue: the application must
+		// keep pointing at the packet it was already pinned to, or an in-flight
+		// application would silently change what it sends.
+		await h.db
+			.prepare('UPDATE job_states SET variant_slug = NULL WHERE job_id = ? AND user_id = ?')
+			.bind('ap-1', OWNER)
+			.run();
+		const again = await apply('ap-1');
+		assert.equal(again.status, 200);
+		assert.equal(again.body.data.application.variant_slug, 'acme-slug', 'pin survives');
 	});
 
 	it('queues with mode defaulting to review, packet slug copied from job_states', async () => {
@@ -214,10 +241,21 @@ describe('POST /jobs/:id/apply', () => {
 		assert.equal(body.data.application.variant_slug, 'acme-slug-v2');
 	});
 
-	it('is per-user: another user without a packet still 409s on the same job', async () => {
-		await apply('ap-1');
-		const { status } = await apply('ap-1', { userId: 'someone-else' });
-		assert.equal(status, 409);
+	it('is per-user: another caller queues their own row, with their own packet state', async () => {
+		const mine = await apply('ap-1');
+		assert.equal(mine.body.data.application.variant_slug, 'acme-slug');
+
+		// Same job, different person, no packet of their own: they get a row, and
+		// it must not inherit the pin from mine.
+		const theirs = await apply('ap-1', { userId: 'someone-else' });
+		assert.equal(theirs.status, 200);
+		assert.equal(theirs.body.data.application.variant_slug, '');
+
+		const rows = await h.db
+			.prepare('SELECT user_id, variant_slug FROM applications WHERE job_id = ? ORDER BY user_id')
+			.bind('ap-1')
+			.all<{ user_id: string; variant_slug: string }>();
+		assert.equal(rows.results.length, 2, 'one row each');
 	});
 });
 
