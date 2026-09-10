@@ -522,3 +522,115 @@ describe('jobs already queued for the runner', () => {
 		assert.equal(jobs.find((j) => j.id === 'f1')?.application_status, null);
 	});
 });
+
+/**
+ * Companies you already have applications out to sink.
+ *
+ * Live, not precomputed: the count is per-USER and moves every time something
+ * is queued, so folding it into `job_profile_rank` — which is per-profile and
+ * trusted while the criteria hash holds — would either go stale silently or
+ * invalidate the whole ranking on every click.
+ */
+describe('company saturation penalty', () => {
+	const OWNER = 'sat-owner';
+
+	const queueN = async (n: number, company: string, status = 'queued') => {
+		for (let i = 0; i < n; i++) {
+			const id = `sat-${company}-${i}`;
+			await seedJob(h.db, { id, company, title: 'Staff Software Engineer' });
+			const now = new Date().toISOString();
+			await h.db
+				.prepare(
+					`INSERT INTO applications (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
+					 VALUES (?, ?, ?, '', 'review', ?, ?, ?)`
+				)
+				.bind(`app-${id}`, OWNER, id, status, now, now)
+				.run();
+		}
+	};
+
+	const scoreOf = async (jobId: string) => {
+		const { body } = await h.json<{ data: { jobs: { id: string; score: number }[] } }>(
+			`${BASE}/jobs?profile_id=${SAT_PROFILE}&limit=100`,
+			{ method: 'GET', tier: 'friend', userId: OWNER }
+		);
+		return body.data.jobs.find((j) => j.id === jobId)?.score;
+	};
+
+	const SAT_PROFILE = 'sat-profile';
+
+	before(async () => {
+		await seedProfile(h.db, {
+			id: SAT_PROFILE,
+			user_id: OWNER,
+			name: 'Sat',
+			keywords: ['software engineer'],
+			track: 'either',
+			levels: ['staff'],
+			remote_pref: 'any',
+		});
+		// One target job per company, never itself applied to.
+		for (const co of ['quietco', 'someco', 'manyco', 'floodco']) {
+			await seedJob(h.db, { id: `target-${co}`, company: co, title: 'Staff Software Engineer' });
+		}
+	});
+	beforeEach(async () => {
+		await h.db.prepare('DELETE FROM applications WHERE user_id = ?').bind(OWNER).run();
+		// The per-test filler jobs are re-seeded with the same ids, and jobs.url is
+		// unique — so they have to go with the applications that referenced them.
+		await h.db.prepare("DELETE FROM jobs WHERE id LIKE 'sat-%'").run();
+	});
+
+	it('leaves a company with nothing out alone', async () => {
+		const base = await scoreOf('target-quietco');
+		assert.ok(base && base > 0, 'the target scores at all');
+		await queueN(3, 'someco');
+		assert.equal(await scoreOf('target-quietco'), base, 'another company is not my problem');
+	});
+
+	it('sinks progressively at 1, 5 and 20 applications out', async () => {
+		const base = await scoreOf('target-someco');
+		assert.ok(base);
+
+		await queueN(1, 'someco');
+		const one = await scoreOf('target-someco');
+		assert.ok(one! < base!, 'one application out already discounts the company');
+
+		await h.db.prepare('DELETE FROM applications WHERE user_id = ?').bind(OWNER).run();
+		await queueN(5, 'manyco');
+		const five = await scoreOf('target-manyco');
+
+		await h.db.prepare('DELETE FROM applications WHERE user_id = ?').bind(OWNER).run();
+		await queueN(20, 'floodco');
+		const twenty = await scoreOf('target-floodco');
+
+		// Same title and profile across the three targets, so the ONLY difference
+		// is how many applications are out at that company.
+		assert.ok(five! < one!, 'five out sinks further than one');
+		assert.ok(twenty! < five!, 'twenty further still');
+	});
+
+	it('ignores failed and closed applications', async () => {
+		const base = await scoreOf('target-someco');
+		await queueN(6, 'someco', 'failed');
+		assert.equal(
+			await scoreOf('target-someco'),
+			base,
+			'a failed application is not one you are waiting on, and the failure is usually ours'
+		);
+	});
+
+	it("does not count another user's applications", async () => {
+		const base = await scoreOf('target-someco');
+		await seedJob(h.db, { id: 'sat-other', company: 'someco' });
+		const now = new Date().toISOString();
+		await h.db
+			.prepare(
+				`INSERT INTO applications (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
+				 VALUES ('app-other', 'someone-else', 'sat-other', '', 'review', 'queued', ?, ?)`
+			)
+			.bind(now, now)
+			.run();
+		assert.equal(await scoreOf('target-someco'), base);
+	});
+});

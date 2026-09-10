@@ -1,4 +1,5 @@
 import { createRoute, z } from '@hono/zod-openapi';
+import type { AppEnv } from '../../types.js';
 import { JobsResponseSchema, ErrorResponseSchema } from '../../schemas.js';
 import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
@@ -76,6 +77,63 @@ function postedDaysAgo(postedDate: string | null): number {
 	if (!postedDate) return 0;
 	const age = (Date.now() - Date.parse(postedDate)) / DAY_MS;
 	return Number.isFinite(age) ? age : 0;
+}
+
+/**
+ * Diversification: a company you already have applications out to sinks.
+ *
+ * Applied live, beside the vote and staleness factors, and deliberately NOT
+ * folded into the precomputed `bound`. That bound is per-PROFILE and is trusted
+ * while the profile's criteria hash holds; this is per-USER and moves every time
+ * an application is queued, so storing it would either go stale silently or
+ * invalidate the whole ranking on every click.
+ *
+ * Multiplicative for the same reason staleness and ghost-age are: the axes have
+ * already agreed this job fits, and what is being expressed is a discount on
+ * that fit rather than a different opinion about it. A subtractive penalty would
+ * also hit a 0.30 job harder in relative terms than a 0.80 one, which is
+ * backwards — the strong match at a company you have flooded is exactly the one
+ * still worth seeing.
+ *
+ * The tiers are the owner's: some penalty from the first application out, more
+ * from five, most from twenty.
+ */
+const COMPANY_SATURATION = [
+	{ from: 20, factor: 0.3 },
+	{ from: 5, factor: 0.6 },
+	{ from: 1, factor: 0.85 },
+];
+
+function saturationFactor(applied: number): number {
+	for (const tier of COMPANY_SATURATION) if (applied >= tier.from) return tier.factor;
+	return 1.0;
+}
+
+/**
+ * Applications that count as "out".
+ *
+ * A failed or closed application is not one you are waiting on, and it should
+ * not suppress the rest of a company's board — the failure is usually ours (a
+ * browser lock, an unrecognised form) rather than a signal about the employer.
+ */
+const APPLICATION_IS_OUT = ['queued', 'filled', 'approved', 'submitted', 'needs_manual'];
+
+/** How many applications this user has out, per company. */
+async function applicationsByCompany(
+	db: AppEnv['JOB_PLATFORM_DB'],
+	userId: string
+): Promise<Map<string, number>> {
+	const rows = await db
+		.prepare(
+			`SELECT LOWER(j.company) AS company, COUNT(*) AS n
+			 FROM applications a
+			 JOIN jobs j ON j.id = a.job_id
+			 WHERE a.user_id = ? AND a.status IN (${APPLICATION_IS_OUT.map(() => '?').join(',')})
+			 GROUP BY LOWER(j.company)`
+		)
+		.bind(userId, ...APPLICATION_IS_OUT)
+		.all<{ company: string; n: number }>();
+	return new Map(rows.results.map((r) => [r.company, Number(r.n)]));
 }
 
 // The light pass reads the WHOLE filtered corpus, so it selects only what
@@ -518,6 +576,11 @@ export function registerFeedRoute(app: JobsApp): void {
 				// unscored candidate can only place ahead of the worst row we return if
 				// its BOUND does — so `worst >= shortlist[cursor].bound` proves the page
 				// is the same one full scoring would have produced.
+				// One read for the whole page: the counts are per-user, not per-row.
+				const appliedPerCompany = userId
+					? await applicationsByCompany(db, userId)
+					: new Map<string, number>();
+
 				const heavyById = new Map<string, HeavyRow>();
 				const fetchHeavy = async (from: number, to: number): Promise<void> => {
 					const chunks: string[][] = [];
@@ -574,7 +637,15 @@ export function registerFeedRoute(app: JobsApp): void {
 								role_track: asRoleTrack(h?.role_track ?? ''),
 								role_level: roleLevel,
 								score: applyVote(
-									Math.round(score * staleFactor(r) * postedAgeFactor(r.posted_date) * 1000) / 1000,
+									Math.round(
+										score *
+											staleFactor(r) *
+											postedAgeFactor(r.posted_date) *
+											saturationFactor(
+												appliedPerCompany.get((h?.company ?? '').toLowerCase()) ?? 0
+											) *
+											1000
+									) / 1000,
 									r.row_vote
 								),
 								score_breakdown: breakdown,
