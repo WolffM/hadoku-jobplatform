@@ -328,20 +328,22 @@ export function registerFeedRoute(app: JobsApp): void {
 				: '';
 			const userBinds: (string | number)[] = userId ? [userId, userId, userId] : [];
 
-			// Companies are an OPTIONAL filter, not a required scope. When a profile
-			// has companies, restrict its feed to their jobs; when it has none, the
-			// feed is the whole corpus, ranked by the profile's other criteria
-			// (keywords / levels / remote). An empty profile ⇒ everything, newest
-			// first.
+			// Companies do NOT scope the feed. Subscribing to one is a SCRAPE
+			// DIRECTIVE — it is what puts a board's jobs in the corpus at all — and
+			// from there every job competes on the profile's criteria alone.
+			//
+			// It was an INNER JOIN on profile_companies until 2026-09-10, which made
+			// a subscription a hard filter: three companies subscribed meant three
+			// companies visible, and 33,000 of 34,135 jobs discarded before scoring.
+			// The owner reasonably expected a union of "my companies" and "things
+			// that match me" and got an intersection of one.
+			//
+			// Ranked purely on merit, the owner's own three land around positions
+			// 79, 197 and 744 corpus-wide. That is the honest answer and it is the
+			// one they chose: a subscription buys a board's jobs a place in the
+			// corpus, not a place on the page.
 			let profile = null as Awaited<ReturnType<typeof loadScorableProfile>> | null;
-			let hasCompanies = false;
 			if (profile_id) {
-				const companyCount = await db
-					.prepare('SELECT COUNT(*) as n FROM profile_companies WHERE profile_id = ?')
-					.bind(profile_id)
-					.first<{ n: number }>();
-				hasCompanies = (companyCount?.n ?? 0) > 0;
-
 				// Track is a HARD filter, not a score factor — "I want management
 				// roles" is a different question from "rank management roles higher",
 				// and the old seniority weight (0.12) could never express the former.
@@ -424,47 +426,16 @@ export function registerFeedRoute(app: JobsApp): void {
 					scheduleRankBuild(c, db, profile_id, profile);
 				}
 
-				// WHICH TABLE LEADS THE JOIN is the whole performance story here, and
-				// SQLite will not get it right on its own.
+				// One shape each now that companies no longer scope the feed. The
+				// ranked path walks idx_job_profile_rank_order and stops at the cap,
+				// which is what that index was built for.
 				//
-				// A company-scoped profile is a narrow slice of a wide corpus — three
-				// companies, 953 of 33,103 jobs. Written as a plain join, the planner
-				// sees `ORDER BY r.bound DESC` and leads with idx_job_profile_rank_order
-				// so it can skip the sort, then probes jobs + profile_companies for every
-				// rank row it walks. Because the slice is 3% of the corpus, LIMIT 800
-				// does not fill until nearly all of it is walked: 61,673 rows read and
-				// ~1.97s of SQL per feed request. That is the cost the owner feels, and
-				// it is also what starves the drawer's own query — one isolate, one
-				// thread, so a deep link into a posting waits behind its own feed.
-				//
-				// Leading with profile_companies instead reads 2,866 rows in 32ms and
-				// sorts 953 rows in memory, which is free at this size. CROSS JOIN is
-				// how that is said in SQLite: same semantics as INNER JOIN, but it
-				// pins the loop order instead of letting the planner choose. A CTE
-				// (even AS MATERIALIZED) does NOT work — the planner still leads with
-				// the rank index inside it.
-				const rankedFrom = hasCompanies
-					? `FROM profile_companies pc
-					   CROSS JOIN jobs j ON j.ats = pc.ats AND j.slug = pc.slug
-					   CROSS JOIN job_profile_rank r ON r.profile_id = ? AND r.job_id = j.id
-					   ${userJoins}
-					   WHERE pc.profile_id = ?${andWheres}`
-					: `FROM job_profile_rank r
-					   JOIN jobs j ON j.id = r.job_id
-					   ${userJoins}
-					   WHERE r.profile_id = ?${andWheres}`;
-				// Same reasoning for the live fallback: without a leading
-				// profile_companies it scans jobs by scraped_at and discards 97% of
-				// what it reads.
-				const liveFrom = hasCompanies
-					? `FROM profile_companies pc
-					   CROSS JOIN jobs j ON j.ats = pc.ats AND j.slug = pc.slug
-					   ${userJoins}
-					   WHERE pc.profile_id = ?${andWheres}`
-					: `FROM jobs j
-					   ${userJoins}
-					   ${whereClause}`;
-
+				// The CROSS JOIN pinning that used to live here went with the company
+				// filter. It existed because `job_profile_rank` covers every job while
+				// a subscription covered ~3% of them, so SQLite led with the rank index
+				// and walked nearly the whole corpus before LIMIT 800 filled — 61,673
+				// rows and ~1.97s per request. With no company join there is no join
+				// order left to get wrong.
 				const candCols = `
 					SELECT
 						j.id, j.title, j.location, j.workplace_type, j.salary_max,
@@ -472,28 +443,24 @@ export function registerFeedRoute(app: JobsApp): void {
 						${stateCols}`;
 				const candSql = rankUsable
 					? `${candCols}
-					${rankedFrom}
+					FROM job_profile_rank r
+					JOIN jobs j ON j.id = r.job_id
+					${userJoins}
+					WHERE r.profile_id = ?${andWheres}
 					ORDER BY r.bound DESC, j.scraped_at DESC
 					LIMIT ${FULL_SCORE_CAP}`
 					: `${candCols}
-					${liveFrom}
+					FROM jobs j
+					${userJoins}
+					${whereClause}
 					ORDER BY j.scraped_at DESC
 					LIMIT ${LIGHT_CANDIDATE_CAP}`;
 
-				// Binds follow the order the placeholders appear in the FROM clause:
-				// the rank join's profile_id, then the user joins, then the company
-				// slice's profile_id, then the WHERE clause.
+				// Placeholders bind in the order they appear: the user joins, then
+				// the rank table's profile_id in the WHERE, then the WHERE clause.
 				const candBinds = rankUsable
-					? hasCompanies
-						? // pc.profile_id is in the WHERE, so it binds after the joins;
-							// the rank join's own profile_id binds before them.
-							[profile_id, ...userBinds, profile_id, ...whereBinds]
-						: // No company slice: the rank table leads, and its profile_id
-							// moves to the WHERE — so it binds after the user joins.
-							[...userBinds, profile_id, ...whereBinds]
-					: hasCompanies
-						? [...userBinds, profile_id, ...whereBinds]
-						: [...userBinds, ...whereBinds];
+					? [...userBinds, profile_id, ...whereBinds]
+					: [...userBinds, ...whereBinds];
 
 				const candidates = await db
 					.prepare(candSql)
@@ -725,9 +692,6 @@ export function registerFeedRoute(app: JobsApp): void {
 			// No profile: list the corpus (optionally per-user filtered), paginated
 			// in SQL. Scores are absent, so every row reports a neutral 0.
 			//
-			// No company slice here — `profile_companies` is only ever joined for a
-			// profile, and this branch is the one without one — so the plain join
-			// order is the right one and no CROSS JOIN pinning is needed.
 			const plainBinds = [...userBinds, ...whereBinds];
 			const countSql = `SELECT COUNT(*) as total FROM jobs j ${userJoins} ${whereClause}`;
 			const countRow = await db

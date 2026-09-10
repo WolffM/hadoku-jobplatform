@@ -363,7 +363,7 @@ describe('company-scoped ranking', () => {
 		assert.equal(status, 200);
 	};
 
-	it('returns the same page as ranking live, and stays inside the slice', async () => {
+	it('returns the same page as ranking live, and is not scoped to the slice', async () => {
 		const live = await scopedFeed();
 		assert.ok(live.jobs.length > 0, 'the live path returned something to compare against');
 
@@ -373,25 +373,22 @@ describe('company-scoped ranking', () => {
 		assert.deepEqual(
 			fast.jobs.map((j) => j.id),
 			live.jobs.map((j) => j.id),
-			'same order — pinning the join order must not change which page comes back'
+			'same order — the stored ranking must agree with ranking live'
 		);
 		assert.deepEqual(
 			fast.jobs.map((j) => j.score),
 			live.jobs.map((j) => j.score),
 			'same scores'
 		);
-		assert.equal(
-			fast.jobs.filter((j) => j.id.startsWith('sc-off-')).length,
-			0,
-			'a job on a board the profile does not subscribe to must not reach the feed'
-		);
+		// Companies are a scrape directive, not a filter: a board this profile
+		// does NOT subscribe to is still reachable on merit.
 		assert.ok(
-			fast.jobs.every((j) => j.id.startsWith('rk-')),
-			'every returned job is one of the slice rows'
+			fast.jobs.some((j) => j.id.startsWith('sc-off-')),
+			'an unsubscribed board competes like any other'
 		);
 	});
 
-	it('still applies the per-user state filter through the pinned join order', async () => {
+	it('still applies the per-user state filter', async () => {
 		await buildScopedRank();
 		const all = await scopedFeed();
 		const victim = all.jobs[0].id;
@@ -403,7 +400,7 @@ describe('company-scoped ranking', () => {
 		);
 		assert.ok(
 			!body.data.jobs.some((j) => j.id === victim),
-			'hide_dismissed reaches the LEFT JOIN even though profile_companies now leads'
+			'hide_dismissed still reaches the LEFT JOIN'
 		);
 		await h.db.prepare('DELETE FROM job_states WHERE job_id = ?').bind(victim).run();
 	});

@@ -102,18 +102,19 @@ pre-flight auth check.
   key and one-off probe. `POST /ingest/rebuild-rank` remains as the operator's
   override, for when the SCORER changes (the criteria hash covers the profile,
   not the code).
-- **The feed's candidate query pins its own join order, and must keep doing
-  so.** `job_profile_rank` covers every job, not a profile's slice, so with
-  `ORDER BY r.bound DESC` in view SQLite leads with the rank index and probes
-  `jobs` + `profile_companies` per row it walks. On a 3-company profile (953 of
-  33,103 jobs) `LIMIT 800` then never fills until nearly the whole corpus has
-  been walked — 61,673 rows and ~1.97s of SQL per request, which also starves
-  every other request in the isolate (a deep link to one posting waits behind
-  its own feed). Leading with `profile_companies` costs 2,866 rows and 32ms.
-  `CROSS JOIN` is what pins it; a CTE, even `AS MATERIALIZED`, does not.
-  Rewriting those back to plain `INNER JOIN`s reintroduces the whole regression
-  silently — `worker/tests/routes/jobsRank.test.ts` guards the RESULT, not the
-  plan, so it will not catch that.
+- **Companies are a scrape DIRECTIVE, never a feed filter** (changed
+  2026-09-10). Subscribing to `(ats, slug)` is what puts a board's jobs in the
+  corpus at all; from there every job competes on the profile's criteria alone.
+  It was an `INNER JOIN profile_companies` until then, which made a
+  subscription a hard scope: three companies subscribed meant three companies
+  visible and 33,000 of 34,135 jobs discarded before scoring, while the owner
+  reasonably read it as "my companies PLUS things that match me". Ranked on
+  merit their own three landed around positions 79, 197 and 744 corpus-wide,
+  and they chose that over any thumb on the scale. The CROSS JOIN pinning that
+  used to be required here went with the filter — `job_profile_rank` covered
+  every job while a subscription covered ~3% of them, so SQLite led with the
+  rank index and walked 61,673 rows before `LIMIT 800` filled. With no company
+  join there is no join order left to get wrong.
 - **Company saturation is a LIVE multiplier, never a stored one.** A company
   the caller already has applications out to is discounted on the feed —
   ×0.85 from one application, ×0.6 from five, ×0.3 from twenty
