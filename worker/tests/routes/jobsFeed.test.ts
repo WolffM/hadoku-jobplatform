@@ -281,12 +281,25 @@ describe('GET /jobs — score-on-read path', () => {
 		assert.ok(eng && eng.score > pm.score);
 	});
 
-	it('scopes the feed to the profile companies when it has any', async () => {
+	/**
+	 * Subscribing to a company is a SCRAPE DIRECTIVE, not a feed filter.
+	 *
+	 * It was an INNER JOIN until 2026-09-10, and the effect was that three
+	 * subscribed companies meant three visible companies — 33,000 of 34,135 jobs
+	 * discarded before scoring. A subscription buys a board's jobs a place in the
+	 * corpus; from there they compete on the profile's criteria like everything
+	 * else.
+	 */
+	it('does NOT scope the feed to the profile companies', async () => {
 		const { body } = await h.json<FeedBody>(`${BASE}/jobs?profile_id=p-scoped`);
-		assert.deepEqual(
-			body.data.jobs.map((j) => j.id).sort(),
-			['g-1', 'g-2'],
-			'only the Acme (greenhouse/acme) postings are in this slice'
+		const ids = body.data.jobs.map((j) => j.id).sort();
+		assert.ok(
+			ids.length > 2,
+			'a profile with companies still sees the whole corpus, not just its slice'
+		);
+		assert.ok(
+			ids.some((id) => !['g-1', 'g-2'].includes(id)),
+			'postings outside the subscribed boards are reachable'
 		);
 	});
 
