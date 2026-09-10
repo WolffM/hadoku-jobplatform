@@ -78,67 +78,41 @@ export async function prepareApplicationPacket(
 }
 
 /**
- * A one-at-a-time queue for the whole prepare→queue sequence.
+ * Handing a posting to the runner is now ONE request.
  *
- * Serialised on purpose, and this is the part that matters for ripping through
- * a feed. Each job costs two LLM generations; ten cards clicked in ten seconds
- * would be twenty concurrent generations, which is well past the per-minute
- * token cap and would fail most of them. So clicks ENQUEUE — the card says
- * "waiting", the run happens in order, and every click still lands.
+ * It used to be four: résumé, kit, mint, queue — about 21 seconds of LLM work
+ * per posting, run in this tab behind a one-at-a-time lane so the generations
+ * could not stack past the per-minute token cap. That made a click look
+ * accepted while nothing durable existed. Queueing eight postings meant the
+ * last began two and a half minutes later, and closing the tab, reloading, or
+ * switching to Applications discarded everything the lane had not reached —
+ * along with every error, so there was no record the owner had ever asked.
  *
- * Module-scoped rather than per-component: the drawer and the feed have to
- * share one lane, or opening a posting mid-rip starts a second one beside it.
+ * `POST /jobs/:id/apply` no longer needs a minted packet. The row is written
+ * immediately and the runner mints the packet just before it fills, so the
+ * click is a single fast write that survives the tab. The lane is gone with
+ * the work it was protecting.
  */
-const lane: (() => Promise<void>)[] = []
-let draining = false
 
-async function drain(): Promise<void> {
-  if (draining) return
-  draining = true
-  try {
-    while (lane.length > 0) {
-      const next = lane.shift()!
-      await next()
-    }
-  } finally {
-    draining = false
-  }
-}
-
-/**
- * Hand one posting to the runner, behind the shared lane.
- *
- * `onStatus` fires on every transition so a card can narrate itself. The
- * promise resolves when THIS job is done, not when the lane empties.
- */
-export function enqueueApply(
+/** Hand one posting to the runner. One request, durable the moment it returns. */
+export async function enqueueApply(
   jobId: string,
   auth: Auth,
   onStatus: (status: ApplyStatus) => void
 ): Promise<void> {
-  onStatus({ phase: 'waiting' })
-  return new Promise<void>(resolve => {
-    lane.push(async () => {
-      try {
-        const { slug } = await prepareApplicationPacket(jobId, auth, phase => onStatus({ phase }))
-        if (!slug) throw new Error('the packet was built but no link was minted')
-        onStatus({ phase: 'queueing' })
-        await queueApplication(jobId, 'review', auth)
-        onStatus({ phase: 'queued' })
-      } catch (err) {
-        onStatus({
-          phase: 'error',
-          error:
-            err instanceof JobsApiError
-              ? err.message
-              : err instanceof Error
-                ? err.message
-                : 'Failed to hand this to the runner'
-        })
-      } finally {
-        resolve()
-      }
+  onStatus({ phase: 'queueing' })
+  try {
+    await queueApplication(jobId, 'review', auth)
+    onStatus({ phase: 'queued' })
+  } catch (err) {
+    onStatus({
+      phase: 'error',
+      error:
+        err instanceof JobsApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'Failed to hand this to the runner'
     })
-    void drain()
-  })
+  }
 }

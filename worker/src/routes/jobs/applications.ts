@@ -28,9 +28,17 @@ import { questionKey } from '../../questionKey.js';
  * (service-tier clears the same friend-min gate). In review mode the runner
  * pauses at 'filled' until the owner hits POST /applications/:id/approve.
  *
- * Queueing requires a minted packet: the caller's job_states row must carry a
- * variant_slug, which is copied onto the application row so a later re-tailor
- * cannot silently change what an in-flight application sends.
+ * Queueing does NOT require a minted packet. The row carries the caller's
+ * variant_slug when one exists, and an empty string when it does not; the
+ * runner mints the packet immediately before it fills and pins the slug then.
+ * The guarantee is unchanged, just one step later — a re-tailor still cannot
+ * alter an in-flight application, because nothing is sent between the pin and
+ * the owner approving the filled form.
+ *
+ * It was the other way round until 2026-09-09, and the cost was that a click
+ * had to carry ~21s of LLM work before anything durable existed. That work ran
+ * in the browser tab, so a reload discarded every posting not yet reached and
+ * every error with them.
  */
 
 interface ApplicationRow {
@@ -240,7 +248,8 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				409: {
-					description: 'No packet minted, or the owner name has never signed in',
+					description:
+						'The posting looks taken down (retry with force), or the owner name has never signed in',
 					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 				},
 				503: {
@@ -290,22 +299,27 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				}
 			}
 
+			// The packet is OPTIONAL at queue time, and the empty string means "not
+			// minted yet".
+			//
+			// This used to 409 without one, so a click had to carry ~21s of LLM work
+			// (résumé, then the kit, then the mint) before anything durable existed.
+			// That work ran in the browser tab, so closing it, reloading, or simply
+			// walking to another view discarded every posting the lane had not
+			// reached yet — and discarded the errors too, leaving no record that the
+			// owner had ever asked. Queueing eight postings meant the last one began
+			// two and a half minutes after the click.
+			//
+			// So the row is written first and the packet is minted later, by the
+			// runner, immediately before it fills. The slug still pins what goes out
+			// — it is just pinned at fill time rather than at queue time, which is
+			// the same guarantee one step later: nothing has been sent in between,
+			// and the owner still approves the filled form.
 			const state = await db
 				.prepare('SELECT variant_slug FROM job_states WHERE user_id = ? AND job_id = ?')
 				.bind(userId, id)
 				.first<{ variant_slug: string | null }>();
-			if (!state?.variant_slug) {
-				return c.json(
-					{
-						success: false as const,
-						error: 'Conflict',
-						message:
-							`No application packet for job '${id}' — prepare the application ` +
-							'first so a resume variant is minted, then apply.',
-					},
-					409
-				);
-			}
+			const variantSlug = state?.variant_slug ?? '';
 
 			// Re-apply re-queues: status back to 'queued', error/evidence cleared,
 			// mode and the packet slug refreshed. created_at marks first queueing.
@@ -316,7 +330,11 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					   (id, user_id, job_id, variant_slug, mode, status, error, evidence, created_at, updated_at)
 					 VALUES (?, ?, ?, ?, ?, 'queued', NULL, NULL, ?, ?)
 					 ON CONFLICT (user_id, job_id) DO UPDATE SET
-					   variant_slug = excluded.variant_slug,
+					   -- An empty slug means "not minted yet" and must never overwrite a
+					   -- real pin: re-queueing a row whose packet already exists has to
+					   -- keep pointing at that packet. Same shape as the COALESCE on
+					   -- job_states.variant_slug, for the same reason.
+					   variant_slug = COALESCE(NULLIF(excluded.variant_slug, ''), applications.variant_slug),
 					   mode = excluded.mode,
 					   status = 'queued',
 					   error = NULL,
@@ -324,7 +342,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					   approved_fingerprint = NULL,
 					   updated_at = excluded.updated_at`
 				)
-				.bind(crypto.randomUUID(), userId, id, state.variant_slug, mode, now, now)
+				.bind(crypto.randomUUID(), userId, id, variantSlug, mode, now, now)
 				.run();
 
 			const row = await db
