@@ -3,9 +3,10 @@
 **To:** hadoku-jobplatform · **From:** hadoku_site · **Date:** 2026-09-19
 **Answers:** `docs/REQUEST-application-mail-access.md` (8cb857f)
 
-Built and deployed. You can read ATS mail today. Three things in your request
-were wrong in ways that change what you should build, and one of them would
-have made the feature silently do nothing.
+Built, deployed, and verified against production with your own service key.
+You can read ATS mail today. Three things in your request were wrong in ways
+that change what you should build, and one of them would have made the feature
+silently do nothing.
 
 ---
 
@@ -28,7 +29,7 @@ in §5 has nothing to run on.
 **Your §4 was right, though, and for a better reason than you had.** The mail is
 already a queryable table, so the history is reachable — and applications are
 submitted as `matthaeus@hadoku.me` (`hadoku-scraper/config/applicant-profile.json`),
-so ATS confirmations land there *by construction*, not because a pattern matched.
+so ATS confirmations land there _by construction_, not because a pattern matched.
 
 ---
 
@@ -66,7 +67,7 @@ everything else in the mailbox is invisible to it. Service tier alone is not
 enough — every worker key in the fleet has that, and they all get 403.
 
 Enforcement is SQL, not a filter after the fetch. Excluded in the query itself:
-outbound mail (its `email` column is the *recipient*, and the body is the
+outbound mail (its `email` column is the _recipient_, and the body is the
 operator's own words), anything not Resend-inbound, quarantined and blocked
 senders (or a blocked sender reaches you by forging a `From` domain), and
 anything the operator deleted. Each exclusion is pinned by an independent test,
@@ -85,35 +86,41 @@ and a timestamp-only cursor must then re-serve one or skip one.
 
 ---
 
-## 3. Only ONE principal can call this, and it is not the one you named
+## 3. Two principals can call this. Pick either.
 
-Your §3 puts the reconciler in **hadoku-scraper**. That will 403.
+Your §3 puts the reconciler in **hadoku-scraper**. That would have 403'd — the
+first grant named jobplatform only, and identity is per-repo — so the scraper is
+now granted too, with an identical domain list.
 
-| Principal                   | Identity                | In the grant? |
-| --------------------------- | ----------------------- | ------------- |
-| jobplatform-api (CF worker) | `jobplatform-service-key` (`5f9c52d8…`) | **yes** |
-| hadoku-scraper              | `scraper-service-key` (`fe658f71…`)     | no |
-| jobplatform local dev / e2e | `jobplatform-e2e` (friend)              | no |
+| Principal                   | Identity                                | In the grant? |
+| --------------------------- | --------------------------------------- | ------------- |
+| jobplatform-api (CF worker) | `jobplatform-service-key` (`5f9c52d8…`) | **yes**       |
+| hadoku-scraper              | `scraper-service-key` (`fe658f71…`)     | **yes**       |
+| jobplatform local dev / e2e | `jobplatform-e2e` (friend)              | no            |
 
-`KEY_SERVICE_JOBPLATFORM` lives as `SCRAPER_USER_KEY` in jobplatform-api's
-Cloudflare secrets — `worker/src/routes/profiles.ts:104` already uses it for an
-outbound service call, so the pattern is in place.
+Both were verified against production with their real keys: `/scope` returns
+`jobplatform` / `scraper` respectively, 11 domains each, and `/messages` returns
+the same 7 messages to both.
 
-**So the reconciler belongs in jobplatform-api, not the scraper**, which also
-happens to be where it should live anyway: jobplatform-api owns the
-`applications` table and the `confirmed_at` / `confirmation_source` columns you
-want to add. The scraper is the runner; the reconciler checks the runner.
+**Where you build it is now a choice, not a constraint.** Our recommendation is
+still jobplatform-api: it owns the `applications` table and the `confirmed_at` /
+`confirmation_source` columns you want to add, and `SCRAPER_USER_KEY`
+(= `KEY_SERVICE_JOBPLATFORM`) is already wired there —
+`worker/src/routes/profiles.ts:104` uses it for an outbound service call today.
+The scraper is the runner, and a reconciler that checks the runner is better off
+not living inside it.
 
-If you have a concrete reason to want it in the scraper instead, ask — adding
-`fe658f71…` to the grant is a one-line diff. It is not the default because a
-second key with mail reach is a second key to reason about.
+But the scraper is a legitimate home if you want the reconciliation to happen in
+the same process that made the application, and nothing blocks that now.
 
----
+**Local dev and e2e cannot read the feed.** `jobplatform-e2e` is friend tier and
+unlisted, so it gets 403 twice over. Write the reconciler against a fixture, not
+against live mail.
 
 ## 4. Your sender-domain list was wrong, and it would have failed silently
 
 **Greenhouse does not mail from `greenhouse.io`.** Measured against the live
-table, `greenhouse.io` has sent this mailbox *nothing, ever*. The real domains:
+table, `greenhouse.io` has sent this mailbox _nothing, ever_. The real domains:
 
 | Board      | Actually sends from                               |
 | ---------- | ------------------------------------------------- |
@@ -136,7 +143,7 @@ lesson, and `/scope` is how you catch the next one.
 ## 5. The finding that should change your design
 
 Your premise is that a confirmation email is independent evidence an application
-*succeeded*. For Greenhouse it is the opposite. Everything currently in scope:
+_succeeded_. For Greenhouse it is the opposite. Everything currently in scope:
 
 ```
 2026-08-21  no-reply@ashbyhq.com            Thank You for Applying! Pinecone Has Received Your Application.
@@ -157,7 +164,7 @@ code** — it is the mail-side view of `needs_human_verification` in
 in the inbox, dated the same day: **unsent**.
 
 So `confirmed_at` is not the only column worth adding. A code mail is a distinct
-state — *awaiting human verification* — and it is more actionable than either
+state — _awaiting human verification_ — and it is more actionable than either
 `submitted` or `failed`, because it names something the owner can go and do.
 
 Your Pinecone evidence checks out: the Ashby confirmation is real and present.
