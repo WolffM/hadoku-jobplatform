@@ -1,8 +1,14 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
 import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
-import { ErrorResponseSchema, IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
-import { reconcileMail } from '../reconcileMail.js';
+import {
+	ErrorResponseSchema,
+	IdentityErrorResponseSchema,
+	IngestPayloadSchema,
+	IngestResponseSchema,
+} from '../schemas.js';
+import { reconcileMail, reconcileView } from '../reconcileMail.js';
+import { effectiveUserId, isEffectiveUserError, ownerNameQuery } from './jobs/shared.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { parseSalaryRange } from '../salaryParse.js';
@@ -725,22 +731,23 @@ app.openapi(cullRoute, async (c) => {
 	return c.json({ success: true as const, data: { culled, has_more: culled === CULL_BATCH } }, 200);
 });
 
-// ── POST /ingest/reconcile-mail — what the INBOX says about our applications ─
+// ── /ingest/reconcile-mail — what the INBOX says about our applications ─────
 //
 // The queue is the runner's account of itself; this walks the employer's. It
 // never overwrites `status` — the disagreement between the two is the product,
 // and on 2026-09-19 the queue reported zero applications sent while a Pinecone
 // confirmation sat unread for an application it had no row for.
 //
-// `reset=true` replays the mailbox from its first message: the backfill. Same
-// loop, same matching rules, deliberately not a second import path.
+// ALWAYS scoped to one owner. Mail to the owner's mailbox is evidence about the
+// owner's applications; the first production run matched with no user filter
+// and confirmed Pinecone against an identity that has no Pinecone application.
 const reconcileMailRoute = createRoute({
 	method: 'post',
 	path: '/ingest/reconcile-mail',
 	tags: ['Ingest'],
 	summary: 'Reconcile ATS mail against the application queue',
 	request: {
-		query: z.object({
+		query: ownerNameQuery.extend({
 			reset: z
 				.string()
 				.optional()
@@ -771,6 +778,22 @@ const reconcileMailRoute = createRoute({
 				},
 			},
 		},
+		403: {
+			description: 'Only a service or admin caller may name an owner',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		404: {
+			description: 'No such owner name',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		409: {
+			description: 'That owner name has never signed in',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		503: {
+			description: 'Identity could not be resolved right now — retry',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
 		502: {
 			description: 'The mail feed could not be read',
 			content: { 'application/json': { schema: ErrorResponseSchema } },
@@ -779,8 +802,11 @@ const reconcileMailRoute = createRoute({
 });
 
 app.openapi(reconcileMailRoute, async (c) => {
-	const { reset } = c.req.valid('query');
-	const report = await reconcileMail(c.env, { reset: reset === 'true' });
+	const { reset, ownerName } = c.req.valid('query');
+	const who = await effectiveUserId(c, ownerName);
+	if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+
+	const report = await reconcileMail(c.env, who.userId, { reset: reset === 'true' });
 	if ('error' in report) {
 		// A feed we cannot read is reported, never treated as an empty mailbox.
 		// "No mail" and "no access" look identical downstream, and telling them
@@ -804,6 +830,55 @@ app.openapi(reconcileMailRoute, async (c) => {
 		},
 		200
 	);
+});
+
+// ── GET /ingest/reconcile-mail — what reconciliation currently says ──────────
+//
+// Shipped late, and the omission mattered: the first version wrote its findings
+// into D1 with no way to read them back, so a feature whose entire purpose is
+// making a disagreement VISIBLE delivered nothing a human could look at.
+const reconcileViewRoute = createRoute({
+	method: 'get',
+	path: '/ingest/reconcile-mail',
+	tags: ['Ingest'],
+	summary: 'Read the current mail-reconciliation state for one owner',
+	request: { query: ownerNameQuery },
+	responses: {
+		200: {
+			description: 'Current reconciliation view',
+			content: {
+				'application/json': {
+					schema: z
+						.object({ success: z.literal(true), data: z.any() })
+						.openapi('ReconcileViewResponse'),
+				},
+			},
+		},
+		403: {
+			description: 'Only a service or admin caller may name an owner',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		404: {
+			description: 'No such owner name',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		409: {
+			description: 'That owner name has never signed in',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+		503: {
+			description: 'Identity could not be resolved right now — retry',
+			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+		},
+	},
+});
+
+app.openapi(reconcileViewRoute, async (c) => {
+	const { ownerName } = c.req.valid('query');
+	const who = await effectiveUserId(c, ownerName);
+	if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+	const view = await reconcileView(c.env, who.userId);
+	return c.json({ success: true as const, data: view }, 200);
 });
 
 export const ingestRoutes = app;
