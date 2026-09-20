@@ -1,7 +1,8 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../types.js';
 import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
-import { IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
+import { ErrorResponseSchema, IngestPayloadSchema, IngestResponseSchema } from '../schemas.js';
+import { reconcileMail } from '../reconcileMail.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { parseSalaryRange } from '../salaryParse.js';
@@ -95,6 +96,7 @@ app.use('/ingest/backfill-roles', requireMinTier('friend'));
 app.use('/ingest/backfill-salary', requireMinTier('friend'));
 app.use('/ingest/cull', requireMinTier('friend'));
 app.use('/ingest/rebuild-rank', requireMinTier('friend'));
+app.use('/ingest/reconcile-mail', requireMinTier('friend'));
 app.use('/directives', requireMinTier('friend'));
 
 // Normalize workplace_type values from scraper to our canonical set
@@ -721,6 +723,87 @@ const cullRoute = createRoute({
 app.openapi(cullRoute, async (c) => {
 	const culled = await cullExpired(c.env.JOB_PLATFORM_DB);
 	return c.json({ success: true as const, data: { culled, has_more: culled === CULL_BATCH } }, 200);
+});
+
+// ── POST /ingest/reconcile-mail — what the INBOX says about our applications ─
+//
+// The queue is the runner's account of itself; this walks the employer's. It
+// never overwrites `status` — the disagreement between the two is the product,
+// and on 2026-09-19 the queue reported zero applications sent while a Pinecone
+// confirmation sat unread for an application it had no row for.
+//
+// `reset=true` replays the mailbox from its first message: the backfill. Same
+// loop, same matching rules, deliberately not a second import path.
+const reconcileMailRoute = createRoute({
+	method: 'post',
+	path: '/ingest/reconcile-mail',
+	tags: ['Ingest'],
+	summary: 'Reconcile ATS mail against the application queue',
+	request: {
+		query: z.object({
+			reset: z
+				.string()
+				.optional()
+				.openapi({ description: 'Replay from the first message rather than the stored cursor' }),
+		}),
+	},
+	responses: {
+		200: {
+			description: 'Reconciliation complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								scope_label: z.string(),
+								scope_domains: z.number(),
+								messages_seen: z.number(),
+								confirmed: z.number(),
+								verification_flagged: z.number(),
+								unmatched: z.number(),
+								duplicates_flagged: z.number(),
+								ignored: z.number(),
+								warnings: z.array(z.string()),
+							}),
+						})
+						.openapi('ReconcileMailResponse'),
+				},
+			},
+		},
+		502: {
+			description: 'The mail feed could not be read',
+			content: { 'application/json': { schema: ErrorResponseSchema } },
+		},
+	},
+});
+
+app.openapi(reconcileMailRoute, async (c) => {
+	const { reset } = c.req.valid('query');
+	const report = await reconcileMail(c.env, { reset: reset === 'true' });
+	if ('error' in report) {
+		// A feed we cannot read is reported, never treated as an empty mailbox.
+		// "No mail" and "no access" look identical downstream, and telling them
+		// apart is the entire reason this feature exists.
+		return c.json({ success: false as const, error: 'Bad gateway', message: report.error }, 502);
+	}
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				scope_label: report.scopeLabel,
+				scope_domains: report.scopeDomains,
+				messages_seen: report.messagesSeen,
+				confirmed: report.confirmed,
+				verification_flagged: report.verificationFlagged,
+				unmatched: report.unmatched,
+				duplicates_flagged: report.duplicatesFlagged,
+				ignored: report.ignored,
+				warnings: report.warnings,
+			},
+		},
+		200
+	);
 });
 
 export const ingestRoutes = app;

@@ -271,6 +271,15 @@ export interface HarnessOptions {
 	 * binding was never declared. The tailoring routes must fail loudly there.
 	 */
 	withoutResumeBinding?: boolean;
+	/**
+	 * Point the mail feed at a loopback server instead of contact-api.
+	 *
+	 * Unset leaves it at the production default, which the suite must never
+	 * reach — so tests that touch reconciliation always pass one. There is no
+	 * credential to fake: the worker authenticates to the feed with
+	 * SCRAPER_USER_KEY, which is already a test value above.
+	 */
+	mailFeedUrl?: string;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -303,6 +312,10 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// nothing else — including the failure shapes, which carry different
 		// meanings the route has to keep apart.
 		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge() }),
+		// A closed port by default, for the same reason as SCRAPER_BASE_URL: a
+		// test that reconciles without declaring a feed should fail loudly
+		// rather than quietly read production mail.
+		MAILFEED_BASE_URL: options.mailFeedUrl ?? 'http://127.0.0.1:1',
 	};
 
 	const app = createJobPlatformHandler(BASE);
