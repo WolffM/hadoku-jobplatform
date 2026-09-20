@@ -31,6 +31,22 @@ export interface AppEnv {
 	SCRAPER_BASE_URL?: string;
 
 	// ============================================================================
+	// Mail feed (outbound to contact-api) — ATS mail addressed to the owner
+	// ============================================================================
+
+	/**
+	 * Override the mail-feed base URL (default
+	 * https://hadoku.me/contact/api/mailfeed). Optional; tests point it at a
+	 * loopback server.
+	 *
+	 * There is no mail credential to bind. SCRAPER_USER_KEY above is the whole
+	 * auth story: contact-api resolves that service identity against a grant
+	 * table naming our sender domains, and enforces the scope in SQL. We cannot
+	 * reach the rest of the mailbox even in principle.
+	 */
+	MAILFEED_BASE_URL?: string;
+
+	// ============================================================================
 	// resume-bot service binding (V3 — tailored application packets)
 	// ============================================================================
 
