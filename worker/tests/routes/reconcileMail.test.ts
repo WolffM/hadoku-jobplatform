@@ -92,7 +92,7 @@ async function seedApplication(
 		.prepare(
 			`INSERT INTO applications
 			   (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
-			 VALUES (?, 'user-one', ?, 'v1', 'review', 'filled', ?, ?)`
+			 VALUES (?, 'user-hadoku', ?, 'v1', 'review', 'filled', ?, ?)`
 		)
 		.bind(opts.id, opts.jobId, opts.createdAt, opts.createdAt)
 		.run();
@@ -114,7 +114,7 @@ test('a Greenhouse security code marks the application awaiting verification, no
 		});
 
 		const { status, body } = await h.json<{ data: Record<string, number> }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(status, 200);
@@ -150,7 +150,10 @@ test('reconciliation never overwrites the runner status — the disagreement is 
 			.bind('app-cb')
 			.run();
 
-		await h.json(`${BASE}/ingest/reconcile-mail`, { method: 'POST', tier: 'service' });
+		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
 
 		const row = await h.db
 			.prepare('SELECT status FROM applications WHERE id = ?')
@@ -179,7 +182,7 @@ test('a confirmation for an application we have no row for is recorded, not drop
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
 		const { body } = await h.json<{ data: Record<string, number> }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(body.data.unmatched, 1);
@@ -219,7 +222,7 @@ test('two confirmations for one company minutes apart are flagged, never counted
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
 		const { body } = await h.json<{ data: Record<string, number> }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(body.data.duplicates_flagged, 1, 'the second must be flagged against the first');
@@ -257,7 +260,7 @@ test('ATS account mail marks nothing', async () => {
 		});
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(body.data.ignored, 1);
@@ -281,7 +284,7 @@ test('an unreachable feed is a 502, never an empty mailbox', async () => {
 	const h = await createHarness(); // default: a closed port
 	try {
 		const { status, body } = await h.json<{ success: boolean; message: string }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(status, 502);
@@ -295,10 +298,13 @@ test('a 403 from the feed is reported rather than read as silence', async () => 
 	const feed = await startFeed({ messages: [], scopeStatus: 403 });
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
-		const { status, body } = await h.json<{ message: string }>(`${BASE}/ingest/reconcile-mail`, {
-			method: 'POST',
-			tier: 'service',
-		});
+		const { status, body } = await h.json<{ message: string }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{
+				method: 'POST',
+				tier: 'service',
+			}
+		);
 		assert.equal(status, 502);
 		assert.match(body.message, /403/);
 	} finally {
@@ -312,7 +318,7 @@ test('an empty grant is warned about, because it makes every poll look quiet', a
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
 		const { body } = await h.json<{ data: { warnings: string[]; scope_domains: number } }>(
-			`${BASE}/ingest/reconcile-mail`,
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
 			{ method: 'POST', tier: 'service' }
 		);
 		assert.equal(body.data.scope_domains, 0);
@@ -327,7 +333,10 @@ test('the feed is called with the service key, and no mail credential exists', a
 	const feed = await startFeed({ messages: [] });
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
-		await h.json(`${BASE}/ingest/reconcile-mail`, { method: 'POST', tier: 'service' });
+		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
 		assert.ok(feed.keys.length > 0);
 		assert.ok(
 			feed.keys.every((k) => k === 'test-service-key'),
@@ -343,7 +352,7 @@ test('the reconciler is gated — public callers cannot read the mailbox', async
 	const feed = await startFeed({ messages: [] });
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
-		const res = await h.fetch(`${BASE}/ingest/reconcile-mail`, { method: 'POST' });
+		const res = await h.fetch(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, { method: 'POST' });
 		// 403, not 401: the gate is about tier, and an unauthed caller is `public`
 		// rather than unknown. Matches every other gated route in this suite.
 		assert.equal(res.status, 403);
@@ -368,7 +377,10 @@ test('message bodies are never written to the database', async () => {
 	});
 	const h = await createHarness({ mailFeedUrl: feed.url });
 	try {
-		await h.json(`${BASE}/ingest/reconcile-mail`, { method: 'POST', tier: 'service' });
+		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
 
 		// Sweep every text column of every table this feature writes.
 		for (const table of ['mail_unmatched', 'applications', 'mail_reconcile_state']) {
@@ -380,6 +392,199 @@ test('message bodies are never written to the database', async () => {
 				}
 			}
 		}
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+/**
+ * The two defects the first production backfill exposed.
+ *
+ * It reported `confirmed: 2, verification_flagged: 0, duplicates_flagged: 3`
+ * for a mailbox with no Pinecone application, two genuine Coinbase codes and
+ * exactly one genuine duplicate pair. Every one of those three numbers was
+ * wrong, and each is pinned below.
+ */
+
+test('mail never matches another identity’s applications', async () => {
+	// `confirmed: 2` for Pinecone against an owner who has never applied there.
+	// The query had no user filter, so it reached whatever rows existed —
+	// writing a confirmation onto an application the mail says nothing about.
+	const feed = await startFeed({
+		messages: [
+			mail({
+				id: 'pine-1',
+				receivedAt: AUG21,
+				fromDomain: 'ashbyhq.com',
+				subject: 'Thank You for Applying! Pinecone Has Received Your Application',
+			}),
+		],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		// Somebody ELSE applied to Pinecone. The mailbox owner did not.
+		await seedJob(h.db, { id: 'ashby_pine_1', title: 'Engineer', company: 'pinecone' });
+		await h.db
+			.prepare(
+				`INSERT INTO applications
+				   (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
+				 VALUES ('other-app', 'user-someone-else', 'ashby_pine_1', 'v1', 'review',
+				         'filled', '2026-08-20T00:00:00.000Z', '2026-08-20T00:00:00.000Z')`
+			)
+			.run();
+
+		const { body } = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(body.data.confirmed, 0, 'must not confirm against another user’s row');
+		assert.equal(body.data.unmatched, 1, 'it is unmatched FOR THIS OWNER, and recorded as such');
+
+		const theirs = await h.db
+			.prepare('SELECT confirmed_at FROM applications WHERE id = ?')
+			.bind('other-app')
+			.first<{ confirmed_at: string | null }>();
+		assert.equal(theirs?.confirmed_at, null, 'the other identity’s row must be untouched');
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('a re-run does not make every mail a duplicate of its own earlier record', async () => {
+	// `duplicates_flagged: 3` on a mailbox with one genuine pair. The second
+	// pass found each message's own row from the first pass sitting inside the
+	// ten-minute window and flagged it against itself.
+	const feed = await startFeed({
+		messages: [mail({ id: 'air-1', subject: 'Security code for your application to Airtable' })],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		const first = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(first.body.data.duplicates_flagged, 0);
+
+		const second = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku&reset=true`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(second.body.data.duplicates_flagged, 0, 'a replay must not invent a duplicate');
+
+		const row = await h.db
+			.prepare('SELECT possible_duplicate_of FROM mail_unmatched WHERE message_id = ?')
+			.bind('air-1')
+			.first<{ possible_duplicate_of: string | null }>();
+		assert.equal(row?.possible_duplicate_of, null);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('an application queued weeks before its code mail still matches', async () => {
+	// `verification_flagged: 0` for two real Coinbase codes. The window was
+	// anchored ±14 days on `created_at`, which is when the row was QUEUED —
+	// routinely long before anything is submitted.
+	const feed = await startFeed({
+		messages: [mail({ id: 'cb-1', subject: 'Security code for your application to Coinbase' })],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		await seedApplication(h, {
+			id: 'app-cb',
+			jobId: 'greenhouse_8051871',
+			company: 'coinbase',
+			// Queued ten weeks before the code arrived.
+			createdAt: '2026-07-08T00:00:00.000Z',
+		});
+
+		const { body } = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(body.data.verification_flagged, 1);
+		assert.equal(body.data.unmatched, 0);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('an application queued AFTER the mail is not matched to it', async () => {
+	// The bound that still does real work: an employer cannot acknowledge an
+	// application that does not exist yet.
+	const feed = await startFeed({
+		messages: [mail({ id: 'cb-1', subject: 'Security code for your application to Coinbase' })],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		await seedApplication(h, {
+			id: 'app-later',
+			jobId: 'greenhouse_8051871',
+			company: 'coinbase',
+			createdAt: '2026-10-20T00:00:00.000Z',
+		});
+
+		const { body } = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(body.data.verification_flagged, 0);
+		assert.equal(body.data.unmatched, 1);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('the results can actually be read back', async () => {
+	// The first version shipped a writer with no reader, so a feature whose
+	// whole purpose is making a disagreement visible delivered nothing to look
+	// at. This is that reader.
+	const feed = await startFeed({
+		messages: [
+			mail({ id: 'cb-1', subject: 'Security code for your application to Coinbase' }),
+			mail({
+				id: 'pine-1',
+				receivedAt: AUG21,
+				fromDomain: 'ashbyhq.com',
+				subject: 'Thank You for Applying! Pinecone Has Received Your Application',
+			}),
+		],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		await seedApplication(h, {
+			id: 'app-cb',
+			jobId: 'greenhouse_8051871',
+			company: 'coinbase',
+			createdAt: '2026-09-09T00:00:00.000Z',
+		});
+		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
+
+		const { status, body } = await h.json<{
+			data: {
+				lastRunAt: string | null;
+				unmatched: { company: string; kind: string }[];
+				applications: { company: string; verification_requested_at: string | null }[];
+			};
+		}>(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, { tier: 'service' });
+
+		assert.equal(status, 200);
+		assert.ok(body.data.lastRunAt, 'the run must be visible');
+		assert.equal(body.data.applications.length, 1);
+		assert.equal(body.data.applications[0].company, 'coinbase');
+		assert.ok(body.data.applications[0].verification_requested_at);
+		// Pinecone has no application for this owner, so it shows as unmatched —
+		// which is the Pinecone finding, surfaced rather than buried.
+		assert.equal(body.data.unmatched.length, 1);
+		assert.equal(body.data.unmatched[0].company, 'pinecone');
 	} finally {
 		await h.dispose();
 		await feed.stop();
