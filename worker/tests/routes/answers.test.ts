@@ -68,7 +68,8 @@ async function seedFill(
 	company: string,
 	unmatched: string[],
 	status = 'needs_manual',
-	options: Record<string, string[]> = {}
+	options: Record<string, string[]> = {},
+	blocking?: string[]
 ) {
 	await seedJob(h.db, { id: jobId, company });
 	await seedJobState(h.db, {
@@ -89,7 +90,7 @@ async function seedFill(
 			OWNER,
 			jobId,
 			status,
-			JSON.stringify({ unmatched, filled: [], options }),
+			JSON.stringify({ unmatched, filled: [], options, ...(blocking ? { blocking } : {}) }),
 			now,
 			now
 		)
@@ -110,6 +111,39 @@ beforeEach(async () => {
 });
 
 describe('GET /unanswered-questions', () => {
+	it('counts an optional blank on a stuck row as unanswered, not as blocking', async () => {
+		// The 2026-10-01 Toast shape: Disability Status stopped the row; the
+		// optional Race question was blank alongside it. Ranking Race as
+		// "blocking" sent the owner to answer a question that held nothing up.
+		await seedFill(
+			'gh_toast',
+			'toast',
+			['Race/Ethnicity (Select all that apply)', 'Disability Status'],
+			'needs_manual',
+			{},
+			['Disability Status']
+		);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const byQ = Object.fromEntries(met(body.data.questions).map((q) => [q.question, q]));
+		assert.equal(byQ['Disability Status'].blocking, 1);
+		assert.equal(byQ['Race/Ethnicity (Select all that apply)'].blocking, 0);
+		assert.equal(
+			byQ['Race/Ethnicity (Select all that apply)'].applications,
+			1,
+			'still listed — the owner may well want to answer it'
+		);
+		assert.equal(met(body.data.questions)[0].question, 'Disability Status', 'and it ranks first');
+	});
+
+	it('evidence written before `blocking` existed keeps the whole-row count', async () => {
+		await seedFill('gh_old', 'toast', [
+			'Race/Ethnicity (Select all that apply)',
+			'Disability Status',
+		]);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		for (const q of met(body.data.questions)) assert.equal(q.blocking, 1, q.question);
+	});
+
 	it('reports nothing met when nothing has been filled', async () => {
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
 		assert.deepEqual(met(body.data.questions), []);
