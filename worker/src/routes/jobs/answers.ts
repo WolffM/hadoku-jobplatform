@@ -183,10 +183,20 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 
 	for (const row of rows.results) {
 		let unmatched: unknown;
+		// The runner's record of which blanks actually stopped the row (scraper
+		// bab1ee2). Null on evidence written before it existed.
+		let blockingKeys: Set<string> | null = null;
 		let optionsByKey: Record<string, unknown> = {};
 		try {
 			const parsedEvidence = JSON.parse(row.evidence) as Record<string, unknown>;
 			unmatched = parsedEvidence.unmatched;
+			if (Array.isArray(parsedEvidence.blocking)) {
+				blockingKeys = new Set(
+					parsedEvidence.blocking
+						.filter((b): b is string => typeof b === 'string')
+						.map((b) => questionKey(b))
+				);
+			}
 			const opts = parsedEvidence.options;
 			if (typeof opts === 'object' && opts !== null && !Array.isArray(opts)) {
 				optionsByKey = opts as Record<string, unknown>;
@@ -226,7 +236,16 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			// `needs_manual` is the status that actually costs an application; a
 			// question that merely went unanswered on an otherwise-fine fill is
 			// worth surfacing but is not holding anything up.
-			if (row.status === 'needs_manual') entry.blocking += 1;
+			//
+			// And on a stuck row, only the questions that STOPPED it. Counting every
+			// blank there ranked Toast's optional "Race/Ethnicity (Select all that
+			// apply)" first in this list — "blocking 7" — when Disability Status had
+			// stopped all seven and Race blocked nothing. When the evidence says
+			// which blanks blocked, believe it; older evidence cannot say, so it
+			// keeps the old whole-row count until the row is filled again.
+			if (row.status === 'needs_manual' && (blockingKeys === null || blockingKeys.has(key))) {
+				entry.blocking += 1;
+			}
 			pending.set(key, entry);
 		}
 	}
