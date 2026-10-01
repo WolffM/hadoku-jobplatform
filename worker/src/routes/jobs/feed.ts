@@ -1,6 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../types.js';
-import { JobsResponseSchema, ErrorResponseSchema } from '../../schemas.js';
+import {
+	JobsResponseSchema,
+	ErrorResponseSchema,
+	IdentityErrorResponseSchema,
+} from '../../schemas.js';
 import { scoreJob, scoreJobLightAxes } from '../../scoring.js';
 import { loadScorableProfile } from '../../profileScore.js';
 import { logger } from '../../logger.js';
@@ -8,7 +12,10 @@ import {
 	asApplicationStatus,
 	asRoleLevel,
 	asRoleTrack,
+	effectiveUserId,
+	isEffectiveUserError,
 	maybeUserId,
+	ownerNameQuery,
 	ZERO_BREAKDOWN,
 	type JobsApp,
 } from './shared.js';
@@ -194,6 +201,7 @@ export function registerFeedRoute(app: JobsApp): void {
 			summary: 'List jobs (optionally scored, or filtered by triage state)',
 			request: {
 				query: z.object({
+					ownerName: ownerNameQuery.shape.ownerName,
 					profile_id: z
 						.string()
 						.optional()
@@ -267,10 +275,27 @@ export function registerFeedRoute(app: JobsApp): void {
 					description: 'state= requires auth',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				403: {
+					description: 'Only a service or admin caller may name an owner',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				404: {
+					description: 'No such owner name',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				409: {
+					description: 'That owner name has never signed in',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
+				503: {
+					description: 'Identity could not be resolved right now — retry',
+					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
+				},
 			},
 		}),
 		async (c) => {
 			const {
+				ownerName,
 				profile_id,
 				state: stateFilter,
 				hide_dismissed: hideDismissedRaw,
@@ -291,7 +316,26 @@ export function registerFeedRoute(app: JobsApp): void {
 			// filtering and the wrong answer is misleading. hide_dismissed is treated
 			// as a no-op for unauthed callers (no per-user join, nothing to hide) so
 			// the UI can default it on without forcing a pre-flight auth check.
-			const userId = await maybeUserId(c);
+			// Whose feed this is. Without `ownerName` it is the caller's own, or
+			// nobody's for an anonymous browser — unchanged, because the feed is
+			// public and effectiveUserId refuses unauthenticated callers outright.
+			//
+			// With it, a service acting for a person sees THAT person's feed. Before
+			// this the name was silently dropped and the feed was computed for the
+			// service identity, which owns no applications: on 2026-10-01 a
+			// service-key read of hadoku's feed showed 23 of hadoku's own
+			// applications in the top 400 as fresh postings, every one reporting
+			// `application_status: null`, with hide_queued, dismissals and the
+			// company saturation penalty all evaluated against nobody. Nothing
+			// errored; the list was just wrong, which is the dangerous kind.
+			let userId: string | null;
+			if (ownerName?.trim()) {
+				const who = await effectiveUserId(c, ownerName);
+				if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+				userId = who.userId;
+			} else {
+				userId = await maybeUserId(c);
+			}
 			const needsAuth = stateFilter !== undefined;
 			if (needsAuth && !userId) {
 				return c.json(
