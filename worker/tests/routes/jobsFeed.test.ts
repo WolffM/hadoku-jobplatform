@@ -534,6 +534,59 @@ describe('jobs already queued for the runner', () => {
 		);
 		assert.equal(jobs.find((j) => j.id === 'f1')?.application_status, null);
 	});
+
+	/**
+	 * A service acting for a person sees THAT person's feed.
+	 *
+	 * Until 2026-10-01 the feed resolved its user with maybeUserId and dropped
+	 * `ownerName` on the floor, so a service-key read of an owner's feed was
+	 * computed for the service identity — which owns no applications. A real
+	 * read of hadoku's feed showed 23 of hadoku's own applications in the top
+	 * 400 as fresh postings, all `application_status: null`. Nothing errored;
+	 * the list was simply wrong.
+	 */
+	const feedAs = async (qs: string, tier: string, userId = 'svc-runner') => {
+		return h.json<{
+			success: boolean;
+			data: { jobs: { id: string; application_status: string | null }[] };
+		}>(`${BASE}/jobs?limit=50${qs}`, { method: 'GET', tier, userId });
+	};
+
+	it("a service naming an owner sees that owner's application status", async () => {
+		await queueFor('f1', 'filled', 'user-hadoku');
+		const { status, body } = await feedAs('&ownerName=Hadoku', 'service');
+		assert.equal(status, 200);
+		assert.equal(
+			body.data.jobs.find((j) => j.id === 'f1')?.application_status,
+			'filled',
+			'computed for the named owner, not for the service that asked'
+		);
+	});
+
+	it("hide_queued hides the OWNER's applications when a service names them", async () => {
+		await queueFor('f1', 'filled', 'user-hadoku');
+		const { body } = await feedAs('&ownerName=Hadoku&hide_queued=true', 'service');
+		assert.ok(
+			!body.data.jobs.some((j) => j.id === 'f1'),
+			"the owner's filled application must not come back as a fresh posting"
+		);
+		assert.ok(body.data.jobs.some((j) => j.id === 'f2'));
+	});
+
+	it('a friend cannot read someone else’s feed by naming them', async () => {
+		// Same gate as every other on-behalf-of route: a signed-in human must not
+		// be able to read another person's queue state through the feed.
+		await queueFor('f1', 'filled', 'user-hadoku');
+		const { status } = await feedAs('&ownerName=Hadoku', 'friend', 'user-one');
+		assert.equal(status, 403);
+	});
+
+	it('naming an owner anonymously is refused rather than ignored', async () => {
+		// Ignoring it would hand back an anonymous feed that LOOKS like an answer
+		// about the named person — the same silent-wrong-list failure as before.
+		const { status } = await h.json(`${BASE}/jobs?limit=5&ownerName=Hadoku`, { method: 'GET' });
+		assert.equal(status, 403);
+	});
 });
 
 /**
