@@ -225,7 +225,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			method: 'post',
 			path: '/jobs/{id}/apply',
 			tags: ['Applications'],
-			summary: 'Queue this job for the form runner (requires a minted packet)',
+			summary: 'Queue this job for the form runner (the packet is minted at fill, not here)',
 			request: {
 				params: z.object({ id: z.string() }),
 				query: ownerNameQuery,

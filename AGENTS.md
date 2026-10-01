@@ -31,35 +31,61 @@ Base path `/jobplatform/api` (`createJobPlatformHandler`). Gates are `requireMin
 and tiers RANK (`public < friend < service < admin`) — "friend" admits service and
 admin too.
 
-| Method | Path                               | Auth   | Purpose                                                                              |
-| ------ | ---------------------------------- | ------ | ------------------------------------------------------------------------------------ |
-| GET    | /health                            | open   | Health check                                                                         |
-| GET    | /jobs                              | open\* | List jobs (profile_id, min_score, min_salary, sort, state, hide_dismissed)           |
-| GET    | /jobs/:id                          | open   | Job detail + score breakdown                                                         |
-| GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose      |
-| PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                            |
-| DELETE | /jobs/:id/state                    | friend | Clear it                                                                             |
-| POST   | /jobs/:id/resume                   | friend | Tailored resume via the `RESUME` service binding                                     |
-| POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                    |
-| POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)             |
-| POST   | /jobs/:id/packet-link              | friend | Mint the shareable packet link; its slug is stashed on `job_states.variant_slug`     |
-| GET    | /profiles                          | friend | List scoring profiles; materializes the Default profile on first call                |
-| POST   | /profiles                          | friend | Create profile                                                                       |
-| PUT    | /profiles/:id                      | friend | Update profile                                                                       |
-| DELETE | /profiles/:id                      | friend | Delete profile                                                                       |
-| GET    | /profiles/:id/companies            | friend | The companies in this profile's slice                                                |
-| POST   | /profiles/:id/companies            | friend | Add a confirmed `(ats, slug)` to the slice                                           |
-| DELETE | /profiles/:id/companies/:companyId | friend | Remove one                                                                           |
-| POST   | /companies/match                   | friend | Read-only proxy to scraper `/match` — name → best board                              |
-| POST   | /companies/probe                   | friend | Read-only proxy to scraper `/probe` — verify explicit slugs                          |
-| POST   | /ingest                            | friend | Scraper webhook (posts as service) — jobs inline, scored, stored in D1               |
-| POST   | /ingest/backfill-slugs             | friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows                            |
-| POST   | /ingest/backfill-roles             | friend | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all |
-| GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)       |
+| Method | Path                               | Auth   | Purpose                                                                                             |
+| ------ | ---------------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| GET    | /health                            | open   | Health check                                                                                        |
+| GET    | /jobs                              | open\* | List jobs (profile_id, min_score, min_salary, sort, state, hide_dismissed, hide_queued, ownerName†) |
+| GET    | /jobs/:id                          | open   | Job detail + score breakdown                                                                        |
+| GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose                     |
+| PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                                           |
+| DELETE | /jobs/:id/state                    | friend | Clear it                                                                                            |
+| POST   | /jobs/:id/resume                   | friend | Tailored resume via the `RESUME` service binding                                                    |
+| POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                   |
+| POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)                            |
+| POST   | /jobs/:id/packet-link              | friend | Mint the shareable packet link; its slug is stashed on `job_states.variant_slug`                    |
+| GET    | /profiles                          | friend | List scoring profiles; materializes the Default profile on first call                               |
+| POST   | /profiles                          | friend | Create profile                                                                                      |
+| PUT    | /profiles/:id                      | friend | Update profile                                                                                      |
+| DELETE | /profiles/:id                      | friend | Delete profile                                                                                      |
+| GET    | /profiles/:id/companies            | friend | The companies in this profile's slice                                                               |
+| POST   | /profiles/:id/companies            | friend | Add a confirmed `(ats, slug)` to the slice                                                          |
+| DELETE | /profiles/:id/companies/:companyId | friend | Remove one                                                                                          |
+| POST   | /companies/match                   | friend | Read-only proxy to scraper `/match` — name → best board                                             |
+| POST   | /companies/probe                   | friend | Read-only proxy to scraper `/probe` — verify explicit slugs                                         |
+| POST   | /ingest                            | friend | Scraper webhook (posts as service) — jobs inline, scored, stored in D1                              |
+| POST   | /ingest/backfill-slugs             | friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows                                           |
+| POST   | /ingest/backfill-roles             | friend | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all                |
+| GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)                      |
+| POST   | /ingest/backfill-salary            | friend | Populate `salary_min/max` from description prose where NULL                                         |
+| POST   | /ingest/cull                       | friend | Delete expired listings, sparing rows with owner activity                                           |
+| POST   | /ingest/rebuild-rank               | friend | Rebuild the precomputed feed ranking — needed when the SCORER changes                               |
+| POST   | /ingest/reconcile-mail             | friend | Walk ATS mail, record where it disagrees with the queue (`?reset=true` = backfill) †                |
+| GET    | /ingest/reconcile-mail             | friend | Read the reconciliation: unmatched mail + applications the inbox has a view on †                    |
+| PUT    | /jobs/:id/feedback                 | friend | Up/downvote a posting with an axis-aligned reason (per-user upsert)                                 |
+| DELETE | /jobs/:id/feedback                 | friend | Clear that vote                                                                                     |
+| GET    | /jobs/packets                      | friend | The caller's application packets (job states with a minted variant)                                 |
+| POST   | /jobs/:id/apply                    | friend | Queue a posting for the form runner; the packet is minted at fill, not here †                       |
+| GET    | /applications                      | friend | The caller's queue, newest first, reconciled against standing answers †                             |
+| POST   | /applications/:id/status           | friend | Record a transition — the runner's endpoint †                                                       |
+| POST   | /applications/:id/approve          | friend | Approve a filled application; binds the approval to its fingerprint                                 |
+| POST   | /applications/:id/owner            | friend | Hand your application to another user by display name (admin: anyone's)                             |
+| GET    | /application-answers               | friend | The caller's standing answers to form questions †                                                   |
+| PUT    | /application-answers               | friend | Save or replace one answer †                                                                        |
+| DELETE | /application-answers/:key          | friend | Forget one answer †                                                                                 |
+| GET    | /unanswered-questions              | friend | Questions the runner could not answer, most costly first †                                          |
 
 \*`GET /jobs` is open, but `state=` requires friend. `hide_dismissed=` is a no-op
 when unauthed rather than an error, so the UI can default it on without a
 pre-flight auth check.
+
+†Accepts `ownerName=<display name>` to act **for** a person, and only from a
+service or admin caller (friend gets 403). This is how the PC-side runner, which
+authenticates as a service, reaches the owner's rows. The name is resolved
+against the key registry, never trusted, and never stored. A route that silently
+ignores it is a bug and the dangerous kind — it answers for the SERVICE identity,
+which owns nothing, so every per-user filter evaluates against nobody and nothing
+errors. `GET /jobs` was that bug until 2026-10-01: a service-key read of an
+owner's feed listed 23 of their own applications as fresh postings.
 
 ## Key Decisions
 
