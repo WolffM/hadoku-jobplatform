@@ -549,6 +549,28 @@ export interface UnansweredQuestion {
    * guess gets rubber-stamped; a stated difference gets read.
    */
   similar: SimilarAnswer[]
+  /**
+   * The personal fact this asks, when it is one that does not vary by employer
+   * — sponsorship, work authorization, the demographics, where you live. Null
+   * for anything answered on its own: another country, a legal agreement, a
+   * follow-up. Questions sharing a family are shown together and confirmed at
+   * once. See worker/src/questionFamily.ts.
+   */
+  family: string | null
+  family_label: string | null
+  /** Every distinct answer the owner has given in this family, newest first. */
+  family_answers: string[]
+  /**
+   * This board's option that says what the owner last said — or the answer as
+   * typed for free text. Null when no option clearly matches. A suggestion the
+   * owner confirms; nothing is saved without them.
+   */
+  suggested: string | null
+  /**
+   * Set only when this question is back because the owner's saved answer did
+   * not fit this board's options and blocked the application.
+   */
+  saved_answer: string | null
 }
 
 export interface SimilarAnswer {

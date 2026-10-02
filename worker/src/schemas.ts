@@ -491,6 +491,30 @@ export const UnansweredQuestionSchema = z
 				runner_would_match: z.boolean(),
 			})
 		),
+		/**
+		 * The personal fact this question asks, when it is one that does not vary
+		 * by employer (sponsorship, work authorization, the demographics, where
+		 * you live…). Null for anything that must be answered on its own —
+		 * another country, a legal agreement, a follow-up, a future intent. See
+		 * worker/src/questionFamily.ts.
+		 */
+		family: z.string().nullable(),
+		family_label: z.string().nullable(),
+		/** Every distinct answer the owner has given in this family, newest first. */
+		family_answers: z.array(z.string()),
+		/**
+		 * THIS board's option that says what the owner last said in the family —
+		 * or the answer as typed for free text. Null when no option clearly
+		 * matches, and the owner picks. A suggestion to confirm, never saved
+		 * on the owner's behalf.
+		 */
+		suggested: z.string().nullable(),
+		/**
+		 * The owner's saved answer, present only when it is the reason this
+		 * question is back: it did not fit this board's options and blocked the
+		 * row. Null for every question that simply has no answer yet.
+		 */
+		saved_answer: z.string().nullable(),
 	})
 	.openapi('UnansweredQuestion');
 
