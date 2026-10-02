@@ -425,3 +425,80 @@
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+
+/*
+ * A question family: one personal fact, every employer's wording beneath it.
+ * The wordings sit indented under the shared answer so the card reads as one
+ * decision, and each keeps its own picker — boards word their options
+ * differently, so one answer is matched per board, not pasted.
+ */
+.jp-family__prior {
+  margin: 0 0 var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-family__members {
+  list-style: none;
+  margin: var(--hdk-space-sm) 0;
+  padding: 0 0 0 var(--hdk-space-md);
+  border-left: 2px solid var(--color-border);
+  display: grid;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-family__member {
+  display: grid;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-family__pick {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hdk-space-sm);
+  cursor: pointer;
+}
+
+.jp-family__pick > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.jp-family__q {
+  overflow-wrap: anywhere;
+}
+
+.jp-family__who {
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-family__member select,
+.jp-family__member > input[type='text'] {
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+/*
+ * A saved answer this board would not take. Warning tint: it is the reason an
+ * application is stuck, and until now it was invisible — the question showed
+ * as answered.
+ */
+.jp-family__rejected {
+  margin: 0;
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-family__save {
+  margin-top: var(--hdk-space-xs);
+}

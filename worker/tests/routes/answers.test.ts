@@ -37,6 +37,11 @@ interface Unanswered {
 	applications: number;
 	blocking: number;
 	similar: Similar[];
+	family: string | null;
+	family_label: string | null;
+	family_answers: string[];
+	suggested: string | null;
+	saved_answer?: string | null;
 }
 
 let h: Harness;
@@ -484,5 +489,146 @@ describe('duplicate flagging on the unanswered queue', () => {
 		await seedFill('j-none', 'Pinterest', ['Website']);
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
 		assert.ok(body.data.questions.every((q) => Array.isArray(q.similar)));
+	});
+});
+
+/**
+ * Question families: one personal fact, asked in many words, shown once.
+ *
+ * Every case is one the owner hit on 2026-10-01.
+ */
+describe('question families on the unanswered queue', () => {
+	const byQuestion = async () => {
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		return Object.fromEntries(met(body.data.questions).map((q) => [q.question, q]));
+	};
+
+	it('suggests the owner’s own answer for another wording of the same fact', async () => {
+		await putAnswer('Will you now or in the future require visa sponsorship?', 'no');
+		await seedFill('j-sam', 'samsara', [
+			'Will you now or in the future require Samsara to commence (“sponsor”) an immigration case in order to employ you?',
+		]);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, 'sponsorship');
+		assert.equal(q.family_label, 'Visa sponsorship');
+		assert.deepEqual(q.family_answers, ['no']);
+		assert.equal(q.suggested, 'no', 'free text takes the answer as typed');
+	});
+
+	it('matches the suggestion to THIS board’s option text', async () => {
+		// Toast words it "don't"; the stored answer says "do not". This exact
+		// mismatch blocked seven Toast applications.
+		await putAnswer('Disability Status', 'No, I do not have a disability');
+		const q1 =
+			'Do you have a disability or chronic condition (physical, visual, auditory, cognitive, mental, emotional, or other)?';
+		await seedFill('j-gr2', 'grafanalabs', [q1], 'needs_manual', {
+			'do you have a disability or chronic condition physical visual auditory cognitive mental emotional or other':
+				[
+					'Yes, I have a disability (or previously had a disability)',
+					"No, I don't have a disability",
+					"I don't wish to answer",
+				],
+		});
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, 'disability');
+		assert.equal(q.suggested, "No, I don't have a disability", 'contractions normalise');
+	});
+
+	it('leaves the pick to the owner when no option clearly matches', async () => {
+		await putAnswer('How did you hear about this job?', 'LinkedIn');
+		await seedFill(
+			'j-gr',
+			'grafanalabs',
+			['How did you hear about this opportunity at Grafana?'],
+			'needs_manual',
+			{
+				'how did you hear about this opportunity at grafana': [
+					'LinkedIn (Job Posting)',
+					'LinkedIn (Company Page)',
+					'Referral',
+				],
+			}
+		);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, 'how_heard');
+		assert.deepEqual(q.family_answers, ['LinkedIn'], 'what they said before is still shown');
+		assert.equal(q.suggested, null, 'two LinkedIn options: not ours to choose');
+	});
+
+	it('shows every answer the owner has given, newest first, and suggests the newest', async () => {
+		await putAnswer('Race', "I don't wish to answer");
+		await new Promise((r) => setTimeout(r, 5));
+		await putAnswer('Race/Ethnicity*', 'White');
+		await seedFill('j-ic', 'instacart', [
+			'What is your race and/or ethnicity? Please check all that apply.',
+		]);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, 'race_ethnicity');
+		assert.deepEqual(q.family_answers, ['White', "I don't wish to answer"]);
+		assert.equal(q.suggested, 'White');
+	});
+
+	it('another country is never in the family, and never offered the US answer', async () => {
+		await putAnswer('Are you legally authorized to work in the United States?', 'Yes');
+		await seedFill('j-ca', 'instacart', ['Are you legally entitled to work in Canada?']);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, null);
+		assert.equal(q.suggested, null);
+		assert.equal(q.similar.length, 0, 'offering "Yes" here would be a false statement');
+	});
+
+	it('a different fact is not offered as "similar" just for sharing words', async () => {
+		// Word overlap offered a race answer for this.
+		await putAnswer('Race/Ethnicity (Select all that apply)', 'White');
+		await seedFill('j-sam2', 'samsara', [
+			'Where have you learned about Samsara? Select all that apply.',
+		]);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, 'how_heard');
+		assert.ok(
+			!q.similar.some((s) => s.answer === 'White'),
+			q.similar.map((s) => s.question).join(' | ')
+		);
+	});
+
+	it('a legal agreement stands alone', async () => {
+		await putAnswer('By checking this box, I consent to Pinterest collecting my data', 'i consent');
+		await seedFill('j-al', 'aledade', [
+			'By clicking "Submit Application" I agree to the Aledade Applicant Privacy Policy',
+		]);
+		const q = Object.values(await byQuestion())[0];
+		assert.equal(q.family, null);
+		assert.equal(q.suggested, null);
+	});
+
+	it('a saved answer that BLOCKED a row is shown again, with this board’s options', async () => {
+		// Toast, 2026-10-01: "Disability Status" is answered, the saved wording is
+		// not one of Toast's options, the runner cannot enter it, seven rows
+		// block — and the queue hid it as "answered", so nothing told the owner.
+		await putAnswer('Disability Status', 'No, I do not have a disability');
+		const toast = [
+			'Yes, I have a disability (or previously had a disability)',
+			"No, I don't have a disability",
+			"I don't wish to answer",
+		];
+		await seedFill(
+			'j-toast',
+			'toast',
+			['Disability Status'],
+			'needs_manual',
+			{ 'disability status': toast },
+			['Disability Status']
+		);
+		const q = (await byQuestion())['Disability Status'];
+		assert.ok(q, 'a blocking question is never hidden for being answered');
+		assert.equal(q.saved_answer, 'No, I do not have a disability');
+		assert.deepEqual(q.options, toast);
+		assert.equal(q.suggested, "No, I don't have a disability");
+	});
+
+	it('a saved answer that did NOT block stays answered and hidden', async () => {
+		await putAnswer('Disability Status', 'No, I do not have a disability');
+		await seedFill('j-ok', 'toast', ['Disability Status'], 'needs_manual', {}, ['Something else']);
+		assert.equal((await byQuestion())['Disability Status'], undefined);
 	});
 });

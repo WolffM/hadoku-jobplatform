@@ -9,6 +9,7 @@ import {
 	UnansweredResponseSchema,
 } from '../../schemas.js';
 import { COMMON_QUESTIONS } from '../../commonQuestions.js';
+import { matchOption, questionFamily } from '../../questionFamily.js';
 import { questionKey, questionNegated, questionTerms } from '../../questionKey.js';
 import {
 	effectiveUserId,
@@ -92,18 +93,61 @@ interface SimilarAnswer {
 const MIN_SHARED_TERMS = 2;
 const MAX_SIMILAR = 4;
 
+/**
+ * What the dashboard needs to show a question inside its family.
+ *
+ * `suggested` is THIS board's option that says what the owner last said, or
+ * the answer as typed when the question is free text — and null when no
+ * option clearly matches, in which case the owner picks. It is a suggestion
+ * the owner confirms, never an answer saved for them.
+ */
+function familyFields(
+	question: string,
+	options: string[],
+	familyAnswers: Map<string, string[]>,
+	saved: string | null
+) {
+	const fam = questionFamily(question);
+	const prior = fam ? (familyAnswers.get(fam.id) ?? []) : [];
+	// The answer saved for THIS question is the most specific thing to go on,
+	// when there is one; otherwise the family's newest.
+	const basis = saved ?? prior[0] ?? null;
+	return {
+		family: fam?.id ?? null,
+		family_label: fam?.label ?? null,
+		family_answers: prior,
+		suggested: basis ? matchOption(basis, options) : null,
+	};
+}
+
 function findSimilar(
 	pendingKey: string,
+	pendingQuestion: string,
 	answered: { question_key: string; question: string; answer: string }[]
 ): SimilarAnswer[] {
 	const pendingTerms = questionTerms(pendingKey);
 	if (pendingTerms.size === 0) return [];
 	const pendingNeg = questionNegated(pendingTerms);
+	// Only within one fact. Word overlap alone offered "White" — a race answer —
+	// for "Where have you learned about Samsara? Select all that apply", and
+	// "Yes" from a US work-authorization answer for "…entitled to work in
+	// Canada?". Same family, or neither in one, or it is not shown.
+	const pendingFam = questionFamily(pendingQuestion)?.id ?? null;
 
 	const scored: (SimilarAnswer & { score: number })[] = [];
 	for (const a of answered) {
 		const terms = questionTerms(a.question_key);
 		if (terms.size === 0) continue;
+		// Across families only as a WARNING: a polarity flip ("able to work
+		// WITHOUT sponsorship" against "require sponsorship") is the most
+		// dangerous look-alike there is, and showing it marked
+		// `polarity_differs` is how the owner learns not to copy it.
+		if (
+			(questionFamily(a.question)?.id ?? null) !== pendingFam &&
+			questionNegated(terms) === pendingNeg
+		) {
+			continue;
+		}
 		const shared = [...pendingTerms].filter((t) => terms.has(t));
 		if (shared.length < MIN_SHARED_TERMS) continue;
 		const onlyPending = [...pendingTerms].filter((t) => !terms.has(t));
@@ -147,11 +191,34 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 
 	// The question TEXT and the answer come back too, because a flagged duplicate
 	// has to show the owner what they said last time and to which wording.
+	// Newest first: when the owner has answered one fact differently over time
+	// (race: "I don't wish to answer", later "White"), the latest is what they
+	// mean now and is the one a family suggests.
 	const answered = await db
-		.prepare('SELECT question_key, question, answer FROM application_answers WHERE user_id = ?')
+		.prepare(
+			`SELECT question_key, question, answer FROM application_answers
+			 WHERE user_id = ? ORDER BY updated_at DESC`
+		)
 		.bind(userId)
 		.all<{ question_key: string; question: string; answer: string }>();
 	const known = new Set(answered.results.map((r) => r.question_key));
+	const savedAnswer = new Map(answered.results.map((r) => [r.question_key, r.answer]));
+
+	/**
+	 * Every distinct answer the owner has given within each family, newest
+	 * first. Distinct case-insensitively — "no" and "No" are one answer. Blank
+	 * answers ("leave this off the form") are a real choice but a poor
+	 * suggestion, so they are not offered.
+	 */
+	const familyAnswers = new Map<string, string[]>();
+	for (const a of answered.results) {
+		const fam = questionFamily(a.question);
+		if (!fam || !a.answer.trim()) continue;
+		const list = familyAnswers.get(fam.id) ?? [];
+		if (!list.some((x) => x.toLowerCase() === a.answer.trim().toLowerCase()))
+			list.push(a.answer.trim());
+		familyAnswers.set(fam.id, list);
+	}
 
 	/**
 	 * Every option list this user's fills have ever seen, keyed by question.
@@ -178,6 +245,8 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			applications: number;
 			blocking: number;
 			options: string[];
+			/** Set only when a saved answer was rejected by this board. */
+			savedAnswer: string | null;
 		}
 	>();
 
@@ -216,13 +285,26 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 		for (const raw of unmatched) {
 			if (typeof raw !== 'string' || !raw.trim()) continue;
 			const key = questionKey(raw);
-			if (!key || known.has(key)) continue;
+			if (!key) continue;
+			// An answered question is normally done with. NOT when it is what
+			// stopped this row: then the saved answer did not fit this board —
+			// Toast, 2026-10-01, "No, I do not have a disability" against an option
+			// reading "don't", seven applications blocked — and hiding it as
+			// "answered" left the owner nothing to act on and no sign anything was
+			// wrong. Shown again with the saved answer and this board's options.
+			const rejected =
+				known.has(key) &&
+				row.status === 'needs_manual' &&
+				blockingKeys !== null &&
+				blockingKeys.has(key);
+			if (known.has(key) && !rejected) continue;
 			const entry = pending.get(key) ?? {
 				question: raw.trim(),
 				companies: new Set<string>(),
 				applications: 0,
 				blocking: 0,
 				options: [] as string[],
+				savedAnswer: rejected ? (savedAnswer.get(key) ?? null) : null,
 			};
 			// An answer must match the board's option text verbatim to land, so
 			// these are not a hint — they are the only answers that work.
@@ -267,6 +349,7 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			// that ANSWERED this question still learnt what it accepts. That is
 			// the whole reason `learnedOptions` is built separately.
 			options: learnedOptions.get(key) ?? [],
+			savedAnswer: null,
 		});
 	}
 
@@ -281,7 +364,9 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				blocking: v.blocking,
 				// Every pending question is returned whether or not it looks like a
 				// duplicate — the owner asked to see them all. This only annotates.
-				similar: findSimilar(key, answered.results),
+				similar: findSimilar(key, v.question, answered.results),
+				...familyFields(v.question, v.options, familyAnswers, v.savedAnswer),
+				saved_answer: v.savedAnswer,
 			}))
 			// Most blocking first: the queue is a work list, so what is costing the
 			// most applications should be answered first.
