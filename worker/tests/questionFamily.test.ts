@@ -94,6 +94,10 @@ const FAMILIES: [question: string, family: string][] = [
 	['Location (City)*', 'current_city'],
 	['Website(s)', 'website'],
 	['Do you have a GitHub URL?', 'github'],
+	// Affirm's picker, Vanta's free text, Pinecone's label
+	['Pronouns', 'pronouns'],
+	['What are your pronouns? (Optional)', 'pronouns'],
+	['Preferred Pronouns', 'pronouns'],
 
 	// per-employer, grouped so the owner can untick the one they DID work at
 	['How did you hear about this opportunity at Grafana?', 'how_heard'],
@@ -165,6 +169,10 @@ const TRAPS: [question: string, why: string][] = [
 		'legal',
 	],
 	['Processing of Personal Data', 'legal'],
+	[
+		'At Samsara, we encourage employees to bring their whole selves to work (this includes applicants too!) Feel free to share your preferred name and pronouns (she/her, they/them, he/him, ze/zir etc.).',
+		'asks for a name AND pronouns in one box',
+	],
 	['Gender', 'not grouped: "gender" and "gender identity" differ, and so do the owner\'s answers'],
 	[
 		'Are you able to work in the United States without sponsorship?',
@@ -192,6 +200,19 @@ test('a contraction is the same option once normalised', () => {
 		matchOption('No, I do not have a disability', toast),
 		"No, I don't have a disability"
 	);
+});
+
+test("one pronoun answer lands in a board's longer wording", () => {
+	// Vanta's free text took "He/Him"; Affirm's picker says "He/him/his".
+	const affirm = [
+		'He/him/his',
+		'She/her/hers',
+		'They/them/theirs',
+		'My pronouns are not listed',
+		'I prefer not to say',
+		'I prefer to self describe',
+	];
+	assert.equal(matchOption('He/Him', affirm), 'He/him/his');
 });
 
 test('a plain yes/no picks the one option leading with that word', () => {
