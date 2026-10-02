@@ -171,6 +171,15 @@ const RULES: FamilyRule[] = [
 		sensitive: false,
 	},
 	{ id: 'github', label: 'GitHub profile', match: (h) => /\bgithub\b/.test(h), sensitive: false },
+	{
+		id: 'pronouns',
+		label: 'Pronouns',
+		// Not a question that also asks for a name — Samsara's "share your
+		// preferred name and pronouns" wants both in one box, and a bare
+		// "He/Him" would answer half of it.
+		match: (h) => /\bpronouns?\b/.test(h) && !/\bname\b/.test(h),
+		sensitive: false,
+	},
 ];
 
 /**
