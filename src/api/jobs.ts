@@ -539,6 +539,8 @@ export interface UnansweredQuestion {
    * work — not suggestions.
    */
   options: string[]
+  /** Whether several of `options` may be picked; answered as "A | B". */
+  multi: boolean
   /**
    * Already-answered questions that look like this one.
    *

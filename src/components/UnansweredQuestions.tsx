@@ -252,6 +252,91 @@ function FamilyCard({
   )
 }
 
+/** How the runner joins several picks; it splits on exactly this. */
+const MULTI_SEPARATOR = ' | '
+
+/**
+ * The input a question's shape calls for.
+ *
+ * - Several picks allowed ("select all that apply"): checkboxes, saved joined
+ *   by MULTI_SEPARATOR. A single picker could only ever give Datadog one of the
+ *   languages it asked for.
+ * - One option and nothing else: that option IS the question — a consent box
+ *   such as Aledade's "By clicking Submit Application I agree…". A tick box,
+ *   saved as "Yes", which is what the runner ticks it on.
+ * - Other choices: a picker, never a text box. The answer has to match the
+ *   board's option text verbatim to land, so typing "No" where the option
+ *   reads "No, I am not a current or former Government Official" does nothing.
+ * - Otherwise free text.
+ */
+function AnswerInput({
+  q,
+  value,
+  onChange,
+  onEnter
+}: {
+  q: UnansweredQuestion
+  value: string
+  onChange: (value: string) => void
+  onEnter: () => void
+}) {
+  if (q.multi && q.options.length > 0) {
+    const picked = new Set(value ? value.split(MULTI_SEPARATOR) : [])
+    const toggle = (opt: string) => {
+      const next = new Set(picked)
+      if (next.has(opt)) next.delete(opt)
+      else next.add(opt)
+      onChange(q.options.filter(o => next.has(o)).join(MULTI_SEPARATOR))
+    }
+    return (
+      <fieldset className="jp-questions__choices">
+        <legend className="jp-questions__choices-hint">Pick all that apply</legend>
+        {q.options.map(opt => (
+          <label key={opt}>
+            <input type="checkbox" checked={picked.has(opt)} onChange={() => toggle(opt)} />
+            {opt}
+          </label>
+        ))}
+      </fieldset>
+    )
+  }
+  if (q.options.length === 1) {
+    return (
+      <label className="jp-questions__consent">
+        <input
+          type="checkbox"
+          checked={value === 'Yes'}
+          onChange={e => onChange(e.target.checked ? 'Yes' : '')}
+        />
+        Tick this box
+      </label>
+    )
+  }
+  if (q.options.length > 0) {
+    return (
+      <select value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">Pick an answer…</option>
+        {q.options.map(opt => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  return (
+    <input
+      type="text"
+      value={value}
+      placeholder="Answer"
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={e => {
+        if (e.key === 'Enter') onEnter()
+      }}
+    />
+  )
+}
+
 export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
   const [questions, setQuestions] = useState<UnansweredQuestion[]>([])
   const [answers, setAnswers] = useState<StandingAnswer[]>([])
@@ -464,33 +549,12 @@ export function UnansweredQuestions({ auth, refreshKey = 0 }: Props) {
                   </p>
                 )}
                 <div className="jp-questions__answer">
-                  {u.q.options.length > 0 ? (
-                    /* Never a text box for a question with choices: the answer
-                     has to match the board's option text verbatim to land, so
-                     typing "No" where the option reads "No, I am not a current
-                     or former Government Official" does nothing at all. */
-                    <select
-                      value={drafts[u.q.question_key] ?? u.q.suggested ?? ''}
-                      onChange={e => setDrafts(d => ({ ...d, [u.q.question_key]: e.target.value }))}
-                    >
-                      <option value="">Pick an answer…</option>
-                      {u.q.options.map(opt => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={drafts[u.q.question_key] ?? u.q.suggested ?? ''}
-                      placeholder="Answer"
-                      onChange={e => setDrafts(d => ({ ...d, [u.q.question_key]: e.target.value }))}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') void handleSave(u.q)
-                      }}
-                    />
-                  )}
+                  <AnswerInput
+                    q={u.q}
+                    value={drafts[u.q.question_key] ?? u.q.suggested ?? ''}
+                    onChange={v => setDrafts(d => ({ ...d, [u.q.question_key]: v }))}
+                    onEnter={() => void handleSave(u.q)}
+                  />
                   <button
                     type="button"
                     className="jp-drawer__cta jp-drawer__cta--primary"

@@ -167,7 +167,8 @@ const RULES: FamilyRule[] = [
 	{
 		id: 'website',
 		label: 'Personal website',
-		match: (h) => /^websites?\b/.test(h),
+		// Affirm's "Other Links" is the same free slot for a personal site.
+		match: (h) => /^websites?\b/.test(h) || /^other links?$/.test(h),
 		sensitive: false,
 	},
 	{ id: 'github', label: 'GitHub profile', match: (h) => /\bgithub\b/.test(h), sensitive: false },

@@ -31,6 +31,7 @@ interface Similar {
 }
 interface Unanswered {
 	options: string[];
+	multi: boolean;
 	question_key: string;
 	question: string;
 	companies: string[];
@@ -74,7 +75,8 @@ async function seedFill(
 	unmatched: string[],
 	status = 'needs_manual',
 	options: Record<string, string[]> = {},
-	blocking?: string[]
+	blocking?: string[],
+	multi?: string[]
 ) {
 	await seedJob(h.db, { id: jobId, company });
 	await seedJobState(h.db, {
@@ -95,7 +97,13 @@ async function seedFill(
 			OWNER,
 			jobId,
 			status,
-			JSON.stringify({ unmatched, filled: [], options, ...(blocking ? { blocking } : {}) }),
+			JSON.stringify({
+				unmatched,
+				filled: [],
+				options,
+				...(blocking ? { blocking } : {}),
+				...(multi ? { multi } : {}),
+			}),
 			now,
 			now
 		)
@@ -348,6 +356,26 @@ describe('question options', () => {
 		assert.ok(q, 'the seed is present');
 		assert.equal(q.companies.length, 0, 'still a seed — no fill failed on it');
 		assert.deepEqual(q.options, ['Yes', 'No', 'Decline To Self Identify']);
+	});
+
+	it('says which questions take several picks', async () => {
+		// Datadog, 2026-10-02: "select all the languages you speak fluently"
+		// reached the owner as a single picker, so only one language could
+		// ever be given.
+		const langs = 'please select all the languages you speak fluently';
+		await seedFill(
+			'm1',
+			'Datadog',
+			['Please select all the languages you speak fluently.', 'Pronouns'],
+			'needs_manual',
+			{ [langs]: ['English', 'French', 'German'], pronouns: ['He/him/his', 'She/her/hers'] },
+			undefined,
+			[langs]
+		);
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const byKey = new Map(body.data.questions.map((q) => [q.question_key, q]));
+		assert.equal(byKey.get(langs)?.multi, true);
+		assert.equal(byKey.get('pronouns')?.multi, false);
 	});
 
 	it('reports no options for a genuinely free-text question', async () => {
