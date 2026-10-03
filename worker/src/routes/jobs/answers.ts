@@ -250,6 +250,8 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 		}
 	>();
 
+	const learnedMulti = new Set<string>();
+
 	for (const row of rows.results) {
 		let unmatched: unknown;
 		// The runner's record of which blanks actually stopped the row (scraper
@@ -269,6 +271,13 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			const opts = parsedEvidence.options;
 			if (typeof opts === 'object' && opts !== null && !Array.isArray(opts)) {
 				optionsByKey = opts as Record<string, unknown>;
+			}
+			// Which of those take several picks (scraper 75de8d5). Keys are the
+			// runner's normalised questions, the same keys `options` uses.
+			if (Array.isArray(parsedEvidence.multi)) {
+				for (const k of parsedEvidence.multi) {
+					if (typeof k === 'string' && k) learnedMulti.add(questionKey(k));
+				}
 			}
 		} catch {
 			// A hand-edited or truncated blob is skipped, not fatal: one bad row
@@ -361,6 +370,7 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				companies: [...v.companies].sort(),
 				applications: v.applications,
 				options: v.options,
+				multi: learnedMulti.has(key),
 				blocking: v.blocking,
 				// Every pending question is returned whether or not it looks like a
 				// duplicate — the owner asked to see them all. This only annotates.

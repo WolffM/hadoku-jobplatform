@@ -465,6 +465,11 @@ export const UnansweredQuestionSchema = z
 		 */
 		options: z.array(z.string()),
 		/**
+		 * Whether the form takes SEVERAL of `options` ("select all that apply").
+		 * Answered with the picks joined by " | ", which the runner splits.
+		 */
+		multi: z.boolean(),
+		/**
 		 * Already-answered questions that look like this one — flagged for a
 		 * human to judge, never applied.
 		 *

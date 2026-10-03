@@ -98,7 +98,11 @@ export function ApplicationsList({ auth }: Props) {
   } = useResource<ApplicationSummary[]>('applications', () => listApplications(undefined, auth))
 
   const needsAuth = loadError instanceof JobsApiError && loadError.status === 403
-  const apps: ApplicationSummary[] = (data ?? []).map(a => approved[a.id] ?? a)
+  // A posting taken down before it was sent is not something to act on or
+  // review — there is nothing left to apply to — so it leaves the list.
+  const apps: ApplicationSummary[] = (data ?? [])
+    .map(a => approved[a.id] ?? a)
+    .filter(a => a.status !== 'job_closed')
   const error =
     approveError ??
     (loadError && !needsAuth

@@ -93,6 +93,7 @@ const FAMILIES: [question: string, family: string][] = [
 	['Where are you currently located? (city, state)*', 'current_city'],
 	['Location (City)*', 'current_city'],
 	['Website(s)', 'website'],
+	['Other Links', 'website'],
 	['Do you have a GitHub URL?', 'github'],
 	// Affirm's picker, Vanta's free text, Pinecone's label
 	['Pronouns', 'pronouns'],
