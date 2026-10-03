@@ -246,6 +246,8 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			applications: number;
 			blocking: number;
 			options: string[];
+			/** Whether `options` came from a row this question is blocking. */
+			optionsFromBlocker: boolean;
 			/** Set only when a saved answer was rejected by this board. */
 			savedAnswer: string | null;
 		}
@@ -321,11 +323,28 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 				applications: 0,
 				blocking: 0,
 				options: [] as string[],
+				optionsFromBlocker: false,
 				savedAnswer: rejected ? (savedAnswer.get(key) ?? null) : null,
 			};
 			// An answer must match the board's option text verbatim to land, so
-			// these are not a hint — they are the only answers that work.
-			if (!entry.options.length) entry.options = learnedOptions.get(key) ?? [];
+			// these are not a hint — they are the only answers that work. And
+			// they must be the options of a board the question is BLOCKING: on
+			// 2026-10-03 Chime's "Veteran Status:" showed another employer's
+			// wording ("I am not a protected veteran"), the owner picked it, and
+			// it could never land on Chime, whose option reads "No, I am not a
+			// veteran". First sighting anywhere is only the fallback.
+			const seenHere = optionsByKey[key];
+			const own = Array.isArray(seenHere)
+				? seenHere.filter((o): o is string => typeof o === 'string' && !!o)
+				: [];
+			const blocksHere =
+				row.status === 'needs_manual' && (blockingKeys === null || blockingKeys.has(key));
+			if (blocksHere && own.length && !entry.optionsFromBlocker) {
+				entry.options = own;
+				entry.optionsFromBlocker = true;
+			} else if (!entry.options.length) {
+				entry.options = own.length ? own : (learnedOptions.get(key) ?? []);
+			}
 			entry.companies.add(row.company);
 			// Per APPLICATION, not per company. Two postings at one employer are
 			// two applications held up; counting distinct companies reported
@@ -366,6 +385,7 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			// that ANSWERED this question still learnt what it accepts. That is
 			// the whole reason `learnedOptions` is built separately.
 			options: learnedOptions.get(key) ?? [],
+			optionsFromBlocker: false,
 			savedAnswer: null,
 		});
 	}
