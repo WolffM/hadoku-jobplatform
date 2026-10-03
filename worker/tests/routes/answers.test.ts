@@ -402,6 +402,25 @@ describe('question options', () => {
 		assert.equal(blended, false, 'one employer’s wording, not a mixture');
 	});
 
+	it('shows the options of the board the question is blocking, not the first one seen', async () => {
+		// Chime, 2026-10-03: "Veteran Status:" was offered with another board's options,
+		// the owner picked one, and it could never land on Chime's form.
+		await seedFill(
+			'j-chime-v',
+			'chime',
+			['Veteran Status:'],
+			'needs_manual',
+			{ 'veteran status': ['Yes, I am a veteran', 'No, I am not a veteran'] },
+			['Veteran Status:']
+		);
+		await seedFill('j-a-toast-v', 'toast', ['Some other question'], 'filled', {
+			'veteran status': ['I am not a protected veteran', 'I decline to self-identify'],
+		});
+		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
+		const q = body.data.questions.find((x) => x.question_key === 'veteran status');
+		assert.deepEqual(q?.options, ['Yes, I am a veteran', 'No, I am not a veteran']);
+	});
+
 	it('a seeded question claims nothing about what it accepts', async () => {
 		const { body } = await get<{ questions: Unanswered[] }>('/unanswered-questions');
 		const seeded = body.data.questions.filter((q) => q.companies.length === 0);
