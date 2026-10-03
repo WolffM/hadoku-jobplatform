@@ -249,7 +249,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				},
 				409: {
 					description:
-						'The posting looks taken down (retry with force), or the owner name has never signed in',
+						'The posting looks taken down (retry with force), the row is approved (retry with force) or already submitted, or the owner name has never signed in',
 					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 				},
 				503: {
@@ -320,6 +320,31 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				.bind(userId, id)
 				.first<{ variant_slug: string | null }>();
 			const variantSlug = state?.variant_slug ?? '';
+
+			// Never re-queue past the owner's say-so. Re-queueing clears the
+			// approval fingerprint and the evidence it was given against, so an
+			// approved row would silently need approving again — the runner's
+			// packet mint did exactly this to 18 rows on 2026-10-02 — and a
+			// submitted one would be filled and sent a second time. `force`
+			// re-opens an approved row deliberately; nothing re-opens a sent one.
+			const existing = await db
+				.prepare('SELECT status FROM applications WHERE user_id = ? AND job_id = ?')
+				.bind(userId, id)
+				.first<{ status: string }>();
+			if (existing?.status === 'submitted' || (existing?.status === 'approved' && !body?.force)) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Conflict',
+						message:
+							existing.status === 'submitted'
+								? 'This application was already submitted.'
+								: 'This application is approved; re-queueing would discard the approval. ' +
+									'Re-apply with {"force": true} to fill it again.',
+					},
+					409
+				);
+			}
 
 			// Re-apply re-queues: status back to 'queued', error/evidence cleared,
 			// mode and the packet slug refreshed. created_at marks first queueing.
