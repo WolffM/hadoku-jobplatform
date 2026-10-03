@@ -630,7 +630,10 @@ describe('job_closed', () => {
 		await setStatus(id, { status: 'filled', evidence: { fingerprint: FP } });
 		await approve(id);
 
-		const { body: requeued } = await apply('ap-1');
+		// Refused unforced: a background re-queue erased 18 approvals on 2026-10-02.
+		assert.equal((await apply('ap-1')).status, 409);
+		// Forced, it re-opens — and the approval never outlives the fill it was for.
+		const { body: requeued } = await apply('ap-1', { force: true });
 		assert.equal(requeued.data.application.status, 'queued');
 		assert.equal(requeued.data.application.approved_fingerprint, null);
 	});

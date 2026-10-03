@@ -15,7 +15,7 @@
  * method+path first, then the handler.
  */
 import type { AppEnv } from '../../types.js';
-import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
+import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 
 interface JobTailoringFields {
 	title: string;
@@ -93,6 +93,11 @@ async function readOptions(c: { req: { json: () => Promise<unknown> } }) {
 	} catch {
 		return {};
 	}
+}
+
+/** The owner a service caller is acting for, when its body names one. */
+function ownerNameOf(opts: Record<string, unknown>): string | undefined {
+	return typeof opts.ownerName === 'string' ? opts.ownerName : undefined;
 }
 
 /** resume-api errors surface as 502 with a truncated upstream detail. */
@@ -188,6 +193,11 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			);
 		}
 
+		// Resolved before minting, so a refused owner name never leaves an orphan
+		// variant behind.
+		const who = await effectiveUserId(c, ownerNameOf(opts));
+		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+
 		const res = await callResumeBinding(c.env, '/resume/api/variants', {
 			label: `${job.company} — ${job.title}`,
 			markdown: resumeMarkdown,
@@ -213,19 +223,21 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		// preserved; a fresh row lands as 'saved' (generating a packet implies at
 		// least that much interest). The owner generated two packets that were
 		// unfindable because nothing wrote this row — never again.
-		const userId = await maybeUserId(c);
-		if (userId) {
-			const now = new Date().toISOString();
-			await c.env.JOB_PLATFORM_DB.prepare(
-				`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
-				 VALUES (?, ?, 'saved', NULL, ?, ?)
-				 ON CONFLICT (job_id, user_id) DO UPDATE SET
-				   variant_slug = excluded.variant_slug,
-				   updated_at = excluded.updated_at`
-			)
-				.bind(id, userId, now, variant.slug)
-				.run();
-		}
+		//
+		// For the OWNER when the runner names one. Keyed on the caller, the
+		// runner's service identity got the slug and the owner's application row
+		// never did, so every fill minted again — and on an approved row the mint's
+		// re-queue erased the approval (18 of them, 2026-10-02).
+		const now = new Date().toISOString();
+		await c.env.JOB_PLATFORM_DB.prepare(
+			`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
+			 VALUES (?, ?, 'saved', NULL, ?, ?)
+			 ON CONFLICT (job_id, user_id) DO UPDATE SET
+			   variant_slug = excluded.variant_slug,
+			   updated_at = excluded.updated_at`
+		)
+			.bind(id, who.userId, now, variant.slug)
+			.run();
 
 		const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
 		return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);
@@ -252,7 +264,10 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		let resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
 
 		if (!resumeMarkdown) {
-			const userId = await maybeUserId(c);
+			// The owner's packet when the runner names one — see packet-link.
+			const who = await effectiveUserId(c, ownerNameOf(opts));
+			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+			const userId = who.userId;
 			const row = userId
 				? await c.env.JOB_PLATFORM_DB.prepare(
 						'SELECT variant_slug FROM job_states WHERE job_id = ? AND user_id = ?'

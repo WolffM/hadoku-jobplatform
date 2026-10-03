@@ -40,6 +40,74 @@ function req<T>(path: string, init: Record<string, unknown>) {
 }
 
 describe('acting on behalf of a named owner', () => {
+	it("mints the packet into the OWNER's job state, so their application carries it", async () => {
+		// 2026-10-02: the slug landed on the runner's own job_states row, the
+		// owner's application never got it, every fill minted again — and on an
+		// approved row that mint's re-queue erased the approval.
+		const minted = await req<{ data: { slug: string } }>('/jobs/j1/packet-link', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({ resume_markdown: '# R', ownerName: 'Hadoku' }),
+		});
+		assert.equal(minted.status, 200);
+		const slug = minted.body.data.slug;
+		const owners = await h.db
+			.prepare('SELECT variant_slug FROM job_states WHERE job_id = ? AND user_id = ?')
+			.bind('j1', HADOKU)
+			.first<{ variant_slug: string }>();
+		assert.equal(owners?.variant_slug, slug);
+
+		await req('/jobs/j1/apply', {
+			method: 'POST',
+			tier: 'service',
+			userId: SERVICE,
+			body: JSON.stringify({ ownerName: 'Hadoku' }),
+		});
+		const app = await h.db
+			.prepare('SELECT variant_slug FROM applications WHERE job_id = ? AND user_id = ?')
+			.bind('j1', HADOKU)
+			.first<{ variant_slug: string }>();
+		assert.equal(app?.variant_slug, slug, 'the next fill must not mint again');
+	});
+
+	it('will not re-queue an approved row unless forced, nor a submitted one at all', async () => {
+		const now = new Date().toISOString();
+		const seed = (status: string) =>
+			h.db
+				.prepare(
+					`INSERT INTO applications
+					   (id, user_id, job_id, variant_slug, mode, status, approved_fingerprint, created_at, updated_at)
+					 VALUES ('a1', ?, 'j1', 'v', 'review', ?, 'fp', ?, ?)
+					 ON CONFLICT (user_id, job_id) DO UPDATE SET status = excluded.status,
+					   approved_fingerprint = 'fp'`
+				)
+				.bind(HADOKU, status, now, now)
+				.run();
+		const apply = (force?: boolean) =>
+			req('/jobs/j1/apply', {
+				method: 'POST',
+				tier: 'service',
+				userId: SERVICE,
+				body: JSON.stringify({ ownerName: 'Hadoku', ...(force ? { force } : {}) }),
+			});
+		const row = () =>
+			h.db
+				.prepare('SELECT status, approved_fingerprint FROM applications WHERE id = ?')
+				.bind('a1')
+				.first<{ status: string; approved_fingerprint: string | null }>();
+
+		await seed('approved');
+		assert.equal((await apply()).status, 409);
+		assert.deepEqual({ ...(await row()) }, { status: 'approved', approved_fingerprint: 'fp' });
+		assert.equal((await apply(true)).status, 200, 'force is how the owner re-opens it');
+		assert.equal((await row())?.status, 'queued');
+
+		await seed('submitted');
+		assert.equal((await apply(true)).status, 409, 'a sent application is never re-queued');
+		assert.equal((await row())?.status, 'submitted');
+	});
+
 	it('queues the application under the OWNER, not the service', async () => {
 		await seedJobState(h.db, {
 			job_id: 'j1',
