@@ -30,6 +30,10 @@ const CASES: [answer: string, options: string[]][] = [
 	['White', ['Asian', 'White', "I don't wish to answer"]],
 	['Male', ['Female', 'Non-binary']],
 	['Microsoft Corporation', []],
+	// Chime's two Country menus, and a territory that must never be the US
+	['USA', ['United States +1', 'United Arab Emirates +971', 'United Kingdom +44']],
+	['U.S.A.', ['United States of America', 'United Arab Emirates', 'United Kingdom']],
+	['USA', ['United States', 'United States Minor Outlying Islands', 'Canada']],
 	['   ', ['Yes', 'No']],
 	[
 		'I am not a protected veteran',

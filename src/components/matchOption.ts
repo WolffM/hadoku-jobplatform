@@ -21,6 +21,19 @@ function normalize(text: string): string {
     .trim()
 }
 
+/** Mirrors worker/src/questionFamily.ts `US_NAMES`. */
+const US_NAMES = new Set([
+  'us',
+  'u s',
+  'usa',
+  'u s a',
+  'america',
+  'united states',
+  'united states of america',
+  'the united states',
+  'the united states of america'
+])
+
 export function matchOption(answer: string, options: string[]): string | null {
   const a = answer.trim()
   if (!a) return null
@@ -29,6 +42,11 @@ export function matchOption(answer: string, options: string[]): string | null {
   const na = normalize(a)
   const exact = options.filter(o => normalize(o) === na)
   if (exact.length === 1) return exact[0] ?? null
+
+  if (US_NAMES.has(na)) {
+    const us = options.filter(o => US_NAMES.has(normalize(o).replace(/( [0-9]+)+$/, '')))
+    if (us.length === 1) return us[0] ?? null
+  }
 
   const lead = na.split(' ')[0]
   if (lead === 'yes' || lead === 'no') {

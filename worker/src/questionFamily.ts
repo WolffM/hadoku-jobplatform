@@ -66,6 +66,17 @@ const CONDITIONAL =
 	/^if\b|\bif you (do|did|selected|answered|chose|said|have|are|were)\b|\bplease (list|share|explain|describe|specify|provide)\b/;
 
 /**
+ * A question that only exists given an earlier answer — "If Yes, please share
+ * their name here", under "Do you have any relatives working for Airwallex?".
+ * Shown on its own it is unanswerable, and answering "No" to its parent means
+ * it stays blank. Narrower than CONDITIONAL: "Please describe…" is often a
+ * question in its own right.
+ */
+export function isFollowUp(question: string): boolean {
+	return /^if\b|\bif you (do|did|selected|answered|chose|said)\b/.test(questionKey(question));
+}
+
+/**
  * ORDER MATTERS: first match wins. Sponsorship precedes work authorization
  * because "require sponsorship to maintain your work authorization" is about
  * sponsorship, and race precedes Hispanic/Latino for the same reason.
@@ -209,6 +220,25 @@ export function questionFamily(question: string): QuestionFamily | null {
 }
 
 /**
+ * Every way an owner or a board writes the United States, normalised. Chime,
+ * 2026-10-02: "USA" fitted neither "United States of America" nor the phone
+ * menu's "United States +1". Matched whole answer to whole option (a phone
+ * menu's dialling code ignored), so "United States Minor Outlying Islands" is
+ * never it. Mirrors US_NAMES in hadoku-scraper's apply/_answers.py.
+ */
+const US_NAMES = new Set([
+	'us',
+	'u s',
+	'usa',
+	'u s a',
+	'america',
+	'united states',
+	'united states of america',
+	'the united states',
+	'the united states of america',
+]);
+
+/**
  * The option on THIS board that says what `answer` says, or null when no
  * option clearly does.
  *
@@ -219,6 +249,7 @@ export function questionFamily(question: string): QuestionFamily | null {
  *
  * 1. The same text once normalised — which already expands contractions, so
  *    "No, I do not have a disability" IS "No, I don't have a disability".
+ *    Or, for the United States, any of its names (US_NAMES).
  * 2. A plain yes or no, and exactly one option leading with that word.
  * 3. One option containing the answer as whole words, or vice versa — and
  *    only one. "LinkedIn" against "LinkedIn (Job Posting)" and "LinkedIn
@@ -234,6 +265,11 @@ export function matchOption(answer: string, options: string[]): string | null {
 	const na = questionKey(a);
 	const exact = options.filter((o) => questionKey(o) === na);
 	if (exact.length === 1) return exact[0] ?? null;
+
+	if (US_NAMES.has(na)) {
+		const us = options.filter((o) => US_NAMES.has(questionKey(o).replace(/( [0-9]+)+$/, '')));
+		if (us.length === 1) return us[0] ?? null;
+	}
 
 	const lead = na.split(' ')[0];
 	if (lead === 'yes' || lead === 'no') {

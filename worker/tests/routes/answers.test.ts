@@ -654,6 +654,48 @@ describe('question families on the unanswered queue', () => {
 		assert.equal(q.suggested, "No, I don't have a disability");
 	});
 
+	it('an answer saved AFTER the fill has not been tried, so it is not called rejected', async () => {
+		// 2026-10-03: "English | German" saved at 06:01 for a row filled at 05:39
+		// was reported as "isn't one of this board's options". It never met the
+		// form; it is waiting for the next fill like any other answer.
+		await seedFill(
+			'j-dd',
+			'datadog',
+			['Please select all the languages you speak fluently.'],
+			'needs_manual',
+			{ 'please select all the languages you speak fluently': ['English', 'German'] },
+			['Please select all the languages you speak fluently.']
+		);
+		await h.db
+			.prepare("UPDATE applications SET updated_at = '2026-10-03T05:39:00.000Z' WHERE job_id = ?")
+			.bind('j-dd')
+			.run();
+		await putAnswer('Please select all the languages you speak fluently.', 'English | German');
+		const q = (await byQuestion())['Please select all the languages you speak fluently.'];
+		assert.equal(q, undefined, 'answered, and not yet tried — nothing for the owner to do');
+	});
+
+	it('an optional follow-up is not put to the owner; a required one still is', async () => {
+		await seedFill(
+			'j-aw',
+			'airwallex',
+			['If Yes, please share their name here'],
+			'needs_manual',
+			{},
+			[]
+		);
+		assert.equal((await byQuestion())['If Yes, please share their name here'], undefined);
+		await seedFill(
+			'j-aw2',
+			'airwallex',
+			['If Yes, please share their name here'],
+			'needs_manual',
+			{},
+			['If Yes, please share their name here']
+		);
+		assert.ok((await byQuestion())['If Yes, please share their name here']);
+	});
+
 	it('a saved answer that did NOT block stays answered and hidden', async () => {
 		await putAnswer('Disability Status', 'No, I do not have a disability');
 		await seedFill('j-ok', 'toast', ['Disability Status'], 'needs_manual', {}, ['Something else']);

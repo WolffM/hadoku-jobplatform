@@ -9,7 +9,7 @@ import {
 	UnansweredResponseSchema,
 } from '../../schemas.js';
 import { COMMON_QUESTIONS } from '../../commonQuestions.js';
-import { matchOption, questionFamily } from '../../questionFamily.js';
+import { isFollowUp, matchOption, questionFamily } from '../../questionFamily.js';
 import { questionKey, questionNegated, questionTerms } from '../../questionKey.js';
 import {
 	effectiveUserId,
@@ -181,13 +181,13 @@ function findSimilar(
 async function unansweredQuestions(db: D1Database, userId: string) {
 	const rows = await db
 		.prepare(
-			`SELECT a.evidence, a.status, j.company
+			`SELECT a.evidence, a.status, a.updated_at, j.company
 			 FROM applications a
 			 JOIN jobs j ON j.id = a.job_id
 			 WHERE a.user_id = ? AND a.evidence IS NOT NULL`
 		)
 		.bind(userId)
-		.all<{ evidence: string; status: string; company: string }>();
+		.all<{ evidence: string; status: string; updated_at: string; company: string }>();
 
 	// The question TEXT and the answer come back too, because a flagged duplicate
 	// has to show the owner what they said last time and to which wording.
@@ -196,13 +196,14 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 	// mean now and is the one a family suggests.
 	const answered = await db
 		.prepare(
-			`SELECT question_key, question, answer FROM application_answers
+			`SELECT question_key, question, answer, updated_at FROM application_answers
 			 WHERE user_id = ? ORDER BY updated_at DESC`
 		)
 		.bind(userId)
-		.all<{ question_key: string; question: string; answer: string }>();
+		.all<{ question_key: string; question: string; answer: string; updated_at: string }>();
 	const known = new Set(answered.results.map((r) => r.question_key));
 	const savedAnswer = new Map(answered.results.map((r) => [r.question_key, r.answer]));
+	const savedAt = new Map(answered.results.map((r) => [r.question_key, r.updated_at]));
 
 	/**
 	 * Every distinct answer the owner has given within each family, newest
@@ -301,11 +302,18 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 			// reading "don't", seven applications blocked — and hiding it as
 			// "answered" left the owner nothing to act on and no sign anything was
 			// wrong. Shown again with the saved answer and this board's options.
+			//
+			// And only when that fill had the answer to try. Saved AFTER the row
+			// was last filled, it has never met the form: 2026-10-03, the owner
+			// answered "English | German" at 06:01 for a row filled at 05:39 and
+			// was told it "isn't one of this board's options". It is simply
+			// waiting for the next fill, like any other answered question.
 			const rejected =
 				known.has(key) &&
 				row.status === 'needs_manual' &&
 				blockingKeys !== null &&
-				blockingKeys.has(key);
+				blockingKeys.has(key) &&
+				(savedAt.get(key) ?? '') <= row.updated_at;
 			if (known.has(key) && !rejected) continue;
 			const entry = pending.get(key) ?? {
 				question: raw.trim(),
@@ -364,6 +372,10 @@ async function unansweredQuestions(db: D1Database, userId: string) {
 
 	return (
 		[...pending.entries()]
+			// A follow-up nothing is waiting on is not a question for the owner:
+			// its parent's answer decides it, and when that answer is "no" it
+			// stays blank. One that IS required still shows — it is blocking.
+			.filter(([, v]) => v.blocking > 0 || !isFollowUp(v.question))
 			.map(([key, v]) => ({
 				question_key: key,
 				question: v.question,
