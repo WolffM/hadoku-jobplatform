@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchOption, questionFamily } from '../src/questionFamily.ts';
+import { isFollowUp, matchOption, questionFamily } from '../src/questionFamily.ts';
 
 /**
  * Which questions are the same personal fact.
@@ -249,4 +249,24 @@ test('no options means the answer is taken as typed', () => {
 
 test('an empty answer suggests nothing', () => {
 	assert.equal(matchOption('   ', ['Yes', 'No']), null);
+});
+
+test('every name of the United States lands in each of Chime’s menus', () => {
+	const phone = ['United States +1', 'United Arab Emirates +971', 'United Kingdom +44'];
+	const country = ['United States of America', 'United Arab Emirates', 'United Kingdom'];
+	for (const answer of ['USA', 'U.S.A.', 'US', 'United States', 'America']) {
+		assert.equal(matchOption(answer, phone), 'United States +1', answer);
+		assert.equal(matchOption(answer, country), 'United States of America', answer);
+	}
+	assert.equal(
+		matchOption('USA', ['United States', 'United States Minor Outlying Islands', 'Canada']),
+		'United States'
+	);
+});
+
+test('a follow-up is told apart from a question in its own right', () => {
+	assert.equal(isFollowUp('If Yes, please share their name here'), true);
+	assert.equal(isFollowUp("If you selected 'Other', please share additional details"), true);
+	assert.equal(isFollowUp('Please describe your experience with Go'), false);
+	assert.equal(isFollowUp('Do you have any relatives currently working for Airwallex?'), false);
 });
