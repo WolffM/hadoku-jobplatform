@@ -96,10 +96,11 @@ export async function fetchScope(env: AppEnv): Promise<MailScope | { error: stri
  */
 export async function fetchMessages(
 	env: AppEnv,
-	opts: { cursor?: string | null; limit?: number } = {}
+	opts: { cursor?: string | null; limit?: number; since?: string } = {}
 ): Promise<MailPage | { error: string }> {
 	const params = new URLSearchParams();
 	if (opts.cursor) params.set('cursor', opts.cursor);
+	if (opts.since) params.set('since', opts.since);
 	params.set('limit', String(opts.limit ?? 100));
 	return get<MailPage>(env, `/messages?${params.toString()}`);
 }

@@ -11,6 +11,15 @@ before this was written, not taken from the response on trust.
 
 ## 1. Verification codes: the reconciler reads THAT one arrived, never WHAT it says
 
+> **Superseded in part, 2026-10-04.** The owner — who runs both the mail service
+> and the dashboard — asked to read codes on the dashboard instead of opening an
+> inbox, after the runner was taken off submission for code-checked boards.
+> `GET /verification-codes` now shows them. What this section was protecting
+> still holds, now in code: codes go to the mailbox owner's own admin session
+> only; a service identity (the runner) and `ownerName` are refused, nothing is
+> stored, and nothing types a code into a form — the owner does. The reconciler
+> itself is unchanged: it still sets state from THAT a code arrived.
+
 hadoku_site is right that nothing in the plumbing enforces the old line any
 more. 4 of the 7 messages now reachable are verification codes, and their values
 are in the bodies we receive. So this is a choice our code makes.

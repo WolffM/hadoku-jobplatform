@@ -19,6 +19,7 @@ import { registerTailoringRoutes } from './tailoring.js';
 import { registerAnswerRoutes } from './answers.js';
 import { registerOwnerRoutes } from './owner.js';
 import { registerApplicationRoutes } from './applications.js';
+import { registerVerificationRoutes } from './verification.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -32,6 +33,7 @@ registerTailoringRoutes(app);
 // The approve-to-apply queue rides on the jobs app for the shared friend gate;
 // its /applications paths have no static/param collision with /jobs routes.
 registerApplicationRoutes(app);
+registerVerificationRoutes(app);
 registerAnswerRoutes(app);
 registerOwnerRoutes(app);
 
