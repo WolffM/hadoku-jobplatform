@@ -1,0 +1,15 @@
+<!doctype html><html><body><form>
+<div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_x" for="_systemfield_name">Full Name</label><input id="_systemfield_name" name="_systemfield_name" type="text" required></div>
+<div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_x" for="_systemfield_email">Email</label><input id="_systemfield_email" name="_systemfield_email" type="email" required></div>
+<div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_x" for="_systemfield_resume">Resume</label><input id="_systemfield_resume" type="file"></div>
+<div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title" for="li">LinkedIn Profile</label><input id="li" type="text"></div>
+<div class="ashby-application-form-field-entry"><label class="ashby-application-form-question-title _required_x" for="co">Current/Most Recent Company Name</label><input id="co" type="text" required></div>
+<div class="ashby-application-form-field-entry" id="sponsor"><label class="ashby-application-form-question-title _required_x" for="s1">Will you now or in the future require visa sponsorship?</label>
+ <div class="ashby-application-form-input-yesno"><button type="button" class="ashby-application-form-input-yesno-option" aria-pressed="false" data-option="yes">Yes</button><button type="button" class="ashby-application-form-input-yesno-option" aria-pressed="false" data-option="no">No</button><input type="checkbox" tabindex="-1" name="s1"></div></div>
+<fieldset class="ashby-application-form-input-radio-group"><label class="ashby-application-form-question-title" for="race">Race</label>
+ <div><input type="radio" id="r0" name="race"><label for="r0">Hispanic or Latino</label></div>
+ <div><input type="radio" id="r1" name="race"><label for="r1">White (Not Hispanic or Latino)</label></div>
+ <div><input type="radio" id="r2" name="race"><label for="r2">Decline to self-identify</label></div></fieldset>
+</form>
+<script>for (const b of document.querySelectorAll('.ashby-application-form-input-yesno-option')) b.addEventListener('click', () => { for (const s of b.parentElement.querySelectorAll('button')) s.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-pressed', 'true') })</script>
+</body></html>

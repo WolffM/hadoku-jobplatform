@@ -12,7 +12,7 @@
  */
 
 /** Mirrors worker/src/questionKey.ts `questionKey`. */
-function normalize(text: string): string {
+export function normalize(text: string): string {
   return text
     .replace(/\*/g, ' ')
     .toLowerCase()
