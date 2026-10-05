@@ -19,7 +19,7 @@ interface Props {
 const STATUS_COPY: Record<ApplicationStatus, string> = {
   queued: 'waiting for the runner',
   filled: 'filled — review the screenshot, then approve',
-  approved: 'approved — ready to send',
+  approved: 'approved — open the form, press Fill, then Submit',
   submitted: 'submitted',
   needs_manual: 'needs you: the runner stopped rather than guess',
   failed: 'failed',
@@ -168,6 +168,18 @@ export function ApplicationsList({ auth }: Props) {
                 <span className={`jp-applications__status jp-applications__status--${app.status}`}>
                   {app.status}
                 </span>
+                {app.status !== 'submitted' && (
+                  /* Where the owner submits: the hadoku Fill extension fills it,
+                     they press the board's Submit and type any emailed code. */
+                  <a
+                    className="jp-applications__open"
+                    href={app.form_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open form ↗
+                  </a>
+                )}
               </div>
               <p className="jp-applications__meta">
                 {STATUS_COPY[app.status]} · {app.mode} mode · updated {formatWhen(app.updated_at)}

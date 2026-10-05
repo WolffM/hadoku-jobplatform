@@ -323,6 +323,8 @@ export const ApplicationSummarySchema = ApplicationSchema.extend({
 	title: z.string(),
 	company: z.string(),
 	location: z.string(),
+	/** The application form to open — where the Fill extension runs. */
+	form_url: z.string(),
 	/**
 	 * The stored fill, reconciled against the answers that exist NOW.
 	 *
