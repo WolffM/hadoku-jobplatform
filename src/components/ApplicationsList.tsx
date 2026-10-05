@@ -9,6 +9,7 @@ import {
 import type { Auth } from '../api/auth'
 import { useResource } from '../api/useResource'
 import { UnansweredQuestions } from './UnansweredQuestions'
+import { VerificationCodes } from './VerificationCodes'
 
 interface Props {
   auth: Auth
@@ -18,7 +19,7 @@ interface Props {
 const STATUS_COPY: Record<ApplicationStatus, string> = {
   queued: 'waiting for the runner',
   filled: 'filled — review the screenshot, then approve',
-  approved: 'approved — the runner will submit it on its next run with --submit',
+  approved: 'approved — ready to send',
   submitted: 'submitted',
   needs_manual: 'needs you: the runner stopped rather than guess',
   failed: 'failed',
@@ -134,6 +135,8 @@ export function ApplicationsList({ auth }: Props) {
   if (!apps.length) {
     return (
       <div className="jp-applications">
+        <VerificationCodes auth={auth} />
+        <VerificationCodes auth={auth} />
         <UnansweredQuestions auth={auth} />
         <p className="jp-muted">No applications queued.</p>
       </div>
@@ -142,6 +145,7 @@ export function ApplicationsList({ auth }: Props) {
 
   return (
     <div className="jp-applications">
+      <VerificationCodes auth={auth} />
       <UnansweredQuestions auth={auth} />
       {error && <p className="jp-error">{error}</p>}
       <ul className="jp-applications__list">

@@ -546,3 +546,66 @@
   padding: 0;
   border: none;
 }
+
+/* Verification codes from the hadoku.me mail feed: the one thing on this page
+   with a deadline, so it sits first and reads at a glance. */
+.jp-codes {
+  margin-bottom: var(--hdk-space-md);
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-codes h3 {
+  margin: 0 0 var(--hdk-space-xs);
+}
+
+.jp-codes__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jp-codes__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-codes__row--stale {
+  opacity: 0.6;
+}
+
+.jp-codes__company {
+  min-width: 8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.jp-codes__code {
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font-family: ui-monospace, monospace;
+  font-size: 1.25em;
+  letter-spacing: 0.08em;
+  cursor: copy;
+}
+
+.jp-codes__text {
+  flex-basis: 100%;
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.85em;
+}
+
+.jp-codes__meta {
+  font-size: 0.85em;
+}

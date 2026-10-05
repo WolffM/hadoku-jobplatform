@@ -633,3 +633,31 @@ export async function forgetAnswer(questionKey: string, auth: Auth): Promise<Sta
   const data = await parseWrapped<{ answers: StandingAnswer[] }>(response)
   return data.answers
 }
+
+/** One code an ATS emailed, as read from the hadoku.me mail feed. */
+export interface VerificationCode {
+  id: string
+  /** The employer the mail names, lowercased, or null. */
+  company: string | null
+  subject: string
+  received_at: string
+  /** Null when the code could not be picked out; `text` then has the mail. */
+  code: string | null
+  text: string | null
+}
+
+/**
+ * GET /verification-codes — codes Greenhouse emailed, for the owner to type.
+ *
+ * Admin (the mailbox owner) only; anyone else gets 403, which callers treat as
+ * "nothing to show" rather than an error.
+ */
+export async function listVerificationCodes(auth?: Auth): Promise<VerificationCode[]> {
+  const response = await fetch(`${BASE_URL}/verification-codes`, {
+    method: 'GET',
+    headers: authHeaders(auth),
+    credentials: 'include'
+  })
+  const data = await parseWrapped<{ codes: VerificationCode[] }>(response)
+  return data.codes
+}

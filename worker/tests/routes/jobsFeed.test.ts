@@ -383,9 +383,13 @@ describe('GET /jobs — ghost-posting decay', () => {
 			scraped_at: fresh,
 			posted_date: sixMonthsAgo,
 		});
+		// The twin is seen as recently as the ghost, so posted age is the ONLY
+		// difference. Its seeded scraped_at is a fixed date; once that passed 60
+		// days (2026-10-04) staleness, not posted age, decided the comparison and
+		// this test failed with nothing in the scorer having changed.
 		await h.db
-			.prepare('UPDATE jobs SET last_seen_at = ? WHERE id = ?')
-			.bind(fresh, 'ghost-1')
+			.prepare('UPDATE jobs SET last_seen_at = ? WHERE id IN (?, ?)')
+			.bind(fresh, 'ghost-1', 'g-1')
 			.run();
 		await seedProfile(h.db, {
 			id: 'p-ghost',
