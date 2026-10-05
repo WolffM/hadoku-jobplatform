@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { formUrl } from '../../formUrl.js';
 import { createRoute, z } from '@hono/zod-openapi';
 import {
 	ApplicationsResponseSchema,
@@ -425,14 +426,21 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			const stmt = c.env.JOB_PLATFORM_DB.prepare(
 				`SELECT a.id, a.job_id, a.variant_slug, a.mode, a.status, a.error,
 				        a.evidence, a.approved_fingerprint, a.created_at, a.updated_at,
-				        j.title, j.company, j.location
+				        j.title, j.company, j.location, j.ats, j.slug, j.url
 				 FROM applications a
 				 INNER JOIN jobs j ON j.id = a.job_id
 				 WHERE a.user_id = ?${filter}
 				 ORDER BY a.updated_at DESC`
 			);
 			const rows = await (status ? stmt.bind(userId, status) : stmt.bind(userId)).all<
-				ApplicationRow & { title: string; company: string; location: string }
+				ApplicationRow & {
+					title: string;
+					company: string;
+					location: string;
+					ats: string | null;
+					slug: string | null;
+					url: string;
+				}
 			>();
 
 			// One read for the whole list: every row is reconciled against the same
@@ -454,6 +462,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					title: r.title,
 					company: r.company,
 					location: r.location,
+					form_url: formUrl({ id: r.job_id, ats: r.ats, slug: r.slug, url: r.url }),
 					...reconcile(app.evidence, stored),
 				};
 			});

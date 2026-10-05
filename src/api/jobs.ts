@@ -445,6 +445,8 @@ export interface ApplicationSummary {
   title: string
   company: string
   location: string
+  /** The application form — where the hadoku Fill extension runs. */
+  form_url: string
   /**
    * The stored fill, reconciled against the answers that exist now.
    *

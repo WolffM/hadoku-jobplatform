@@ -609,3 +609,12 @@
 .jp-codes__meta {
   font-size: 0.85em;
 }
+
+/* The link to the application form, where the Fill extension does the typing. */
+.jp-applications__open {
+  margin-left: auto;
+  color: var(--color-text);
+  font-size: 0.9em;
+  text-decoration: underline;
+  white-space: nowrap;
+}
