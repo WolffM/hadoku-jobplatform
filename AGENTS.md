@@ -55,6 +55,9 @@ admin too.
 | POST   | /ingest                            | friend | Scraper webhook (posts as service) — jobs inline, scored, stored in D1                                 |
 | POST   | /ingest/backfill-slugs             | friend | One-off: parse `(ats, slug)` from `job.url` for NULL rows                                              |
 | POST   | /ingest/backfill-roles             | friend | Classify `(role_track, role_level)` for pre-0009 rows; `?reclassify=true` redoes all                   |
+| GET    | /applicant-profile                 | friend | The applicant's own facts (contact, links, education, work history), for in-browser filling            |
+| PUT    | /applicant-profile                 | friend | Replace them; the runner writes the owner's via ownerName                                              |
+| GET    | /jobs/:id/fill-packet              | friend | Profile + the approved fill's answers + résumé PDF link, for the Fill extension                        |
 | GET    | /verification-codes                | admin  | Recent ATS security codes from the hadoku.me mail feed, for the owner to type; never service/ownerName |
 | GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)                         |
 | POST   | /ingest/backfill-salary            | friend | Populate `salary_min/max` from description prose where NULL                                            |

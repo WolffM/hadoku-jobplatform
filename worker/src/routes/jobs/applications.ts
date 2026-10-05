@@ -56,7 +56,7 @@ interface ApplicationRow {
 
 // D1 hands evidence back as the TEXT blob the runner posted; parse it for the
 // response, degrading to null rather than 500ing on a hand-written bad blob.
-function parseEvidence(raw: string | null): Record<string, unknown> | null {
+export function parseEvidence(raw: string | null): Record<string, unknown> | null {
 	if (raw === null) return null;
 	try {
 		const parsed: unknown = JSON.parse(raw);
