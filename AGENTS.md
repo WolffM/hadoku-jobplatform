@@ -182,6 +182,15 @@ Read `node_modules/@wolffm/themes/THEME_USAGE_GUIDE.md` before writing styles.
 - `--color-text-tertiary` / `--color-text-muted` are decorative-only (fail AA on most backgrounds); any text a user must read takes `--color-text` or `--color-text-secondary`.
 - Verify with `pnpm run lint:css` (runs stylelint + `check-usage` from the package). A reference to a token the theme doesn't define renders as nothing — the gate is the only thing that catches it.
 
+## Fill extension (`extension/`)
+
+A Chrome MV3 extension that fills Greenhouse/Ashby/Lever forms in the owner's own
+browser from `GET /jobs/:id/fill-packet`; the owner submits and types any
+verification code. It exists because every board refuses the runner at submit
+(Greenhouse's emailed code, Ashby's spam flag). Shares `src/components/matchOption.ts`
+with the dashboard. Build `pnpm build:extension`, test `pnpm test:extension`,
+install per `extension/README.md`. It never submits and never types a code.
+
 ## Does NOT
 
 - Bundle react, react-dom, @wolffm/themes (externalized — see `vite.config.ts`)

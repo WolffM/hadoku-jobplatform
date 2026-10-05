@@ -22,12 +22,13 @@ export default [
       '**/*.test.ts',
       '**/*.test.tsx',
       'tests/**', // Playwright e2e — outside the src/ TS project
+      'extension/tests/**', // the Fill extension's Playwright suite, likewise
       // Worker integration tests + their helpers. Same reason: they belong to
       // worker/tsconfig.test.json, which is not in `project` below, and they
       // are already linted by worker/eslint.config.js.
       'worker/tests/**',
       '**/vite.config.ts',
-      'playwright.config.ts'
+      '**/playwright.config.ts'
     ]
   },
 
@@ -41,13 +42,15 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: ['./tsconfig.json', './worker/tsconfig.json']
+        project: ['./tsconfig.json', './worker/tsconfig.json', './extension/tsconfig.json']
       },
       globals: {
         // Injected by vite's `define` from @wolffm/catalogue at config time — see
         // vite.config.ts. It is a build-time literal, so no-undef cannot see the
         // ambient declaration in src/globals.d.ts.
         __HADOKU_APP_NAME__: 'readonly',
+        // The extension's MV3 API (extension/), typed by @types/chrome.
+        chrome: 'readonly',
         // Sanitize keys to fix globals.browser bug (trailing whitespace in "AudioWorkletGlobalScope ")
         ...Object.fromEntries(
           Object.entries(globals.browser).map(([key, value]) => [key.trim(), value])
