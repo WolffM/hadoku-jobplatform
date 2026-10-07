@@ -4,6 +4,12 @@ export type Request =
   | { type: 'pdf'; url: string }
   | { type: 'codes' }
   | { type: 'markSent'; applicationId: string }
+  /** Begin a send session at this job (the page opened with #hadoku-session). */
+  | { type: 'sessionStart'; jobId: string }
+  | { type: 'sessionState' }
+  | { type: 'sessionStop' }
+  /** The next ready application, after marking the current one sent or skipped. */
+  | { type: 'sessionNext'; done: 'sent' | 'skipped' }
 
 export type Response<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -41,6 +47,24 @@ export interface Packet {
   multi: string[]
   standing: Record<string, string>
   resume_pdf_url: string | null
+}
+
+/** A send session: the owner submitting their ready applications one by one. */
+export interface Session {
+  active: boolean
+  /** The job whose form is open now. */
+  current: string | null
+  sent: string[]
+  skipped: string[]
+}
+
+export interface NextUp {
+  job_id: string
+  form_url: string
+  company: string
+  title: string
+  /** Ready applications after this one. */
+  remaining: number
 }
 
 export interface Code {
