@@ -618,3 +618,32 @@
   text-decoration: underline;
   white-space: nowrap;
 }
+
+/* Start sending: the one primary action on the Applications view. */
+.jp-send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hdk-space-sm) var(--hdk-space-md);
+  margin-bottom: var(--hdk-space-md);
+}
+
+.jp-send__start {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.jp-send__start:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.jp-send__hint {
+  flex: 1;
+  min-width: 16rem;
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}

@@ -78,6 +78,41 @@ function fillDigest(app: ApplicationSummary): string | null {
 }
 
 /**
+ * Start a send session: the owner submits their ready applications one after
+ * another in their own browser. Opens the first form with `#hadoku-session`,
+ * which tells the hadoku Fill extension to fill each form as it opens and move
+ * to the next one once the board confirms. Approved applications go first,
+ * then filled ones nobody has reviewed yet — the session is that review.
+ */
+function SendSession({ apps }: { apps: ApplicationSummary[] }) {
+  const ready = apps
+    .filter(a => a.status === 'approved' || a.status === 'filled')
+    .sort(
+      (a, b) =>
+        Number(a.status !== 'approved') - Number(b.status !== 'approved') ||
+        a.updated_at.localeCompare(b.updated_at)
+    )
+  const first = ready[0]
+  if (!first) return null
+  return (
+    <div className="jp-send">
+      <a
+        className="jp-send__start"
+        href={`${first.form_url}#hadoku-session`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Start sending ({ready.length})
+      </a>
+      <span className="jp-send__hint">
+        Opens each ready application in turn, filled by the hadoku Fill extension. You review, press
+        Submit, and type any emailed code; it moves on when the board confirms.
+      </span>
+    </div>
+  )
+}
+
+/**
  * The Applications view: the approve-to-apply queue (issue #15).
  *
  * This is a workflow, not a reference list — the one action it offers is
@@ -148,6 +183,7 @@ export function ApplicationsList({ auth }: Props) {
       <VerificationCodes auth={auth} />
       <UnansweredQuestions auth={auth} />
       {error && <p className="jp-error">{error}</p>}
+      <SendSession apps={apps} />
       <ul className="jp-applications__list">
         {apps.map(app => {
           const digest = fillDigest(app) ?? app.approved_fingerprint

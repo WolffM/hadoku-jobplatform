@@ -24,6 +24,16 @@ shows the emailed code once it arrives (it's also on the dashboard); you type
 it in. When the board shows its confirmation, the panel marks the application
 sent on hadoku. **Mark sent** does the same by hand.
 
+## Send sessions
+
+**Start sending** on the dashboard's Applications view works through every
+ready application in one tab: approved ones first, then filled ones nobody
+has reviewed yet (the session is that review). Each form fills itself as it
+opens. You look it over, press Submit, and type the code if Greenhouse sends
+one (the panel shows it). When the board confirms, the application is marked
+sent and the next form opens. **Skip** moves on without sending. **Stop
+session** ends it and leaves the current form filled.
+
 ## Install
 
 ```sh

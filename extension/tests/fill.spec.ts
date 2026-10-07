@@ -27,6 +27,31 @@ const PACKET = {
   resume_pdf_url: null
 }
 
+const ASHBY_URL_2 = 'https://jobs.ashbyhq.com/acme/9a1c2d3e-0000-4000-8000-000000000002/application'
+const JOB_2 = 'ashby_9a1c2d3e-0000-4000-8000-000000000002'
+const PACKETS: Record<string, typeof PACKET> = {
+  [JOB]: PACKET,
+  [JOB_2]: {
+    ...PACKET,
+    job: { ...PACKET.job, id: JOB_2, title: 'Senior Engineer' },
+    application: { id: 'app-2', status: 'approved', variant_slug: '' }
+  }
+}
+const sentIds: string[] = []
+/** GET /applications as the session sees it: both approved until marked sent. */
+function listed() {
+  return [
+    { job_id: JOB, form_url: ASHBY_URL, id: 'app-1' },
+    { job_id: JOB_2, form_url: ASHBY_URL_2, id: 'app-2' }
+  ].map((a, i) => ({
+    ...a,
+    status: sentIds.includes(a.id) ? 'submitted' : 'approved',
+    company: 'acme',
+    title: PACKETS[a.job_id]?.job.title ?? '',
+    updated_at: `2026-10-0${i + 1}T00:00:00Z`
+  }))
+}
+
 test('the URL names the job jobplatform stores', () => {
   expect(
     pageJob('https://job-boards.greenhouse.io/embed/job_app?for=instacart&token=8053797')
@@ -61,8 +86,16 @@ test.describe('filling an Ashby form', () => {
         res
           .writeHead(200, { 'Content-Type': 'application/json', ...cors })
           .end(JSON.stringify(body))
-      if (req.url?.includes('/fill-packet')) return send({ success: true, data: PACKET })
-      if (req.url?.includes('/status')) posted.push(req.url)
+      const packet = /\/jobs\/([^/]+)\/fill-packet/.exec(req.url ?? '')
+      if (packet) return send({ success: true, data: PACKETS[decodeURIComponent(packet[1] ?? '')] })
+      if (req.url?.startsWith('/applications?') || req.url === '/applications') {
+        return send({ success: true, data: { applications: listed() } })
+      }
+      if (req.url?.includes('/status')) {
+        posted.push(req.url)
+        const id = /\/applications\/([^/]+)\/status/.exec(req.url)?.[1]
+        if (id) sentIds.push(decodeURIComponent(id))
+      }
       send({ success: true, data: {} })
     })
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
@@ -110,5 +143,32 @@ test.describe('filling an Ashby form', () => {
     await expect(page.locator('#r1')).toBeChecked() // "White" → "White (Not Hispanic or Latino)"
     await expect(panel).toContainText('no tailored résumé was made for this job')
     expect(posted, 'filling never marks anything sent').toEqual([])
+  })
+
+  test('a send session fills each ready application and moves on when the board confirms', async () => {
+    posted.length = 0
+    sentIds.length = 0
+    const page = await ctx.newPage()
+    const html = readFileSync(join(here, 'fixtures/ashby.html'), 'utf8')
+    for (const url of [ASHBY_URL, ASHBY_URL_2]) {
+      await page.route(url, r => r.fulfill({ contentType: 'text/html', body: html }))
+    }
+    await page.goto(`${ASHBY_URL}#hadoku-session`)
+    const panel = page.locator('#hadoku-fill .panel')
+    await expect(panel).toContainText('Send session · 1 more after this one')
+    await expect(panel).toContainText('Filled (6)') // filled by itself — no Fill click
+    expect(posted).toEqual([])
+
+    // The owner submits; the board shows its thank-you.
+    await page.evaluate(() => document.body.append('Thank you for applying!'))
+    await page.waitForURL(ASHBY_URL_2)
+    expect(posted).toEqual(['/applications/app-1/status'])
+    await expect(panel).toContainText('acme — Senior Engineer · approved')
+    await expect(panel).toContainText('Send session · 0 more after this one')
+    await expect(panel).toContainText('Filled (6)')
+
+    await page.evaluate(() => document.body.append('Thank you for applying!'))
+    await expect(panel).toContainText('Session done — nothing left to send.')
+    expect(posted).toEqual(['/applications/app-1/status', '/applications/app-2/status'])
   })
 })

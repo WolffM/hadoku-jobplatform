@@ -9,7 +9,7 @@
  */
 import { pageJob, type PageJob } from './ats'
 import { waitFor } from './dom'
-import { ask, type Code, type Packet } from './messages'
+import { ask, type Code, type NextUp, type Packet, type Session } from './messages'
 import { newReport, type FillReport } from './fill/common'
 import { fillGreenhouse } from './fill/greenhouse'
 import { fillAshby } from './fill/ashby'
@@ -83,7 +83,24 @@ async function fill(job: PageJob, packet: Packet): Promise<FillReport> {
   return report
 }
 
-function mount(job: PageJob): void {
+type SessionView = Session & { remaining: number }
+
+/** Leave this page for the next ready application, or say the session is over. */
+async function advance(done: 'sent' | 'skipped', say: (text: string, cls?: string) => void) {
+  const res = await ask<NextUp | null>({ type: 'sessionNext', done })
+  if (!res.ok) {
+    say(`Could not find the next one: ${res.error}`, 'err')
+    return
+  }
+  if (!res.data) {
+    say('Session done — nothing left to send.', 'ok')
+    return
+  }
+  say(`Next: ${res.data.company} — ${res.data.title}…`)
+  location.href = res.data.form_url
+}
+
+function mount(job: PageJob, session: SessionView | null): void {
   const host = el('div', { id: 'hadoku-fill' })
   const root = host.attachShadow({ mode: 'open' })
   root.append(el('style', {}, STYLE))
@@ -102,12 +119,25 @@ function mount(job: PageJob): void {
   const codes = el('div')
   const fillBtn = el('button', { className: 'primary', textContent: 'Fill' })
   const sentBtn = el('button', { textContent: 'Mark sent', disabled: true })
+  const skipBtn = el('button', { textContent: 'Skip' })
+  const stopBtn = el('button', { textContent: 'Stop session' })
   const closeBtn = el('button', { textContent: '×', title: 'Hide' })
   const jobLine = el('div', { className: 'job', textContent: 'Loading your packet…' })
+  const sessionLine = el('div', {
+    className: 'job',
+    textContent: session ? `Send session · ${session.remaining} more after this one` : ''
+  })
   panel.append(
     el('h1', {}, 'hadoku Fill'),
+    ...(session ? [sessionLine] : []),
     jobLine,
-    el('div', { className: 'row' }, fillBtn, sentBtn, closeBtn),
+    el(
+      'div',
+      { className: 'row' },
+      fillBtn,
+      sentBtn,
+      ...(session ? [skipBtn, stopBtn] : [closeBtn])
+    ),
     status,
     results,
     codes
@@ -115,6 +145,10 @@ function mount(job: PageJob): void {
   closeBtn.onclick = () => {
     window.clearInterval(keep)
     host.remove()
+  }
+  const say = (text: string, cls = '') => {
+    status.className = cls
+    status.textContent = text
   }
 
   let packet: Packet | null = null
@@ -124,14 +158,44 @@ function mount(job: PageJob): void {
   async function markSent(auto: boolean) {
     if (sent || !packet?.application) return
     sent = true
-    const res = await ask({ type: 'markSent', applicationId: packet.application.id })
-    status.className = res.ok ? 'ok' : 'err'
-    status.textContent = res.ok
-      ? auto
-        ? 'The board confirmed it — marked sent.'
-        : 'Marked sent.'
-      : `Could not mark it sent: ${res.error}`
     sentBtn.disabled = true
+    const res = await ask({ type: 'markSent', applicationId: packet.application.id })
+    if (!res.ok) {
+      say(`Could not mark it sent: ${res.error}`, 'err')
+      return
+    }
+    say(auto ? 'The board confirmed it — marked sent.' : 'Marked sent.', 'ok')
+    if (session) {
+      await new Promise(r => setTimeout(r, 1500))
+      await advance('sent', say)
+    }
+  }
+
+  async function runFill() {
+    if (!packet) return
+    fillBtn.disabled = true
+    say('Filling…')
+    try {
+      const report = await fill(job, packet)
+      filled = true
+      const gaps = report.unanswered.length || report.refused.length
+      say(
+        gaps
+          ? 'Filled what it could — check the items below, then Submit.'
+          : 'Filled. Review the form, then press Submit.',
+        gaps ? 'warn' : 'ok'
+      )
+      results.replaceChildren(
+        ...(report.refused.length ? [list("Couldn't enter", report.refused, 'err')] : []),
+        ...(report.unanswered.length ? [list('Needs you', report.unanswered, 'warn')] : []),
+        ...(report.optional.length ? [list('Left blank (optional)', report.optional, '')] : []),
+        list('Filled', report.filled, '')
+      )
+    } catch (err) {
+      say(`Fill failed: ${err instanceof Error ? err.message : String(err)}`, 'err')
+    } finally {
+      fillBtn.disabled = false
+    }
   }
 
   void ask<Packet>({ type: 'packet', jobId: job.jobId }).then(res => {
@@ -145,39 +209,24 @@ function mount(job: PageJob): void {
     const app = packet.application
     jobLine.textContent = `${packet.job.company} — ${packet.job.title}${app ? ` · ${app.status}` : ' · not queued'}`
     if (!packet.profile) {
-      status.className = 'warn'
-      status.textContent = 'No applicant profile on hadoku yet — only saved answers will be filled.'
+      say('No applicant profile on hadoku yet — only saved answers will be filled.', 'warn')
     }
     sentBtn.disabled = !app || app.status === 'submitted'
+    // In a send session the fill starts by itself: the owner is here to review
+    // and submit, not to press Fill thirty times.
+    if (session) void runFill()
   })
 
-  fillBtn.onclick = async () => {
-    if (!packet) return
-    fillBtn.disabled = true
-    status.className = ''
-    status.textContent = 'Filling…'
-    try {
-      const report = await fill(job, packet)
-      filled = true
-      status.className = report.unanswered.length || report.refused.length ? 'warn' : 'ok'
-      status.textContent =
-        report.unanswered.length || report.refused.length
-          ? 'Filled what it could — check the items below, then Submit.'
-          : 'Filled. Review the form, then press Submit.'
-      results.replaceChildren(
-        ...(report.refused.length ? [list("Couldn't enter", report.refused, 'err')] : []),
-        ...(report.unanswered.length ? [list('Needs you', report.unanswered, 'warn')] : []),
-        ...(report.optional.length ? [list('Left blank (optional)', report.optional, '')] : []),
-        list('Filled', report.filled, '')
-      )
-    } catch (err) {
-      status.className = 'err'
-      status.textContent = `Fill failed: ${err instanceof Error ? err.message : String(err)}`
-    } finally {
-      fillBtn.disabled = false
-    }
-  }
+  fillBtn.onclick = () => void runFill()
   sentBtn.onclick = () => void markSent(false)
+  skipBtn.onclick = () => void advance('skipped', say)
+  stopBtn.onclick = async () => {
+    await ask({ type: 'sessionStop' })
+    sessionLine.remove()
+    skipBtn.remove()
+    stopBtn.remove()
+    say('Session stopped. This form stays filled.')
+  }
 
   // The board's own confirmation, after this panel filled the form.
   new MutationObserver(() => {
@@ -211,11 +260,60 @@ function mount(job: PageJob): void {
   }
 }
 
-const job = pageJob(location.href)
-// The form, not a listing page: every board puts a file input on the form —
-// once React has rendered it, which can be well after document_idle.
-if (job) {
-  void waitFor(() => document.querySelector('input[type="file"]'), 20000, 250).then(form => {
-    if (form) mount(job)
-  })
+/**
+ * A board's thank-you page, reached after submitting in a session. Lever sends
+ * the browser to /thanks, which has no form for the panel to mount on, so the
+ * confirmation is recorded here and the session moves on.
+ */
+async function confirmedPage(current: string): Promise<void> {
+  const packet = await ask<Packet>({ type: 'packet', jobId: current })
+  const note = el('div', { id: 'hadoku-fill' })
+  note.setAttribute(
+    'style',
+    'position:fixed;right:16px;bottom:16px;z-index:2147483647;padding:10px 12px;border-radius:8px;' +
+      'background:#2f5d50;color:#fff;font:13px system-ui'
+  )
+  document.documentElement.append(note)
+  const say = (text: string) => {
+    note.textContent = `hadoku Fill: ${text}`
+  }
+  if (packet.ok && packet.data.application) {
+    const res = await ask({ type: 'markSent', applicationId: packet.data.application.id })
+    say(res.ok ? 'confirmed and marked sent.' : `could not mark it sent: ${res.error}`)
+  }
+  await new Promise(r => setTimeout(r, 1500))
+  await advance('sent', say)
 }
+
+async function start(): Promise<void> {
+  const job = pageJob(location.href)
+  // Opened from the dashboard's "Start sending": this page begins a session.
+  if (job && location.hash.includes('hadoku-session')) {
+    await ask({ type: 'sessionStart', jobId: job.jobId })
+  }
+  const state = await ask<SessionView>({ type: 'sessionState' })
+  const s = state.ok && state.data.active ? state.data : null
+  // A thank-you page counts only for the session's own job, on its own board.
+  const confirmable =
+    !!s?.current &&
+    (!job || job.jobId === s.current) &&
+    location.hostname.includes(s.current.split('_')[0] ?? '')
+
+  // Whichever this page turns out to be — the form (once React has rendered
+  // its file input, which can be well after document_idle) or, in a session,
+  // the board's confirmation.
+  const seen = await waitFor<'form' | 'confirmed'>(
+    () =>
+      document.querySelector('input[type="file"]')
+        ? 'form'
+        : confirmable && CONFIRMED.test(document.body.innerText)
+          ? 'confirmed'
+          : null,
+    20000,
+    250
+  )
+  if (seen === 'confirmed' && s?.current) await confirmedPage(s.current)
+  else if (seen === 'form' && job) mount(job, s?.current === job.jobId ? s : null)
+}
+
+void start()
