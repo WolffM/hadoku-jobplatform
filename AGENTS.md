@@ -189,7 +189,8 @@ browser from `GET /jobs/:id/fill-packet`; the owner submits and types any
 verification code. It exists because every board refuses the runner at submit
 (Greenhouse's emailed code, Ashby's spam flag). Shares `src/components/matchOption.ts`
 with the dashboard. Build `pnpm build:extension`, test `pnpm test:extension`,
-install per `extension/README.md`. It never submits and never types a code.
+install per `extension/README.md` — the Applications view offers it as a zip, carried in the
+dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension first. It never submits and never types a code.
 
 ## Does NOT
 

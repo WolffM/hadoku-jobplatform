@@ -647,3 +647,34 @@
   color: var(--color-text-secondary);
   font-size: 0.9em;
 }
+
+.jp-fill-install {
+  margin-bottom: var(--hdk-space-md);
+  color: var(--color-text-secondary);
+  font-size: 0.9em;
+}
+
+.jp-fill-install summary {
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.jp-fill-install ol {
+  display: grid;
+  gap: var(--hdk-space-xs);
+  margin: var(--hdk-space-sm) 0;
+}
+
+.jp-fill-install__download {
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.jp-fill-install__download:hover {
+  border-color: var(--color-primary);
+}

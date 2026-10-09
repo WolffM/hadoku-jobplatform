@@ -36,13 +36,23 @@ session** ends it and leaves the current form filled.
 
 ## Install
 
+From any machine: on hadoku's Applications view, open **Install the hadoku Fill
+extension**, download the zip and unzip it into a folder you'll keep. Then in
+Chrome: `chrome://extensions` → turn on **Developer mode** → **Load unpacked** →
+choose that folder. To update, unzip the new download over the same folder and
+press the extension's reload icon.
+
+The dashboard carries the extension inside its own bundle (`src/fillExtension/`)
+and zips it in the browser, so the download is always the version that shipped
+with the dashboard. `pnpm build` runs `extension/build.mjs` first for that reason.
+
+On this checkout you can skip the zip:
+
 ```sh
 pnpm build:extension        # writes extension/dist
 ```
 
-Then in Chrome: `chrome://extensions` → turn on **Developer mode** → **Load
-unpacked** → choose `extension/dist`. After pulling changes, rebuild and press
-the extension's reload icon.
+and **Load unpacked** `extension/dist` directly.
 
 It uses your hadoku.me sign-in: stay signed in to hadoku.me in the same Chrome
 profile.
