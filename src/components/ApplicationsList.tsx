@@ -10,6 +10,7 @@ import type { Auth } from '../api/auth'
 import { useResource } from '../api/useResource'
 import { UnansweredQuestions } from './UnansweredQuestions'
 import { VerificationCodes } from './VerificationCodes'
+import { FillExtensionInstall } from './FillExtensionInstall'
 
 interface Props {
   auth: Auth
@@ -171,7 +172,6 @@ export function ApplicationsList({ auth }: Props) {
     return (
       <div className="jp-applications">
         <VerificationCodes auth={auth} />
-        <VerificationCodes auth={auth} />
         <UnansweredQuestions auth={auth} />
         <p className="jp-muted">No applications queued.</p>
       </div>
@@ -184,6 +184,7 @@ export function ApplicationsList({ auth }: Props) {
       <UnansweredQuestions auth={auth} />
       {error && <p className="jp-error">{error}</p>}
       <SendSession apps={apps} />
+      <FillExtensionInstall />
       <ul className="jp-applications__list">
         {apps.map(app => {
           const digest = fillDigest(app) ?? app.approved_fingerprint
