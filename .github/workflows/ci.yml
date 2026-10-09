@@ -92,14 +92,16 @@ jobs:
       # to the active node, and without setup-node that is the host's /usr/bin,
       # which the runner user cannot write.
       - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
         with:
           npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
       - name: Install
         if: steps.scope.outputs.run == 'true'
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Typecheck
         if: steps.scope.outputs.run == 'true'
@@ -151,6 +153,15 @@ jobs:
       # setup-node BEFORE corepack: `corepack enable` symlinks its shims next
       # to the active node, and without setup-node that is the host's /usr/bin,
       # which the runner user cannot write.
+      - name: Registry token from the vault
+        uses: WolffM/hadoku-actions/vault-fetch@v1
+        if: steps.scope.outputs.run == 'true'
+        with:
+          keys: HADOKU_NPM_READ_TOKEN
+        env:
+          HADOKU_VAULT_KEY: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
+          VAULT_FALLBACK_HADOKU_NPM_READ_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+
       - uses: actions/setup-node@v6
         if: steps.scope.outputs.run == 'true'
         with:
@@ -158,7 +169,7 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: '@wolffm'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.HADOKU_NPM_READ_TOKEN }}
 
       # corepack, not pnpm/action-setup — the self-installer intermittently
       # dies on this runner with `ENOENT ... uv_cwd`.
@@ -172,7 +183,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ env.HADOKU_NPM_READ_TOKEN }}
 
       - name: ESLint
         if: steps.scope.outputs.run == 'true'
