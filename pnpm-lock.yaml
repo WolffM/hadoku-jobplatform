@@ -12,8 +12,8 @@ importers:
         specifier: ^1.4.1
         version: 1.4.1
       '@wolffm/prefs-client':
-        specifier: ^1.0.14
-        version: 1.0.14(react@19.2.4)(zod@4.3.6)
+        specifier: ^1.0.15
+        version: 1.0.15(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1271,8 +1271,8 @@ packages:
     resolution: {integrity: sha512-SXe52oJ96oJVZGvuV2Wt7whCa58iL5GuSRb2RDEKGnzbavZCZBWIRivIvMv7V4FVgpsHxIfAaZAr5xhbeEVofw==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.4.1/162b6d454282e6c9482aa154a85800e74d12044c}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.0.14':
-    resolution: {integrity: sha512-EAScQJvJN5VtC4zhAfRkiRaicIC2v7Spo8C5kn+WE3vV52jQDq0MKN85SStEFLLvGdmgRmaJjlodNqCsSb/kmw==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.14/ba6ea5fe79cf1a1d23e5b1f1c427cb3c3d05e6b8}
+  '@wolffm/prefs-client@1.0.15':
+    resolution: {integrity: sha512-f4JRKzZTBhNLbYCGsnHOFw8SryktPuPKLj2eg774cGF7MtGGzr4mQ13gNIGpHhfQjXaiVZ2PyJ1qxObaJxtQlA==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.0.15/5c7ae4ee8cde54da00d6d5d3817c7cd3a8d88f5e}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3792,7 +3792,7 @@ snapshots:
 
   '@wolffm/logger@1.4.1': {}
 
-  '@wolffm/prefs-client@1.0.14(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/prefs-client@1.0.15(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
@@ -3804,7 +3804,7 @@ snapshots:
 
   '@wolffm/themes@5.8.10(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': 1.0.14(react@19.2.4)(zod@4.3.6)
+      '@wolffm/prefs-client': 1.0.15(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
       zod: 4.3.6
 
