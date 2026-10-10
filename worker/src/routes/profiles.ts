@@ -2,7 +2,8 @@ import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../types.js';
 import { requireMinTier, tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
-import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
+import { isIdentityError } from '@wolffm/worker-utils/identity';
+import { resolveOwnerName } from '../ownerName.js';
 import {
 	CreateProfileSchema,
 	UpdateProfileSchema,
@@ -100,10 +101,7 @@ async function requireIdentity(
 				403
 			);
 		}
-		const resolved = await resolveGranteeVia(c.env.EDGE, {
-			serviceKey: c.env.SCRAPER_USER_KEY ?? '',
-			name: owner,
-		});
+		const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', owner);
 		if (isIdentityError(resolved)) {
 			const status = ([404, 409, 503] as const).includes(resolved.status as 404 | 409 | 503)
 				? (resolved.status as 404 | 409 | 503)

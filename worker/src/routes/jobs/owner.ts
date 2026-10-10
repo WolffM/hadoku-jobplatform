@@ -1,5 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
+import { isIdentityError } from '@wolffm/worker-utils/identity';
+import { resolveOwnerName } from '../../ownerName.js';
 import { tierAtLeast } from '@wolffm/worker-utils';
 import {
 	ErrorResponseSchema,
@@ -119,10 +120,7 @@ export function registerOwnerRoutes(app: JobsApp): void {
 				);
 			}
 
-			const resolved = await resolveGranteeVia(c.env.EDGE, {
-				serviceKey: c.env.SCRAPER_USER_KEY ?? '',
-				name,
-			});
+			const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', name);
 			if (isIdentityError(resolved)) {
 				// The three codes mean genuinely different things and must not be
 				// flattened. NO_REGISTRY is OUR deployment failing — reporting it
