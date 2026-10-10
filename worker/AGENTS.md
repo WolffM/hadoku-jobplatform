@@ -22,6 +22,9 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/roleClassify.ts` — infers `(role_track, role_level)` from the title at ingest
 - `src/slugParse.ts` — derives `(ats, slug)` from `job.url` at ingest
 - `src/userId.ts` — resolves the identity D1 rows are keyed by
+- `src/ownerName.ts` — the ONLY way to resolve an `ownerName`: `resolveGranteeVia`
+  behind a 15-minute in-isolate cache, since every uncached resolve is a full
+  key-registry scan at the edge (issue #23). Successes only; 404/409/503 are never kept
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`

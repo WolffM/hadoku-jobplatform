@@ -1,6 +1,7 @@
 import { z, type OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
-import { isIdentityError, resolveGranteeVia } from '@wolffm/worker-utils/identity';
+import { isIdentityError } from '@wolffm/worker-utils/identity';
+import { resolveOwnerName } from '../../ownerName.js';
 import type { Fetcher } from '@cloudflare/workers-types';
 import type { AppEnv } from '../../types.js';
 import { NoIdentityError, resolveUserId } from '../../userId.js';
@@ -205,10 +206,7 @@ export async function effectiveUserId(
 		};
 	}
 
-	const resolved = await resolveGranteeVia(c.env.EDGE, {
-		serviceKey: c.env.SCRAPER_USER_KEY ?? '',
-		name: named,
-	});
+	const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', named);
 	if (isIdentityError(resolved)) {
 		// The three codes mean different things; 503 especially must not read as
 		// "no such user" when it is our own resolver being unreachable.
