@@ -65,7 +65,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "@wolffm/catalogue": "^1.0.2",
     "@wolffm/task-ui-components": "^4.8.6",
-    "@wolffm/themes": "^5.8.10",
+    "@wolffm/themes": "^5.8.11",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
