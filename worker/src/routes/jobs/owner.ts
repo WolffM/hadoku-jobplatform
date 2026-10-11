@@ -120,7 +120,12 @@ export function registerOwnerRoutes(app: JobsApp): void {
 				);
 			}
 
-			const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', name);
+			const resolved = await resolveOwnerName(
+				c.env.JOB_PLATFORM_DB,
+				c.env.EDGE,
+				c.env.SCRAPER_USER_KEY ?? '',
+				name
+			);
 			if (isIdentityError(resolved)) {
 				// The three codes mean genuinely different things and must not be
 				// flattened. NO_REGISTRY is OUR deployment failing — reporting it
