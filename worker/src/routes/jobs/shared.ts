@@ -2,7 +2,7 @@ import { z, type OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
 import { resolveOwnerName } from '../../ownerName.js';
-import type { Fetcher } from '@cloudflare/workers-types';
+import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import type { AppEnv } from '../../types.js';
 import { NoIdentityError, resolveUserId } from '../../userId.js';
 import { ALL_LEVELS, type RoleLevel } from '../../roleClassify.js';
@@ -177,7 +177,7 @@ export async function effectiveUserId(
 			query?: (name: string) => string | undefined;
 		};
 		get: (k: 'authContext') => HadokuAuthContext;
-		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string };
+		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string; JOB_PLATFORM_DB: D1Database };
 	},
 	ownerName: string | undefined
 ): Promise<EffectiveUser> {
@@ -206,7 +206,12 @@ export async function effectiveUserId(
 		};
 	}
 
-	const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', named);
+	const resolved = await resolveOwnerName(
+		c.env.JOB_PLATFORM_DB,
+		c.env.EDGE,
+		c.env.SCRAPER_USER_KEY ?? '',
+		named
+	);
 	if (isIdentityError(resolved)) {
 		// The three codes mean different things; 503 especially must not read as
 		// "no such user" when it is our own resolver being unreachable.

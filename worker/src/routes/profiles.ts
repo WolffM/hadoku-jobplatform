@@ -101,7 +101,12 @@ async function requireIdentity(
 				403
 			);
 		}
-		const resolved = await resolveOwnerName(c.env.EDGE, c.env.SCRAPER_USER_KEY ?? '', owner);
+		const resolved = await resolveOwnerName(
+			c.env.JOB_PLATFORM_DB,
+			c.env.EDGE,
+			c.env.SCRAPER_USER_KEY ?? '',
+			owner
+		);
 		if (isIdentityError(resolved)) {
 			const status = ([404, 409, 503] as const).includes(resolved.status as 404 | 409 | 503)
 				? (resolved.status as 404 | 409 | 503)

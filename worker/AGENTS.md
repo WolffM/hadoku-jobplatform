@@ -23,7 +23,7 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/slugParse.ts` — derives `(ats, slug)` from `job.url` at ingest
 - `src/userId.ts` — resolves the identity D1 rows are keyed by
 - `src/ownerName.ts` — the ONLY way to resolve an `ownerName`: `resolveGranteeVia`
-  behind a 15-minute in-isolate cache, since every uncached resolve is a full
+  behind a 15-minute cache in D1 (`owner_name_cache`), since every uncached resolve is a full
   key-registry scan at the edge (issue #23). Successes only; 404/409/503 are never kept
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
