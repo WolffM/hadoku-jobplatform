@@ -7,9 +7,9 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * Auth: `process.env.FRIEND_KEY` is provided by the outer `dev-vault.mjs`
  * wrapper (see `package.json#scripts.test:e2e`). Tests that need an authed
- * session pass it as `?apiKey=` to the dev harness, which exchanges it for a
- * sessionId via `/session/create` — same code path as production mf-loader
- * receiving sessionId from `/session/whoami`.
+ * session pass it as `?apiKey=` to the dev harness, which exchanges it for the
+ * `hadoku_session` cookie via `/session/create`; every later request rides that
+ * cookie, as in production. No session id is ever read or sent.
  *
  * The webServer block starts `pnpm dev` (which also goes through dev-vault).
  * `reuseExistingServer: true` lets a pre-running dev server be reused for

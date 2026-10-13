@@ -1,25 +1,19 @@
 /**
- * Auth credentials threaded from the parent app (hadoku_site) into the MFE.
+ * Who the parent app (hadoku_site) says is looking at this MFE.
  *
- * Single mode: the `sessionId` produced by `/session/create` and stored in
- * SESSIONS_KV. Sent as `X-Session-Id`; edge-router resolves it to the
- * underlying key and injects `X-User-Key` on the proxied request. Raw keys
- * never enter MFE storage.
- *
- * In production, mf-loader injects this prop after fetching `/session/whoami`.
- * In dev, `index.html` calls `/session/create` once with `?apiKey=…` from the
- * URL and threads the resulting sessionId here — see that file for details.
- *
- * `credentials: 'include'` is always set so the `hadoku_session` cookie can
- * also ride along when present (production same-origin path).
+ * The credential never enters the bundle. A same-origin `fetch` carries the
+ * HttpOnly `hadoku_session` cookie on its own, and edge-router resolves it
+ * into `X-User-Key` for the worker. The session id used to arrive here as a
+ * prop and go out as `X-Session-Id`, which let page JavaScript read a 30-day
+ * bearer credential (hadoku_site#459) — so all this carries is whether anyone
+ * is signed in, from mf-loader's `userType` prop.
  */
 export interface Auth {
-  sessionId?: string
+  signedIn: boolean
 }
 
-export function authHeaders(auth?: Auth, json = false): HeadersInit {
+export function authHeaders(_auth?: Auth, json = false): HeadersInit {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (json) headers['Content-Type'] = 'application/json'
-  if (auth?.sessionId) headers['X-Session-Id'] = auth.sessionId
   return headers
 }

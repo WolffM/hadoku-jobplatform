@@ -256,7 +256,7 @@ export function JobsList({
 
       {!profileId && (
         <p className="jp-muted">
-          {auth.sessionId
+          {auth.signedIn
             ? 'No profile selected. Showing all jobs, unscored. Pick or create a profile to see its companies’ jobs, scored and ranked.'
             : 'Showing every job in the corpus, newest first. Scoring and ranking need a profile, which needs an account.'}
         </p>
