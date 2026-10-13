@@ -62,7 +62,7 @@ test('the owner sees recent codes, newest first, and nothing that is not a code'
 	try {
 		const { status, body } = await h.json<{ data: { codes: Code[] } }>(
 			`${BASE}/verification-codes`,
-			{ tier: 'admin' }
+			{ tier: 'admin', userId: 'user-hadoku' }
 		);
 		assert.equal(status, 200);
 		const codes = body.data.codes;
@@ -90,6 +90,12 @@ test('no one but the mailbox owner, as themselves, can read a code', async () =>
 			const { status } = await h.json(`${BASE}/verification-codes`, { tier });
 			assert.equal(status, 403, `${tier} must not read the owner's codes`);
 		}
+		// Admin is a tier several keys hold, not a person (issue #21).
+		const otherAdmin = await h.json(`${BASE}/verification-codes`, {
+			tier: 'admin',
+			userId: 'someone-else',
+		});
+		assert.equal(otherAdmin.status, 403, 'an admin who is not the owner must not read codes');
 		const { status } = await h.json(`${BASE}/verification-codes?ownerName=Hadoku`, {
 			tier: 'admin',
 		});

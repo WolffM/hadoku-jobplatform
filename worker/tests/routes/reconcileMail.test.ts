@@ -537,3 +537,57 @@ test('the results can actually be read back', async () => {
 		await feed.stop();
 	}
 });
+
+test('only the mailbox owner can reconcile or read the mail (issue #21)', async () => {
+	// A friend reconciling "for themselves" used to copy the operator's ATS mail
+	// into their own rows and read the subjects back.
+	const feed = await startFeed({
+		messages: [mail({ id: 'm1', subject: 'Security code for your application to Coinbase' })],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		for (const method of ['POST', 'GET']) {
+			for (const [tier, userId] of [
+				['friend', 'a-friend'],
+				['admin', 'another-admin'],
+			]) {
+				const { status } = await h.json(`${BASE}/ingest/reconcile-mail`, { method, tier, userId });
+				assert.equal(status, 403, `${method} as ${tier} ${userId}`);
+			}
+		}
+		const rows = await h.db
+			.prepare('SELECT COUNT(*) AS n FROM mail_unmatched')
+			.first<{ n: number }>();
+		assert.equal(rows?.n, 0, 'nothing is ever written for a non-owner');
+
+		// The owner as themselves, and the runner acting for them, both still work.
+		const own = await h.json(`${BASE}/ingest/reconcile-mail`, {
+			method: 'POST',
+			tier: 'admin',
+			userId: 'user-hadoku',
+		});
+		assert.equal(own.status, 200);
+		const view = await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			tier: 'service',
+		});
+		assert.equal(view.status, 200);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('with no mailbox owner configured, mail routes refuse rather than guess', async () => {
+	const feed = await startFeed({ messages: [] });
+	const h = await createHarness({ mailFeedUrl: feed.url, mailboxOwner: null });
+	try {
+		const { status } = await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
+		assert.equal(status, 503);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});

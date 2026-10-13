@@ -8,6 +8,8 @@
  * WHO MAY READ THEM: the mailbox owner, as a person, and nobody else.
  * - Admin tier only. The feed is the owner's mailbox; a friend-tier caller is
  *   someone else, and must not see another person's codes.
+ * - And the admin must BE the owner (`MAILFEED_OWNER_USER_ID`). Admin is a
+ *   tier several keys hold, not a person (issue #21).
  * - Never a service identity, and never `ownerName`. The runner holds a
  *   service key; keeping codes out of its reach is what keeps this a display
  *   for a human rather than a pipeline that answers the board's check itself.
@@ -15,10 +17,11 @@
  *
  * Read live from the feed and never stored, like every other mail body.
  */
-import type { JobsApp } from './shared.js';
+import { maybeUserId, type JobsApp } from './shared.js';
 import { fetchMessages, isFeedError } from '../../clients/mailfeed.js';
 import { parseMail } from '../../mailMatch.js';
 import { extractCode } from '../../verificationCode.js';
+import { mailboxOwnerRefusal } from '../../reconcileMail.js';
 
 /** How far back to look. Codes expire within minutes; a few hours covers a session. */
 const WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -49,6 +52,8 @@ export function registerVerificationRoutes(app: JobsApp) {
 				400
 			);
 		}
+		const refused = mailboxOwnerRefusal(c.env, (await maybeUserId(c)) ?? '');
+		if (refused) return c.json(refused.body, refused.status);
 
 		const since = new Date(Date.now() - WINDOW_MS).toISOString();
 		const page = await fetchMessages(c.env, { since, limit: 100 });
