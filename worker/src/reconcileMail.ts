@@ -63,6 +63,39 @@ const MATCH_SKEW_MS = 2 * 24 * 60 * 60 * 1000;
  */
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
 
+/**
+ * Refuse anyone but the mailbox owner. Every mail route asks this AFTER
+ * resolving the effective user, so the runner acting with `ownerName` for the
+ * owner still passes, and a friend reconciling "for themselves" does not.
+ */
+export function mailboxOwnerRefusal(
+	env: AppEnv,
+	userId: string
+): { status: 403 | 503; body: { success: false; error: string; message: string } } | null {
+	const owner = env.MAILFEED_OWNER_USER_ID;
+	if (!owner) {
+		return {
+			status: 503,
+			body: {
+				success: false,
+				error: 'Unavailable',
+				message: 'MAILFEED_OWNER_USER_ID is not configured — no mailbox owner to serve.',
+			},
+		};
+	}
+	if (userId !== owner) {
+		return {
+			status: 403,
+			body: {
+				success: false,
+				error: 'Forbidden',
+				message: 'The mail feed belongs to its owner only.',
+			},
+		};
+	}
+	return null;
+}
+
 export interface ReconcileReport {
 	scopeLabel: string;
 	scopeDomains: number;

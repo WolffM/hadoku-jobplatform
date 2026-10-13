@@ -280,6 +280,8 @@ export interface HarnessOptions {
 	 * SCRAPER_USER_KEY, which is already a test value above.
 	 */
 	mailFeedUrl?: string;
+	/** `null` leaves MAILFEED_OWNER_USER_ID unset, the misconfiguration mail routes must refuse on. */
+	mailboxOwner?: null;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -316,6 +318,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// test that reconciles without declaring a feed should fail loudly
 		// rather than quietly read production mail.
 		MAILFEED_BASE_URL: options.mailFeedUrl ?? 'http://127.0.0.1:1',
+		// The operator, as the edge stub resolves "Hadoku". Mail routes serve
+		// this one identity and refuse every other (issue #21).
+		...(options.mailboxOwner === null ? {} : { MAILFEED_OWNER_USER_ID: 'user-hadoku' }),
 	};
 
 	const app = createJobPlatformHandler(BASE);

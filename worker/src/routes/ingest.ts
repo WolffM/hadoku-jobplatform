@@ -7,7 +7,7 @@ import {
 	IngestPayloadSchema,
 	IngestResponseSchema,
 } from '../schemas.js';
-import { reconcileMail, reconcileView } from '../reconcileMail.js';
+import { mailboxOwnerRefusal, reconcileMail, reconcileView } from '../reconcileMail.js';
 import { effectiveUserId, isEffectiveUserError, ownerNameQuery } from './jobs/shared.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
@@ -779,7 +779,7 @@ const reconcileMailRoute = createRoute({
 			},
 		},
 		403: {
-			description: 'Only a service or admin caller may name an owner',
+			description: 'Not the mailbox owner, or naming an owner without service/admin tier',
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 		404: {
@@ -791,7 +791,7 @@ const reconcileMailRoute = createRoute({
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 		503: {
-			description: 'Identity could not be resolved right now — retry',
+			description: 'Identity could not be resolved, or no mailbox owner is configured',
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 		502: {
@@ -805,6 +805,8 @@ app.openapi(reconcileMailRoute, async (c) => {
 	const { reset, ownerName } = c.req.valid('query');
 	const who = await effectiveUserId(c, ownerName);
 	if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+	const refused = mailboxOwnerRefusal(c.env, who.userId);
+	if (refused) return c.json(refused.body, refused.status);
 
 	const report = await reconcileMail(c.env, who.userId, { reset: reset === 'true' });
 	if ('error' in report) {
@@ -855,7 +857,7 @@ const reconcileViewRoute = createRoute({
 			},
 		},
 		403: {
-			description: 'Only a service or admin caller may name an owner',
+			description: 'Not the mailbox owner, or naming an owner without service/admin tier',
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 		404: {
@@ -867,7 +869,7 @@ const reconcileViewRoute = createRoute({
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 		503: {
-			description: 'Identity could not be resolved right now — retry',
+			description: 'Identity could not be resolved, or no mailbox owner is configured',
 			content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 		},
 	},
@@ -877,6 +879,9 @@ app.openapi(reconcileViewRoute, async (c) => {
 	const { ownerName } = c.req.valid('query');
 	const who = await effectiveUserId(c, ownerName);
 	if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+	const refused = mailboxOwnerRefusal(c.env, who.userId);
+	if (refused) return c.json(refused.body, refused.status);
+
 	const view = await reconcileView(c.env, who.userId);
 	return c.json({ success: true as const, data: view }, 200);
 });

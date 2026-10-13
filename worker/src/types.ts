@@ -46,6 +46,18 @@ export interface AppEnv {
 	 */
 	MAILFEED_BASE_URL?: string;
 
+	/**
+	 * The userId of the ONE person whose mailbox the feed above reads.
+	 *
+	 * The feed is read with this worker's own key, so contact-api cannot tell
+	 * who is asking on whose behalf — and until this existed the reconciler
+	 * took "whoever called" as the owner, which let any friend copy the
+	 * operator's ATS mail into their own rows (issue #21). A bare registry
+	 * userId, set once in the host wrangler.toml; never resolved from a name,
+	 * because names can be renamed. Unset means mail routes refuse (503).
+	 */
+	MAILFEED_OWNER_USER_ID?: string;
+
 	// ============================================================================
 	// resume-bot service binding (V3 — tailored application packets)
 	// ============================================================================
