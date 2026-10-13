@@ -52,11 +52,12 @@ export default function App(props: JobPlatformProps = {}) {
 function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElement | null> }) {
   const { containerRef } = props
 
-  // Bundle the auth credentials once at the root, then thread the same
-  // object through every component. Memoised on the credential itself: this
-  // object is a dependency of every data hook below, so rebuilding it each
-  // render re-ran the feed, the sidebar and the drawer on any re-render at all.
-  const auth: Auth = useMemo(() => ({ sessionId: props.sessionId }), [props.sessionId])
+  // Build the auth object once at the root, then thread the same object
+  // through every component. Memoised: it is a dependency of every data hook
+  // below, so rebuilding it each render re-ran the feed, the sidebar and the
+  // drawer on any re-render at all.
+  const signedIn = Boolean(props.userType) && props.userType !== 'public'
+  const auth: Auth = useMemo(() => ({ signedIn }), [signedIn])
 
   const [systemPrefersDark] = useState(() => {
     if (window.matchMedia) {
@@ -246,7 +247,7 @@ function Dashboard({ auth }: { auth: Auth }) {
   // on the first one let exactly one unscored request through.
   const [hasNoProfiles, setHasNoProfiles] = useState(false)
   const onProfilesResolved = useCallback((count: number) => setHasNoProfiles(count === 0), [])
-  const awaitingProfile = Boolean(auth.sessionId) && !profileId && !hasNoProfiles
+  const awaitingProfile = auth.signedIn && !profileId && !hasNoProfiles
 
   // Bumped only by things that actually re-score the feed — a profile saved,
   // a company added. It keys JobsList's cache, so a bump misses every cached

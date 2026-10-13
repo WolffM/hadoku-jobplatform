@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
+
+type ProxyServer = Parameters<NonNullable<ProxyOptions['configure']>>[0]
 import react from '@vitejs/plugin-react'
 import { labelFor } from '@wolffm/catalogue'
 
@@ -10,6 +12,24 @@ const APP_ID = 'jobplatform'
 // Read from the catalogue at CONFIG TIME (this file runs in node), so the name
 // is never written down in this repo and the catalogue never ships in the bundle.
 const APP_NAME = labelFor(APP_ID) ?? APP_ID
+
+/**
+ * Make hadoku.me's session cookie land on localhost, for the dev harness.
+ *
+ * It arrives `Domain=.hadoku.me`, which a localhost page refuses, so the domain
+ * is stripped. edge-router also sends a second `hadoku_session=; Max-Age=0`
+ * clearing any legacy host-only cookie — harmless on hadoku.me, but once the
+ * first is host-only too it deletes the session it follows, so it is dropped.
+ */
+function onLocalhost(proxy: ProxyServer) {
+  proxy.on('proxyRes', res => {
+    const cookies = res.headers['set-cookie']
+    if (!cookies) return
+    res.headers['set-cookie'] = cookies
+      .filter(c => !/;\s*Max-Age=0\b/i.test(c))
+      .map(c => c.replace(/;\s*Domain=[^;]*/i, ''))
+  })
+}
 
 export default defineConfig({
   define: {
@@ -31,17 +51,21 @@ export default defineConfig({
     // renders real data when running `pnpm dev` locally.
     //   /jobplatform/api  — worker calls (jobs, profiles, companies, ingest)
     //   /session          — auth handshake; index.html exchanges ?apiKey= for
-    //                       a sessionId via /session/create on first load
+    //                       the hadoku_session cookie via /session/create
+    // Requests authenticate by the hadoku_session cookie, as in production —
+    // see onLocalhost below for what it takes to land that cookie here.
     proxy: {
       '/jobplatform/api': {
         target: 'https://hadoku.me',
         changeOrigin: true,
-        secure: true
+        secure: true,
+        configure: onLocalhost
       },
       '/session': {
         target: 'https://hadoku.me',
         changeOrigin: true,
-        secure: true
+        secure: true,
+        configure: onLocalhost
       }
     }
   },

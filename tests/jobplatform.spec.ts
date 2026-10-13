@@ -189,10 +189,9 @@ authedDescribe('authed flows', () => {
       void gotoAuthed(page)
     })
     expect(resp.ok).toBe(true)
-    const body = resp.body as { valid: boolean; userType: string; sessionId: string }
+    const body = resp.body as { valid: boolean; userType: string }
     expect(body.valid).toBe(true)
     expect(body.userType).toBe('friend')
-    expect(body.sessionId).toMatch(/^[a-f0-9]{32}$/)
   })
 })
 
@@ -314,30 +313,23 @@ test.describe('filters', () => {
 })
 
 authedDescribe('triage state (V2)', () => {
-  // The dev harness exchanges ?apiKey= for a sessionId on every page load,
-  // and the worker resolves sessionId → friend key → user_id. Same user_id
-  // each run, so cleanup is reliable.
-  async function clearState(
-    request: import('@playwright/test').APIRequestContext,
-    jobId: string,
-    sessionId: string
-  ) {
+  // The dev harness exchanges ?apiKey= for the hadoku_session cookie on every
+  // page load, and the edge resolves that cookie → friend key → user_id. Same
+  // user_id each run, so cleanup is reliable.
+  async function clearState(request: import('@playwright/test').APIRequestContext, jobId: string) {
     await request.delete(
-      `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(jobId)}/state`,
-      {
-        headers: { 'X-Session-Id': sessionId }
-      }
+      `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(jobId)}/state`
     )
   }
 
-  async function freshSessionId(
-    request: import('@playwright/test').APIRequestContext
-  ): Promise<string> {
+  // Signs the API context in the way a browser is: the Set-Cookie from
+  // /session/create lands in the context's cookie jar and rides every later
+  // request. No session id is read or sent.
+  async function signIn(request: import('@playwright/test').APIRequestContext): Promise<void> {
     const r = await request.post('http://localhost:5173/session/create', {
       headers: { 'X-User-Key': FRIEND_KEY }
     })
-    const body = (await r.json()) as { sessionId: string }
-    return body.sessionId
+    expect(r.ok()).toBe(true)
   }
 
   // ProfileSidebar auto-selects profiles[0] as soon as the list loads, so the
@@ -376,14 +368,13 @@ authedDescribe('triage state (V2)', () => {
     page,
     request
   }) => {
-    const sessionId = await freshSessionId(request)
+    await signIn(request)
     const profileId = await firstProfileId(request)
 
     // Pick a job that doesn't currently have state — first card on page 1 of
     // the profile-scoped feed, which is what the browser will render.
     const list = await request.get(
-      `http://localhost:5173/jobplatform/api/jobs?limit=10&profile_id=${encodeURIComponent(profileId)}`,
-      { headers: { 'X-Session-Id': sessionId } }
+      `http://localhost:5173/jobplatform/api/jobs?limit=10&profile_id=${encodeURIComponent(profileId)}`
     )
     const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string; state: string }> } })
       .data.jobs
@@ -391,7 +382,7 @@ authedDescribe('triage state (V2)', () => {
     expect(target).toBeDefined()
 
     // Make sure starting state is clean
-    await clearState(request, target.id, sessionId)
+    await clearState(request, target.id)
 
     try {
       // Pin the profile explicitly rather than leaning on the sidebar's
@@ -445,7 +436,7 @@ authedDescribe('triage state (V2)', () => {
       await expect(interestedBadges.first()).toBeVisible({ timeout: 10_000 })
     } finally {
       // Always clear state to keep prod tidy
-      await clearState(request, target.id, sessionId)
+      await clearState(request, target.id)
     }
   })
 
@@ -508,10 +499,8 @@ authedDescribe('triage state (V2)', () => {
   })
 
   test('hide_dismissed=true excludes dismissed jobs from the list', async ({ request }) => {
-    const sessionId = await freshSessionId(request)
-    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=5', {
-      headers: { 'X-Session-Id': sessionId }
-    })
+    await signIn(request)
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=5')
     const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string }> } }).data.jobs
     const target = jobs[0]
 
@@ -521,15 +510,14 @@ authedDescribe('triage state (V2)', () => {
         `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(target.id)}/state`,
         {
           data: { state: 'dismissed' },
-          headers: { 'Content-Type': 'application/json', 'X-Session-Id': sessionId }
+          headers: { 'Content-Type': 'application/json' }
         }
       )
       expect(putResp.ok()).toBe(true)
 
       // Default hide_dismissed=true: target shouldn't appear.
       const hidden = await request.get(
-        'http://localhost:5173/jobplatform/api/jobs?hide_dismissed=true&limit=100',
-        { headers: { 'X-Session-Id': sessionId } }
+        'http://localhost:5173/jobplatform/api/jobs?hide_dismissed=true&limit=100'
       )
       const hiddenIds = (
         (await hidden.json()) as { data: { jobs: Array<{ id: string }> } }
@@ -538,15 +526,14 @@ authedDescribe('triage state (V2)', () => {
 
       // Without hide_dismissed: target should appear (it's still on page 1).
       const visible = await request.get(
-        'http://localhost:5173/jobplatform/api/jobs?state=dismissed&limit=100',
-        { headers: { 'X-Session-Id': sessionId } }
+        'http://localhost:5173/jobplatform/api/jobs?state=dismissed&limit=100'
       )
       const dismissedIds = (
         (await visible.json()) as { data: { jobs: Array<{ id: string; state: string }> } }
       ).data.jobs.map(j => j.id)
       expect(dismissedIds).toContain(target.id)
     } finally {
-      await clearState(request, target.id, sessionId)
+      await clearState(request, target.id)
     }
   })
 })

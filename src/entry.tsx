@@ -21,11 +21,10 @@ export interface JobPlatformProps {
   appName?: string
   theme?: string
   /**
-   * Session id from the parent's `hadoku_session` cookie. Sent as
-   * `X-Session-Id`; edge-router resolves it to the underlying key. Raw
-   * credentials never enter the MFE.
+   * mf-loader's tier for the viewer: `'public'` when nobody is signed in.
+   * Requests authenticate by the `hadoku_session` cookie, never by a prop.
    */
-  sessionId?: string
+  userType?: string
 }
 
 interface JobPlatformElement extends HTMLElement {

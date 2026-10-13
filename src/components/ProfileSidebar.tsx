@@ -53,9 +53,9 @@ export function ProfileSidebar({
   // so we skip the call rather than firing a request whose only outcome is a
   // console error and an error string in the sidebar.
   //
-  // This reads the sessionId the shell already handed us — it is not a whoami
+  // This reads the tier the shell already handed us — it is not a whoami
   // pre-flight, which is exactly what JobsList avoids.
-  const isAuthed = Boolean(auth.sessionId)
+  const isAuthed = auth.signedIn
 
   const {
     data,
