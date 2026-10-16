@@ -14,6 +14,8 @@ import { classifyRole } from '../roleClassify.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
 import {
+	criteriaHash,
+	jobsHead,
 	markRankBuilt,
 	rankIsCurrent,
 	rebuildRank,
@@ -46,53 +48,68 @@ const CULL_BATCH = 500;
 
 async function cullExpired(db: AppEnv['JOB_PLATFORM_DB']): Promise<number> {
 	const cutoff = new Date(Date.now() - CULL_DAYS * 86_400_000).toISOString();
+	// `j.scraped_at < ?` is implied by the MAX and changes no result; it is
+	// there so SQLite can seek idx_jobs_scraped_at instead of scanning. The
+	// expression index that used to serve this (0019) was dropped in 0025: it
+	// changed on every liveness bump, so it cost a written row per posting per
+	// scrape (~26k/day) to save reads that are a thousandth the price. What the
+	// seek reads now is every posting first scraped before the cutoff — the
+	// long-lived ones still listed — not the whole table.
 	const res = await db
 		.prepare(
 			`DELETE FROM jobs WHERE id IN (
 				SELECT j.id FROM jobs j
-				WHERE MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
+				WHERE j.scraped_at < ?
+				  AND MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
 				  AND NOT EXISTS (SELECT 1 FROM job_states s WHERE s.job_id = j.id)
 				  AND NOT EXISTS (SELECT 1 FROM job_feedback f WHERE f.job_id = j.id)
 				LIMIT ${CULL_BATCH}
 			)`
 		)
-		.bind(cutoff)
+		.bind(cutoff, cutoff)
 		.run();
 	return res.meta?.changes ?? 0;
 }
 
 /**
- * Extend every profile's ranking to cover these jobs.
+ * Extend every current ranking to cover the jobs inserted since it was built.
  *
- * Only the rows just written, not the corpus: a scrape batch is hundreds of
- * jobs against a handful of profiles, so this is a small write on a path that
- * already writes. A profile with no ranking yet is skipped — it has nothing to
- * extend, and building one is /ingest/rebuild-rank's job.
+ * Selected by rowid past each profile's marker rather than from the payload:
+ * ingest only ever INSERTs (an already-known posting is ignored, its fields
+ * untouched), so a job that was ranked once keeps the same bound and needs no
+ * new write. Re-ranking the whole payload whenever any of it was new used to
+ * upsert ~25 rows per profile per batch for one new job — 35% of the
+ * database's daily writes. The rowid range also picks up jobs a previous,
+ * failed extension missed, which a payload-only pass never would.
+ *
+ * A profile whose criteria changed since its ranking was built is left alone:
+ * extending it under the new criteria and moving its marker would bless the
+ * old rows as current. The feed sees the stale hash and rebuilds it.
  */
-async function rankNewJobs(db: AppEnv['JOB_PLATFORM_DB'], jobIds: string[]): Promise<void> {
+async function rankNewJobs(db: AppEnv['JOB_PLATFORM_DB']): Promise<void> {
 	const ranked = await db
-		.prepare('SELECT profile_id FROM job_profile_rank_state')
-		.all<{ profile_id: string }>();
+		.prepare('SELECT profile_id, criteria_hash, max_job_rowid FROM job_profile_rank_state')
+		.all<{ profile_id: string; criteria_hash: string; max_job_rowid: number }>();
 	if (ranked.results.length === 0) return;
 
-	const rows: RankableJob[] = [];
-	for (let i = 0; i < jobIds.length; i += 90) {
-		const chunk = jobIds.slice(i, i + 90);
-		const res = await db
+	// Read once, before any row is selected, so a job a concurrent ingest
+	// inserts after this point lies past the marker and is ranked next time.
+	const head = await jobsHead(db);
+
+	for (const state of ranked.results) {
+		const from = Number(state.max_job_rowid);
+		if (from >= head) continue;
+		const profile = await loadScorableProfile(db, state.profile_id);
+		if (criteriaHash(profile) !== state.criteria_hash) continue;
+		const rows = await db
 			.prepare(
 				`SELECT id, title, location, workplace_type, salary_max, role_level
-				 FROM jobs WHERE id IN (${chunk.map(() => '?').join(',')})`
+				 FROM jobs WHERE rowid > ? AND rowid <= ?`
 			)
-			.bind(...chunk)
+			.bind(from, head)
 			.all<RankableJob>();
-		rows.push(...res.results);
-	}
-	if (rows.length === 0) return;
-
-	for (const { profile_id } of ranked.results) {
-		const profile = await loadScorableProfile(db, profile_id);
-		await writeRanks(db, profile_id, profile, rows);
-		await markRankBuilt(db, profile_id, profile);
+		await writeRanks(db, state.profile_id, profile, rows.results);
+		await markRankBuilt(db, state.profile_id, profile, head);
 	}
 }
 
@@ -207,39 +224,51 @@ app.openapi(ingestRoute, async (c) => {
 			);
 	});
 
-	let accepted = 0;
+	// inserted[i] — did jobs[i] land as a new row (true) or hit an existing URL
+	// or id and get ignored (false)? Each statement reports its own changes.
+	const inserted: boolean[] = [];
 	for (let i = 0; i < stmts.length; i += INGEST_BATCH_CHUNK) {
 		const results = await db.batch(stmts.slice(i, i + INGEST_BATCH_CHUNK));
-		for (const r of results) accepted += r.meta?.changes ?? 0;
+		for (const r of results) inserted.push((r.meta?.changes ?? 0) > 0);
 	}
+	const accepted = inserted.filter(Boolean).length;
 	const skipped = jobs.length - accepted;
 
 	// Liveness: every URL in this payload was just seen on its source — bump
 	// last_seen_at for the skipped (already-known) rows too. A board posting
-	// whose last_seen_at stops advancing has been taken down.
-	const urls = jobs.map((j) => j.url);
+	// whose last_seen_at stops advancing has been taken down. Rows inserted
+	// just now already carry `now`, so only the ones the insert ignored need it.
+	//
+	// This is the database's largest write by volume (every listed posting,
+	// every scrape), so it touches nothing it does not have to: last_seen_at is
+	// in no index since 0025, which makes each bump one written row. Folding the
+	// slug correction into the same UPDATE, as this used to, also rewrote the
+	// (ats, slug) index entry of every row on every scrape — 3 rows per posting
+	// to change, on all but a handful, nothing.
+	const seenUrls = jobs.filter((_, i) => !inserted[i]).map((j) => j.url);
 	const seenStmts = [];
-	for (let i = 0; i < urls.length; i += 90) {
-		const chunk = urls.slice(i, i + 90);
+	for (let i = 0; i < seenUrls.length; i += 90) {
+		const chunk = seenUrls.slice(i, i + 90);
+		const inList = chunk.map(() => '?').join(',');
 		seenStmts.push(
-			board_slug
-				? // Correct the slug on rows written before the scraper sent an
-					// authoritative one, so the ~1,633 postings carrying a
-					// hostname guess heal on their next scrape instead of needing
-					// a backfill. Only ever narrows to the truth: this runs solely
-					// when the scraper told us which board it fetched.
-					db
-						.prepare(
-							`UPDATE jobs SET last_seen_at = ?, slug = ?, slug_source = 'scraped'
-							 WHERE url IN (${chunk.map(() => '?').join(',')})`
-						)
-						.bind(now, board_slug, ...chunk)
-				: db
-						.prepare(
-							`UPDATE jobs SET last_seen_at = ? WHERE url IN (${chunk.map(() => '?').join(',')})`
-						)
-						.bind(now, ...chunk)
+			db.prepare(`UPDATE jobs SET last_seen_at = ? WHERE url IN (${inList})`).bind(now, ...chunk)
 		);
+		if (board_slug) {
+			// Correct the slug on rows written before the scraper sent an
+			// authoritative one, so postings carrying a hostname guess heal on
+			// their next scrape instead of needing a backfill. Only ever narrows
+			// to the truth: this runs solely when the scraper told us which board
+			// it fetched — and only on the rows where that differs.
+			seenStmts.push(
+				db
+					.prepare(
+						`UPDATE jobs SET slug = ?, slug_source = 'scraped'
+						 WHERE url IN (${inList})
+						   AND (slug IS NOT ? OR slug_source IS NOT 'scraped')`
+					)
+					.bind(board_slug, ...chunk, board_slug)
+			);
+		}
 	}
 	if (seenStmts.length) await db.batch(seenStmts);
 
@@ -251,10 +280,7 @@ app.openapi(ingestRoute, async (c) => {
 	// throws, the marker stays behind and the feed falls back to ranking live
 	// rather than quietly omitting the postings that just landed.
 	if (accepted > 0) {
-		await rankNewJobs(
-			db,
-			jobs.map((j) => j.id)
-		);
+		await rankNewJobs(db);
 	}
 
 	// End of a scrape run: sweep one bounded batch of expired listings. Repeated

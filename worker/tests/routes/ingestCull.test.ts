@@ -195,35 +195,38 @@ describe('board_slug — the scraper knows which board it fetched', () => {
 });
 
 /**
- * The cull runs on every ingest — 2,027 calls in the week this was measured —
- * and its filter is a computed expression, so without a matching expression
- * index SQLite scans the whole jobs table: 31,271 rows and ~195ms per call, to
- * delete about two.
+ * The cull runs on every final ingest batch, and its filter is a computed
+ * expression, so without help SQLite scans the whole jobs table: 31,271 rows
+ * and ~195ms per call, to delete about two (measured for 0019).
  *
- * SQLite only uses an expression index when the query's expression matches the
- * index's. Nothing fails when they stop matching: the cull still returns the
- * right rows, just by scanning again. So the plan itself is the assertion.
+ * 0019 gave it an expression index; 0025 took that away again, because
+ * last_seen_at moves on every scrape and the index cost a written row per
+ * re-seen posting. The cull instead carries `scraped_at < ?`, which the MAX
+ * implies, so it can seek idx_jobs_scraped_at. Nothing fails if that predicate
+ * is dropped or stops being usable: the cull still returns the right rows,
+ * just by scanning again. So the plan itself is the assertion.
  */
 describe('cull query plan', () => {
-	it('seeks on idx_jobs_freshness rather than scanning jobs', async () => {
+	it('seeks on idx_jobs_scraped_at rather than scanning jobs', async () => {
 		const cutoff = new Date(Date.now() - 60 * 86_400_000).toISOString();
 		const plan = await h.db
 			.prepare(
 				`EXPLAIN QUERY PLAN
 				 SELECT j.id FROM jobs j
-				 WHERE MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
+				 WHERE j.scraped_at < ?
+				   AND MAX(COALESCE(j.posted_date, ''), COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
 				   AND NOT EXISTS (SELECT 1 FROM job_states s WHERE s.job_id = j.id)
 				   AND NOT EXISTS (SELECT 1 FROM job_feedback f WHERE f.job_id = j.id)
 				 LIMIT 500`
 			)
-			.bind(cutoff)
+			.bind(cutoff, cutoff)
 			.all<{ detail: string }>();
 		const details = plan.results.map((r) => r.detail).join('\n');
 		assert.match(
 			details,
-			/USING INDEX idx_jobs_freshness/,
-			`the cull stopped using its index — check that the expression in cullExpired() still ` +
-				`matches migration 0019 exactly.\nplan was:\n${details}`
+			/USING INDEX idx_jobs_scraped_at/,
+			`the cull stopped using its index — check that cullExpired() still carries ` +
+				`\`j.scraped_at < ?\`.\nplan was:\n${details}`
 		);
 		assert.doesNotMatch(details, /^SCAN j\b/m, `plan was:\n${details}`);
 	});
@@ -238,11 +241,16 @@ describe('cull query plan', () => {
 			'idx_job_feedback_user',
 			'idx_profiles_user',
 			'idx_jobs_company',
+			'idx_jobs_freshness',
 		]) {
-			assert.ok(!names.has(dropped), `${dropped} should have been dropped by 0019`);
+			assert.ok(!names.has(dropped), `${dropped} should have been dropped (0019/0025)`);
 		}
 		// Each drop was safe only because a wider index still serves the lookup.
-		for (const kept of ['idx_job_states_user_state', 'idx_profiles_user_default']) {
+		for (const kept of [
+			'idx_job_states_user_state',
+			'idx_profiles_user_default',
+			'idx_jobs_scraped_at',
+		]) {
 			assert.ok(names.has(kept), `${kept} is what makes dropping its prefix safe`);
 		}
 	});

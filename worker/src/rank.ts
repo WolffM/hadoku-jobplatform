@@ -92,10 +92,15 @@ export async function writeRanks(
 		stmts.push(
 			db
 				.prepare(
+					// The WHERE makes an unchanged row free: without it the upsert
+					// rewrites the row and its order-index entry (2 rows written)
+					// even when the bound is identical, which it is for every
+					// already-ranked job a re-scrape re-encounters.
 					`INSERT INTO job_profile_rank (profile_id, job_id, bound, penalized)
 					 VALUES ${values}
 					 ON CONFLICT (profile_id, job_id) DO UPDATE SET
-					   bound = excluded.bound, penalized = excluded.penalized`
+					   bound = excluded.bound, penalized = excluded.penalized
+					 WHERE bound IS NOT excluded.bound OR penalized IS NOT excluded.penalized`
 				)
 				.bind(...binds)
 		);
@@ -138,15 +143,28 @@ export async function rankIsCurrent(
 	return Number(state.max_job_rowid) >= head;
 }
 
-/** Record that this profile's ranking now covers the corpus as it stands. */
+/** The highest `jobs.rowid` — what a ranking must cover to be current. */
+export async function jobsHead(db: D1Database): Promise<number> {
+	const row = await db
+		.prepare('SELECT MAX(rowid) AS head FROM jobs')
+		.first<{ head: number | null }>();
+	return Number(row?.head ?? 0);
+}
+
+/**
+ * Record that this profile's ranking now covers the corpus up to `head`.
+ *
+ * Pass the head that was read BEFORE the rows were selected when extending
+ * incrementally: reading it afterwards would claim coverage of any job a
+ * concurrent ingest inserted in between, and that job would never be ranked.
+ */
 export async function markRankBuilt(
 	db: D1Database,
 	profileId: string,
-	profile: ScorableProfile
+	profile: ScorableProfile,
+	head?: number
 ): Promise<void> {
-	const head = await db
-		.prepare('SELECT MAX(rowid) AS head FROM jobs')
-		.first<{ head: number | null }>();
+	const covered = head ?? (await jobsHead(db));
 	await db
 		.prepare(
 			`INSERT INTO job_profile_rank_state (profile_id, criteria_hash, max_job_rowid, built_at)
@@ -156,7 +174,7 @@ export async function markRankBuilt(
 			   max_job_rowid = excluded.max_job_rowid,
 			   built_at = excluded.built_at`
 		)
-		.bind(profileId, criteriaHash(profile), head?.head ?? 0, new Date().toISOString())
+		.bind(profileId, criteriaHash(profile), covered, new Date().toISOString())
 		.run();
 }
 
@@ -190,9 +208,10 @@ export async function rebuildRank(
 	profile: ScorableProfile
 ): Promise<number> {
 	await clearRank(db, profileId);
+	const head = await jobsHead(db);
 	const jobs = await loadRankableJobs(db);
 	await writeRanks(db, profileId, profile, jobs);
-	await markRankBuilt(db, profileId, profile);
+	await markRankBuilt(db, profileId, profile, head);
 	return jobs.length;
 }
 

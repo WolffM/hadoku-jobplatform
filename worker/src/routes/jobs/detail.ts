@@ -97,8 +97,15 @@ export function registerDetailRoute(app: JobsApp): void {
 			if (userId && row.ats && row.slug) {
 				const proven = await db
 					.prepare(
+						// CROSS JOIN pins the caller's applications as the outer
+						// loop. Left to choose, SQLite led with jobs' (ats, slug)
+						// index and walked the whole board — 632 rows for toast,
+						// 4,151 for anduril — to find usually nothing: ~3M rows a
+						// day on 2026-10-15, from the apply runner's 5-minute
+						// detail reads. Outer applications reads only the
+						// caller's own rows (zero for a service key).
 						`SELECT 1 FROM applications a
-						 JOIN jobs j ON j.id = a.job_id
+						 CROSS JOIN jobs j ON j.id = a.job_id
 						 WHERE a.user_id = ? AND j.ats = ? AND j.slug = ?
 						   AND a.status IN ('filled', 'approved', 'submitted')
 						 LIMIT 1`

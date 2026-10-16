@@ -1,0 +1,15 @@
+-- Drop the cull's expression index: it cost far more to keep than it saved.
+--
+-- idx_jobs_freshness (0019) indexes MAX(posted_date, last_seen_at, scraped_at).
+-- last_seen_at advances on every posting a scrape re-encounters, so every
+-- liveness bump rewrote this index entry as well as the row. Measured on
+-- production 2026-10-15: ~26k postings re-seen per day, one extra written row
+-- each — and a written row is priced at 1,000x a read one.
+--
+-- The cull it served now seeks idx_jobs_scraped_at instead, through a predicate
+-- the MAX already implies (`scraped_at < cutoff`; see cullExpired() in
+-- routes/ingest.ts). That reads the postings first scraped before the cutoff —
+-- ~2k on 2026-10-16 — rather than the 31k-row scan 0019 was written to stop.
+--
+-- Dropping an index rewrites no table rows.
+DROP INDEX IF EXISTS idx_jobs_freshness;
