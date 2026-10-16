@@ -1,7 +1,7 @@
 /**
  * Client for contact-api's mail feed — ATS mail addressed to the owner.
  *
- * Auth: `X-User-Key: ${env.SCRAPER_USER_KEY}`, the service identity this worker
+ * Auth: `X-User-Key: ${env.HADOKU_SERVICE_KEY}`, the service identity this worker
  * already holds. We carry NO mail credential: contact-api resolves the key to a
  * userId and looks that up in a grant table naming our sender domains.
  * Everything else in the mailbox is invisible to us, enforced in SQL rather
@@ -48,8 +48,8 @@ function baseUrl(env: AppEnv): string {
 }
 
 async function get<T>(env: AppEnv, path: string): Promise<T | { error: string }> {
-	const key = env.SCRAPER_USER_KEY;
-	if (!key) return { error: 'SCRAPER_USER_KEY is not bound — cannot read the mail feed' };
+	const key = env.HADOKU_SERVICE_KEY;
+	if (!key) return { error: 'HADOKU_SERVICE_KEY is not bound — cannot read the mail feed' };
 	let res: Response;
 	try {
 		res = await fetch(`${baseUrl(env)}${path}`, { headers: { 'X-User-Key': key } });

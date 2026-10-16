@@ -25,7 +25,7 @@ export interface AppEnv {
 	 * `python scripts/administration.py cloudflare-secrets jobplatform-api`,
 	 * which pulls the value from vault key JOBPLATFORM_SCRAPER_KEY.
 	 */
-	SCRAPER_USER_KEY?: string;
+	HADOKU_SERVICE_KEY?: string;
 
 	/** Override scraper base URL (default https://scraper.hadoku.me). Optional. */
 	SCRAPER_BASE_URL?: string;
@@ -39,7 +39,7 @@ export interface AppEnv {
 	 * https://hadoku.me/contact/api/mailfeed). Optional; tests point it at a
 	 * loopback server.
 	 *
-	 * There is no mail credential to bind. SCRAPER_USER_KEY above is the whole
+	 * There is no mail credential to bind. HADOKU_SERVICE_KEY above is the whole
 	 * auth story: contact-api resolves that service identity against a grant
 	 * table naming our sender domains, and enforces the scope in SQL. We cannot
 	 * reach the rest of the mailbox even in principle.

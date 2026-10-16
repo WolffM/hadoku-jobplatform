@@ -104,7 +104,7 @@ async function requireIdentity(
 		const resolved = await resolveOwnerName(
 			c.env.JOB_PLATFORM_DB,
 			c.env.EDGE,
-			c.env.SCRAPER_USER_KEY ?? '',
+			c.env.HADOKU_SERVICE_KEY ?? '',
 			owner
 		);
 		if (isIdentityError(resolved)) {
