@@ -367,7 +367,7 @@ falling back to the legacy opaque `sha256(credential).slice(0, 16)` only for
 callers that bypass the edge. Raw credentials never enter D1.
 
 Outbound calls go through `worker/src/clients/scraper.ts`, which requires the
-`SCRAPER_USER_KEY` binding and sends it as `X-User-Key` (a service-tier key from
+`HADOKU_SERVICE_KEY` binding and sends it as `X-User-Key` (a service-tier key from
 vault `JOBPLATFORM_SCRAPER_KEY`). Bearer was deprecated 2026-05-05.
 
 ### Job → company join

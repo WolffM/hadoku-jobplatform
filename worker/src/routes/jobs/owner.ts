@@ -123,7 +123,7 @@ export function registerOwnerRoutes(app: JobsApp): void {
 			const resolved = await resolveOwnerName(
 				c.env.JOB_PLATFORM_DB,
 				c.env.EDGE,
-				c.env.SCRAPER_USER_KEY ?? '',
+				c.env.HADOKU_SERVICE_KEY ?? '',
 				name
 			);
 			if (isIdentityError(resolved)) {

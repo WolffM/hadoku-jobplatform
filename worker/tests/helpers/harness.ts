@@ -277,7 +277,7 @@ export interface HarnessOptions {
 	 * Unset leaves it at the production default, which the suite must never
 	 * reach — so tests that touch reconciliation always pass one. There is no
 	 * credential to fake: the worker authenticates to the feed with
-	 * SCRAPER_USER_KEY, which is already a test value above.
+	 * HADOKU_SERVICE_KEY, which is already a test value above.
 	 */
 	mailFeedUrl?: string;
 	/** `null` leaves MAILFEED_OWNER_USER_ID unset, the misconfiguration mail routes must refuse on. */
@@ -300,7 +300,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 	const env: AppEnv = {
 		EDGE_AUTH_SECRET: EDGE_SECRET,
 		JOB_PLATFORM_DB: db,
-		SCRAPER_USER_KEY: 'test-service-key',
+		HADOKU_SERVICE_KEY: 'test-service-key',
 		// Loopback to a closed port, so the suite cannot call the real scraper.
 		// It could not before, for the wrong reason: triggerSearchBg's work went to
 		// an ExecutionContext the harness did not pass, so it never ran. Now that it

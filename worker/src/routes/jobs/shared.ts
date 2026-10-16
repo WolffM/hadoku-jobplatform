@@ -177,7 +177,7 @@ export async function effectiveUserId(
 			query?: (name: string) => string | undefined;
 		};
 		get: (k: 'authContext') => HadokuAuthContext;
-		env: { EDGE?: Fetcher; SCRAPER_USER_KEY?: string; JOB_PLATFORM_DB: D1Database };
+		env: { EDGE?: Fetcher; HADOKU_SERVICE_KEY?: string; JOB_PLATFORM_DB: D1Database };
 	},
 	ownerName: string | undefined
 ): Promise<EffectiveUser> {
@@ -209,7 +209,7 @@ export async function effectiveUserId(
 	const resolved = await resolveOwnerName(
 		c.env.JOB_PLATFORM_DB,
 		c.env.EDGE,
-		c.env.SCRAPER_USER_KEY ?? '',
+		c.env.HADOKU_SERVICE_KEY ?? '',
 		named
 	);
 	if (isIdentityError(resolved)) {
