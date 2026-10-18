@@ -61,7 +61,7 @@ admin too.
 | GET    | /verification-codes                | admin  | Recent ATS security codes from the hadoku.me mail feed; the mailbox OWNER only, never service/ownerName |
 | GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)                          |
 | POST   | /ingest/backfill-salary            | friend | Populate `salary_min/max` from description prose where NULL                                             |
-| POST   | /ingest/cull                       | friend | Delete expired listings, sparing rows with owner activity                                               |
+| POST   | /ingest/cull                       | friend | Delete expired listings and blank descriptions unseen 14d, sparing rows with owner activity             |
 | POST   | /ingest/rebuild-rank               | friend | Rebuild the precomputed feed ranking — needed when the SCORER changes                                   |
 | POST   | /ingest/reconcile-mail             | friend | Walk ATS mail into the queue; mailbox owner only (`?reset=true` = backfill) †                           |
 | GET    | /ingest/reconcile-mail             | friend | Read the reconciliation; mailbox owner only (`MAILFEED_OWNER_USER_ID`) †                                |
@@ -162,7 +162,7 @@ owner's feed listed 23 of their own applications as fresh postings.
   on its next run and registers them itself → webhook fires → jobs land. The old
   push model (`POST /companies` → scraper `/targets`) is retired; its client
   helpers were deleted 2026-08-13. Per-profile `profile_companies` replaced the
-  user-global `user_companies`, which survives only as harmless legacy.
+  user-global `user_companies`, dropped in 0026.
 - `(ats, slug)` is derived at ingest time from `job.url` via `worker/src/slugParse.ts` and stored on the `jobs` table (migration 0003). It scopes a profile's feed to its companies' jobs.
 - V1 user identity is `sha256(credential).slice(0, 16)` — opaque, stable, raw credentials never enter D1.
 - V2 triage state lives in the `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)` (migration 0005). See ARCHITECTURE.md §"Worker API V2" and §"Data Model — Job States".

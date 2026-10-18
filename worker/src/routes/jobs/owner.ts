@@ -41,7 +41,6 @@ import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
  *                        hand them the previous owner's private answers.
  *   profiles             scoring preferences — the person's, not the job's.
  *   profile_tombstones   a per-user "I deleted the default profile" marker.
- *   user_companies       who that person follows.
  *   job_feedback         that person's opinion of a posting.
  *
  * GIVE, DON'T TAKE. Owner-or-admin, and a caller who is neither gets the same
