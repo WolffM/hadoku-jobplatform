@@ -71,6 +71,34 @@ async function cullExpired(db: AppEnv['JOB_PLATFORM_DB']): Promise<number> {
 	return res.meta?.changes ?? 0;
 }
 
+// ── Description strip (owner directive 2026-10-17) ───────────────────────────
+// A posting no scrape has seen for STRIP_DAYS is taken down, but the cull keeps
+// it for 60 days — and its description is ~7.5 KB of the row's ~8 KB, three
+// quarters of the database between them. Blank it early; the rest of the row
+// stays for the cull. Owner-touched rows keep theirs (packets and tailoring read
+// it), and a posting that comes back gets it restored by ingest.
+const STRIP_DAYS = 14;
+
+async function stripStaleDescriptions(db: AppEnv['JOB_PLATFORM_DB']): Promise<number> {
+	const cutoff = new Date(Date.now() - STRIP_DAYS * 86_400_000).toISOString();
+	// `scraped_at < ?` is implied by the MAX, for the same seek the cull uses.
+	const res = await db
+		.prepare(
+			`UPDATE jobs SET description = '' WHERE id IN (
+				SELECT j.id FROM jobs j
+				WHERE j.scraped_at < ?
+				  AND MAX(COALESCE(j.last_seen_at, ''), j.scraped_at) < ?
+				  AND j.description <> ''
+				  AND NOT EXISTS (SELECT 1 FROM job_states s WHERE s.job_id = j.id)
+				  AND NOT EXISTS (SELECT 1 FROM job_feedback f WHERE f.job_id = j.id)
+				LIMIT ${CULL_BATCH}
+			)`
+		)
+		.bind(cutoff, cutoff)
+		.run();
+	return res.meta?.changes ?? 0;
+}
+
 /**
  * Extend every current ranking to cover the jobs inserted since it was built.
  *
@@ -245,13 +273,20 @@ app.openapi(ingestRoute, async (c) => {
 	// slug correction into the same UPDATE, as this used to, also rewrote the
 	// (ats, slug) index entry of every row on every scrape — 3 rows per posting
 	// to change, on all but a handful, nothing.
-	const seenUrls = jobs.filter((_, i) => !inserted[i]).map((j) => j.url);
+	const seen = jobs.filter((_, i) => !inserted[i]);
+	const seenUrls = seen.map((j) => j.url);
 	const seenStmts = [];
+	const strippedStmts = [];
 	for (let i = 0; i < seenUrls.length; i += 90) {
 		const chunk = seenUrls.slice(i, i + 90);
 		const inList = chunk.map(() => '?').join(',');
 		seenStmts.push(
 			db.prepare(`UPDATE jobs SET last_seen_at = ? WHERE url IN (${inList})`).bind(now, ...chunk)
+		);
+		strippedStmts.push(
+			db
+				.prepare(`SELECT url FROM jobs WHERE url IN (${inList}) AND description = ''`)
+				.bind(...chunk)
 		);
 		if (board_slug) {
 			// Correct the slug on rows written before the scraper sent an
@@ -272,6 +307,24 @@ app.openapi(ingestRoute, async (c) => {
 	}
 	if (seenStmts.length) await db.batch(seenStmts);
 
+	// A posting back on its board after its description was stripped gets it
+	// back. Found by a read rather than folded into the bump, so the rows that
+	// never lost theirs — nearly all of them — cost no extra write.
+	if (strippedStmts.length) {
+		const found = await db.batch<{ url: string }>(strippedStmts);
+		const stripped = new Set(found.flatMap((r) => r.results.map((row) => row.url)));
+		const restores = seen
+			.filter((j) => stripped.has(j.url) && j.description !== '')
+			.map((j) =>
+				db
+					.prepare(`UPDATE jobs SET description = ? WHERE url = ? AND description = ''`)
+					.bind(j.description, j.url)
+			);
+		for (let i = 0; i < restores.length; i += INGEST_BATCH_CHUNK) {
+			await db.batch(restores.slice(i, i + INGEST_BATCH_CHUNK));
+		}
+	}
+
 	// Keep every profile's precomputed ranking covering the newest postings.
 	//
 	// A job with no rank row is invisible to the feed's fast path, and new jobs
@@ -288,6 +341,7 @@ app.openapi(ingestRoute, async (c) => {
 	let culled = 0;
 	if (is_final) {
 		culled = await cullExpired(db);
+		await stripStaleDescriptions(db);
 	}
 
 	return c.json(
@@ -729,12 +783,12 @@ app.openapi(backfillSalaryRoute, async (c) => {
 	});
 });
 
-// ── POST /ingest/cull — manual full sweep of expired listings ────────────────
+// ── POST /ingest/cull — manual full sweep of expired listings and descriptions
 const cullRoute = createRoute({
 	method: 'post',
 	path: '/ingest/cull',
 	tags: ['Ingest'],
-	summary: `Delete listings older than ${CULL_DAYS} days (freshest of posted/first-seen/last-seen), sparing rows with owner activity`,
+	summary: `Delete listings older than ${CULL_DAYS} days (freshest of posted/first-seen/last-seen) and blank the descriptions of postings unseen for ${STRIP_DAYS}, sparing rows with owner activity`,
 	responses: {
 		200: {
 			description: 'Cull batch complete',
@@ -743,7 +797,7 @@ const cullRoute = createRoute({
 					schema: z
 						.object({
 							success: z.literal(true),
-							data: z.object({ culled: z.number(), has_more: z.boolean() }),
+							data: z.object({ culled: z.number(), stripped: z.number(), has_more: z.boolean() }),
 						})
 						.openapi('CullResponse'),
 				},
@@ -754,7 +808,18 @@ const cullRoute = createRoute({
 
 app.openapi(cullRoute, async (c) => {
 	const culled = await cullExpired(c.env.JOB_PLATFORM_DB);
-	return c.json({ success: true as const, data: { culled, has_more: culled === CULL_BATCH } }, 200);
+	const stripped = await stripStaleDescriptions(c.env.JOB_PLATFORM_DB);
+	return c.json(
+		{
+			success: true as const,
+			data: {
+				culled,
+				stripped,
+				has_more: culled === CULL_BATCH || stripped === CULL_BATCH,
+			},
+		},
+		200
+	);
 });
 
 // ── /ingest/reconcile-mail — what the INBOX says about our applications ─────

@@ -102,7 +102,7 @@ Auth: `Authorization: Bearer $HADOKU_API_KEY`
 | POST   | `/preflight`                      | Auth + connectivity check                                                                                                                                                                    |
 | POST   | `/prune`                          | Purge stale `jobplatform:raw:*` from KV                                                                                                                                                      |
 
-### TargetView shape (stored on our side as `user_companies.target_id`)
+### TargetView shape
 
 ```typescript
 interface TargetView {
@@ -164,28 +164,16 @@ Scheduling lives in hadoku_site. The `mgmt-api` cron-jobs dispatcher fires `POST
 
 ## Data Model
 
-Current D1 schema (migrations 0001–0010): `profiles`, `jobs`, `profile_companies`, `job_states`. There is no standalone `users` table — identity is carried inline on each row's `user_id`. `job_profile_matches` was dropped in 0008 (scoring moved on-read) and `user_companies` was superseded by `profile_companies` in 0007, surviving only as harmless legacy.
+Current D1 schema (migrations 0001–0010): `profiles`, `jobs`, `profile_companies`, `job_states`. There is no standalone `users` table — identity is carried inline on each row's `user_id`. `job_profile_matches` was dropped in 0008 (scoring moved on-read) and `user_companies`, superseded by `profile_companies` in 0007, was dropped in 0026.
 
-### Users & Company Subscriptions (V1, shipped)
+### Users (V1, shipped)
 
 ```typescript
 interface User {
   id: string // derived from hadoku auth X-User-Key identity
   created_at: string
 }
-
-interface UserCompany {
-  id: string // our own id
-  user_id: string
-  target_id: number // integer — from scraper's TargetView.id
-  ats: string // denormalized for quick filtering
-  slug: string
-  display_name: string // what the user typed
-  added_at: string
-}
 ```
-
-On `POST /companies`, jobplatform calls scraper `/targets` with `{companies: [display_name], use_llm: true}`, reads `AddTargetsData.added[]`, and writes one `user_companies` row per returned `TargetView`. On `DELETE /companies/:id` we call scraper `DELETE /targets/{target_id}` and remove our row.
 
 Jobs are joined to users at query time via `jobs.company` (or, preferably, via a stable `(ats, slug)` stored on each job — see Open Questions).
 
@@ -298,7 +286,7 @@ interface ProfileMatch {
 ```typescript
 interface JobState {
   job_id: string
-  user_id: string // same opaque id as user_companies
+  user_id: string // same opaque id as profiles
   state:
     | 'new' // default on first ingest; not written until user transitions
     | 'interested'
@@ -398,7 +386,7 @@ GET   /jobs/:id/state            ← read current state for the authed user
 GET   /jobs?state=X              ← filter list by state (combinable with profile_id, mine, min_score)
 ```
 
-All gated by `requireMinTier('friend')`. Per-user via the same `userIdFromCredential()` helper as `user_companies`. Default state on first ingest is `new`; user transitions to `interested / dismissed` from the card. From `interested`: `→ saved → applied → { offered | rejected }`.
+All gated by `requireMinTier('friend')`. Per-user via the same `userIdFromCredential()` helper as `profiles`. Default state on first ingest is `new`; user transitions to `interested / dismissed` from the card. From `interested`: `→ saved → applied → { offered | rejected }`.
 
 Schema: new `job_states (job_id, user_id, state, notes, updated_at)` table with `UNIQUE(job_id, user_id)`. See Data Model below.
 
