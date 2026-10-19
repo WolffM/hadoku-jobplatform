@@ -231,6 +231,23 @@ describe('cull query plan', () => {
 		assert.doesNotMatch(details, /^SCAN j\b/m, `plan was:\n${details}`);
 	});
 
+	it("a culled job's rank rows are found by index, not by scanning job_profile_rank", async () => {
+		// The cascade from jobs runs exactly this lookup once per deleted job.
+		// Without an index leading on job_id it scans the whole table, and 500
+		// of those per cull outran D1's statement limit from 2026-10-17 (0027).
+		const plan = await h.db
+			.prepare('EXPLAIN QUERY PLAN SELECT 1 FROM job_profile_rank WHERE job_id = ?')
+			.bind('x')
+			.all<{ detail: string }>();
+		const details = plan.results.map((r) => r.detail).join('\n');
+		assert.match(
+			details,
+			/USING (COVERING )?INDEX idx_job_profile_rank_job/,
+			`plan was:\n${details}`
+		);
+		assert.doesNotMatch(details, /^SCAN job_profile_rank\b/m, `plan was:\n${details}`);
+	});
+
 	it('the dropped indexes are gone, and the ones covering them remain', async () => {
 		const rows = await h.db
 			.prepare("SELECT name FROM sqlite_master WHERE type = 'index'")

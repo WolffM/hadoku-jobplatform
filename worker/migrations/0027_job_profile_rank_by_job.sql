@@ -1,0 +1,16 @@
+-- Index job_profile_rank by job_id, so deleting a job does not scan it.
+--
+-- job_profile_rank cascades from jobs (ON DELETE CASCADE), but its primary key
+-- leads with profile_id, so the cascade's `WHERE job_id = ?` had no index to
+-- seek and scanned the table — 230,400 rows on 2026-10-19 — once per deleted
+-- job. The cull deletes up to 500 jobs a call: up to 500 full scans, well past
+-- D1's 30s statement limit. It rolled back every time, so from the 2026-10-17
+-- scrape on nothing was culled, and every final ingest batch spent its 30s on
+-- it and came back to the scraper as a 500 (781-931 a night).
+--
+-- Until 2026-10-16 there was nothing old enough to cull, so each call deleted
+-- nothing and the scan never ran: the gap was there from 0020, and invisible.
+--
+-- Rank rows are written only when a profile's ranking is extended or rebuilt,
+-- so the extra index entry costs a write on those, never on a liveness bump.
+CREATE INDEX IF NOT EXISTS idx_job_profile_rank_job ON job_profile_rank(job_id);
