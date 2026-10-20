@@ -336,18 +336,13 @@ app.openapi(ingestRoute, async (c) => {
 		await rankNewJobs(db);
 	}
 
-	// End of a scrape run: sweep one bounded batch of expired listings. Repeated
-	// runs converge; the manual /ingest/cull endpoint exists for full sweeps.
-	let culled = 0;
-	if (is_final) {
-		culled = await cullExpired(db);
-		await stripStaleDescriptions(db);
-	}
-
+	// No cull or strip here. Both used to run on every board's final batch —
+	// ~900 a night, each reading 35-45k rows to find a few hundred expired ones.
+	// mgmt-api's daily jobplatform:sweep drives POST /ingest/cull instead.
 	return c.json(
 		{
 			success: true as const,
-			data: { accepted, skipped, batch_number, is_final, culled },
+			data: { accepted, skipped, batch_number, is_final },
 		},
 		200
 	);
@@ -783,7 +778,9 @@ app.openapi(backfillSalaryRoute, async (c) => {
 	});
 });
 
-// ── POST /ingest/cull — manual full sweep of expired listings and descriptions
+// ── POST /ingest/cull — one batch of the daily sweep of expired listings and
+// stale descriptions. mgmt-api's jobplatform:sweep calls it until has_more is
+// false; an operator can call it by hand the same way.
 const cullRoute = createRoute({
 	method: 'post',
 	path: '/ingest/cull',
