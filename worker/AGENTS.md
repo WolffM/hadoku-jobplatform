@@ -25,6 +25,10 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/ownerName.ts` — the ONLY way to resolve an `ownerName`: `resolveGranteeVia`
   behind a 15-minute cache in D1 (`owner_name_cache`), since every uncached resolve is a full
   key-registry scan at the edge (issue #23). Successes only; 404/409/503 are never kept
+- `src/errorHandler.ts` — the app's `onError`. Logs an unhandled exception's
+  message and cause as fields (Workers Logs drops the first line of a D1
+  error's stack), and answers Cloudflare's documented transient D1 errors with
+  503 + `Retry-After` instead of a 500 (issue #24)
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`

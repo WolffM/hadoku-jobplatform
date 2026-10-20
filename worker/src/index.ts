@@ -29,6 +29,7 @@ import {
 import type { ExecutionContext } from '@cloudflare/workers-types';
 import type { AppEnv } from './types.js';
 import { logger } from './logger.js';
+import { errorHandler } from './errorHandler.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
@@ -87,7 +88,7 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 		})
 	);
 
-	const { notFoundHandler, errorHandler } = createErrorHandlers('wrapped');
+	const { notFoundHandler } = createErrorHandlers('wrapped');
 	app.notFound(notFoundHandler);
 	app.onError(errorHandler);
 
