@@ -48,6 +48,22 @@ describe('POST /ingest/cull', () => {
 		assert.equal(res.status, 403);
 	});
 
+	it("a scrape's final batch leaves expired rows for the daily sweep", async () => {
+		const res = await h.fetch(`${BASE}/ingest`, {
+			method: 'POST',
+			...AUTH,
+			body: JSON.stringify({
+				jobs: [job({ id: 'cull-final', url: 'https://boards.greenhouse.io/acme/jobs/cull-final' })],
+				source: 'greenhouse',
+				batch_number: 1,
+				is_final: true,
+			}),
+		});
+		assert.equal(res.status, 200);
+		const old = await h.db.prepare("SELECT id FROM jobs WHERE id = 'cull-old'").first();
+		assert.ok(old, 'ingest no longer culls; jobplatform:sweep does');
+	});
+
 	it('culls expired rows, spares owner-touched, fresh, and still-listed ones', async () => {
 		const { status, body } = await h.json<{ success: boolean; data: { culled: number } }>(
 			`${BASE}/ingest/cull`,
@@ -60,7 +76,7 @@ describe('POST /ingest/cull', () => {
 			.all<{ id: string }>();
 		assert.deepEqual(
 			remaining.results.map((r) => r.id),
-			['cull-alive', 'cull-fresh', 'cull-protected'],
+			['cull-alive', 'cull-final', 'cull-fresh', 'cull-protected'],
 			'only the untouchable dead row was deleted'
 		);
 	});
