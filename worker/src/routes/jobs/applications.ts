@@ -467,7 +467,13 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				};
 			});
 
-			return c.json({ success: true as const, data: { applications } }, 200);
+			return c.json(
+				{
+					success: true as const,
+					data: { applications, owner: { userId, name: who.onBehalfOf } },
+				},
+				200
+			);
 		}
 	);
 
