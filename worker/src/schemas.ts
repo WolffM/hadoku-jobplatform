@@ -344,7 +344,18 @@ export const ApplicationResponseSchema = S(z.object({ application: ApplicationSc
 );
 
 export const ApplicationsResponseSchema = S(
-	z.object({ applications: z.array(ApplicationSummarySchema) })
+	z.object({
+		applications: z.array(ApplicationSummarySchema),
+		/**
+		 * Whose queue this is, as resolved for THIS request. `name` is the
+		 * `ownerName` it was resolved from, null when the caller read their own.
+		 * The unattended runner names its owner by display name, so it checks
+		 * `userId` against a pinned one before touching a row: a rename, or a
+		 * name someone else later claims, must stop the run rather than drain
+		 * the wrong person's queue (hadoku-scraper#49).
+		 */
+		owner: z.object({ userId: z.string(), name: z.string().nullable() }),
+	})
 ).openapi('ApplicationsResponse');
 
 export const SetApplicationStatusSchema = z

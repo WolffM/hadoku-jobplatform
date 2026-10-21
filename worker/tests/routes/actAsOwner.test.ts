@@ -139,22 +139,25 @@ describe('acting on behalf of a named owner', () => {
 			.bind(HADOKU, now, now)
 			.run();
 
-		const mine = await req<{ data: { applications: unknown[] } }>('/applications', {
+		type Queue = {
+			data: { applications: unknown[]; owner: { userId: string; name: string | null } };
+		};
+		const mine = await req<Queue>('/applications', {
 			method: 'GET',
 			tier: 'service',
 			userId: SERVICE,
 		});
 		assert.equal(mine.body.data.applications.length, 0, 'the service owns nothing');
+		assert.deepEqual(mine.body.data.owner, { userId: SERVICE, name: null });
 
-		const theirs = await req<{ data: { applications: unknown[] } }>(
-			'/applications?ownerName=Hadoku',
-			{
-				method: 'GET',
-				tier: 'service',
-				userId: SERVICE,
-			}
-		);
+		const theirs = await req<Queue>('/applications?ownerName=Hadoku', {
+			method: 'GET',
+			tier: 'service',
+			userId: SERVICE,
+		});
 		assert.equal(theirs.body.data.applications.length, 1);
+		// What the unattended runner pins: the name it sent can move, this cannot.
+		assert.deepEqual(theirs.body.data.owner, { userId: HADOKU, name: 'Hadoku' });
 	});
 
 	it('transitions a row it does not own, when acting as the owner', async () => {
