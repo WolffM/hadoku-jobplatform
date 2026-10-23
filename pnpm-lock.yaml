@@ -49,11 +49,11 @@ importers:
         specifier: ^1.0.4
         version: 1.0.4
       '@wolffm/task-ui-components':
-        specifier: ^4.11.0
-        version: 4.11.0(@wolffm/themes@5.10.1(react@19.2.4))(react@19.2.4)
+        specifier: ^4.12.1
+        version: 4.12.1(@wolffm/themes@5.11.1(react@19.2.4))(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^5.10.1
-        version: 5.10.1(react@19.2.4)
+        specifier: ^5.11.1
+        version: 5.11.1(react@19.2.4)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -1278,14 +1278,14 @@ packages:
       react: ^18.0.0 || ^19.0.0
       zod: ^4.0.0
 
-  '@wolffm/task-ui-components@4.11.0':
-    resolution: {integrity: sha512-bhdDHSktW7koMQlBIhFTl7qfvnqDSMyAB6C1mUjBnK/10otHnqtpGIQSSXArGMth/IAAz7cChv/2opioFrhvWw==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.11.0/9e719f7cabbb1f95c2376016ed0ed86e44da0236}
+  '@wolffm/task-ui-components@4.12.1':
+    resolution: {integrity: sha512-w87jS+ozEWg2TvcHVkJYwH2/v14G2/IAXd3jq3FzAi8KAKJEVJaVt3ZhKZhJY8jyeFUdtd2FL6F1u5QwlRFmag==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.12.1/81a5b6ec2cbf5f22f0139eb96de589d49ad2a35b}
     peerDependencies:
       '@wolffm/themes': '*'
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/themes@5.10.1':
-    resolution: {integrity: sha512-V+GgP3PBkES13KIpvSSYfTiv+LmG3lN6LxiYIJMPF2ajZs1kTKOaL4dj1ruuIX5uuMlEVIB30dRsSbLIL1VkiA==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.10.1/74c0cb832b75d8421310e38d24afb7214c5b913b}
+  '@wolffm/themes@5.11.1':
+    resolution: {integrity: sha512-f2zygbvCACCfN6/3jkRvhgA6DeUQbZEb2MAfov9aG5NQJWyJCIPKrPdGspTiK2MJBGGBwIC0XggyK5EoRD7mDQ==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.11.1/c7887d867d16c1f56d1b188e946a3d34939723c0}
     hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3797,12 +3797,12 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@4.11.0(@wolffm/themes@5.10.1(react@19.2.4))(react@19.2.4)':
+  '@wolffm/task-ui-components@4.12.1(@wolffm/themes@5.11.1(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': 5.10.1(react@19.2.4)
+      '@wolffm/themes': 5.11.1(react@19.2.4)
       react: 19.2.4
 
-  '@wolffm/themes@5.10.1(react@19.2.4)':
+  '@wolffm/themes@5.11.1(react@19.2.4)':
     dependencies:
       '@wolffm/prefs-client': 1.0.19(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
