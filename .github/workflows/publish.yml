@@ -245,25 +245,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify parent about deployment
+      # hadoku_site is told through mgmt-api with this repo's own service key
+      # (hadoku-actions/repo-action), so this repo holds no token that can
+      # write to hadoku_site. A refused or unanswered notify FAILS this job:
+      # the old curl only warned, and a dropped dispatch means a release that
+      # never reaches the site.
+      - name: Which packages were published
+        id: published
         if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
-        env:
-          # Without this the guard below reads an unset variable, takes the
-          # "skipping notifications" branch and exits 0 — so the publish goes
-          # green while hadoku_site is never told, and the worker (with any D1
-          # migration riding on it) silently never deploys. Every other repo in
-          # the fleet wires it here; this one did not.
-          HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
-          HADOKU_NPM_READ_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
         run: |
-          if [ -z "$HADOKU_SITE_TOKEN" ]; then
-            echo "Warning: HADOKU_SITE_TOKEN not available, skipping notifications"
-            exit 0
-          fi
-
-          API_URL="https://api.github.com/repos/WolffM/hadoku_site/dispatches"
-          AUTH_HEADER="Authorization: Bearer $HADOKU_SITE_TOKEN"
-
           # Announce EXACTLY what was published, never what merely exists.
           #
           # This used to name the UI package unconditionally and the worker
@@ -291,40 +281,25 @@ jobs:
           fi
           if [ -z "$PACKAGES" ]; then
             echo "Nothing was published — no dispatch."
-            exit 0
-          fi
-
-          # Dispatch packages_updated (triggers update-packages → deploy)
-          echo "Dispatching packages_updated: [$PACKAGES]"
-          status=$(curl -sS -o /dev/null -w "%{http_code}" \
-            -X POST "$API_URL" \
-            -H "Accept: application/vnd.github+json" \
-            -H "$AUTH_HEADER" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -d "{\"event_type\": \"packages_updated\", \"client_payload\": {\"packages\": [$PACKAGES], \"sha\": \"${{ github.sha }}\", \"ref\": \"${{ github.ref }}\"}}")
-
-          if [ "$status" = "204" ]; then
-            echo "  packages_updated dispatched"
           else
-            echo "  Failed to dispatch packages_updated (HTTP $status)"
+            echo "packages=[$PACKAGES]" >> "$GITHUB_OUTPUT"
           fi
 
-          # Dispatch PM2 redeploy if configured
-          if [ -n "$PM2_SERVICE_NAME" ]; then
-            echo "Dispatching redeploy_service: $PM2_SERVICE_NAME"
-            status=$(curl -sS -o /dev/null -w "%{http_code}" \
-              -X POST "$API_URL" \
-              -H "Accept: application/vnd.github+json" \
-              -H "$AUTH_HEADER" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              -d "{\"event_type\": \"redeploy_service\", \"client_payload\": {\"service\": \"$PM2_SERVICE_NAME\", \"sha\": \"${{ github.sha }}\"}}")
+      - name: Notify hadoku_site (packages_updated)
+        if: steps.published.outputs.packages != ''
+        uses: WolffM/hadoku-actions/repo-action@v1
+        with:
+          verb: notify
+          body: '{"event_type":"packages_updated","client_payload":{"packages":${{ steps.published.outputs.packages }},"sha":"${{ github.sha }}"}}'
+          service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
-            if [ "$status" = "204" ]; then
-              echo "  redeploy_service dispatched"
-            else
-              echo "  Failed to dispatch redeploy_service (HTTP $status)"
-            fi
-          fi
+      - name: Ask hadoku_site to redeploy the PM2 service
+        if: steps.published.outputs.packages != '' && env.PM2_SERVICE_NAME != ''
+        uses: WolffM/hadoku-actions/repo-action@v1
+        with:
+          verb: notify
+          body: '{"event_type":"redeploy_service","client_payload":{"service":"${{ env.PM2_SERVICE_NAME }}","sha":"${{ github.sha }}"}}'
+          service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
       # A red run is seen by nobody unless it says so itself: nothing polls
       # these repos. `always()` so RECOVERIES report too -- without the success
