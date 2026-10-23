@@ -54,6 +54,11 @@ jobs:
         with:
           service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
           npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          # The theme-token gate against the packages just bumped, before anything
+          # is pushed. Nothing else checks a bump before main moves, and a new
+          # @wolffm/themes can tighten check-usage: themes 5.12.6 landed 40
+          # violations on hadoku_site main with every check green.
+          verify: pnpm run lint:css
 
       # A red run here means the update pipeline is FROZEN — no @wolffm package
       # (themes, worker-utils, security fixes) lands until someone acts. The
