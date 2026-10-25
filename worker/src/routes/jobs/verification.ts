@@ -20,7 +20,7 @@
 import { maybeUserId, type JobsApp } from './shared.js';
 import { fetchMessages, isFeedError } from '../../clients/mailfeed.js';
 import { parseMail } from '../../mailMatch.js';
-import { extractCode } from '../../verificationCode.js';
+import { extractCode, mailText } from '../../verificationCode.js';
 import { mailboxOwnerRefusal } from '../../reconcileMail.js';
 
 /** How far back to look. Codes expire within minutes; a few hours covers a session. */
@@ -76,7 +76,12 @@ export function registerVerificationRoutes(app: JobsApp) {
 					code,
 					// Only when the code could not be picked out, so the owner can
 					// still read it rather than being sent to the inbox anyway.
-					text: code ? null : m.body.trim().slice(0, TEXT_LIMIT),
+					text: code
+						? null
+						: mailText(m.body)
+								.replace(/\n\s*\n+/g, '\n')
+								.trim()
+								.slice(0, TEXT_LIMIT),
 				};
 			});
 
