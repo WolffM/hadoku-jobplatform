@@ -11,6 +11,27 @@ before this was written, not taken from the response on trust.
 
 ## 1. Verification codes: the reconciler reads THAT one arrived, never WHAT it says
 
+> **Reversed for the runner, 2026-10-23.** The owner decided the apply runner
+> (hadoku-scraper `hadoku_scrape/apply/`) should read Greenhouse's emailed
+> security code and type it, so their 21 approved Greenhouse applications stop
+> waiting on a person. The "we do not answer anti-bot challenges" line below no
+> longer holds for that runner. Its limits:
+>
+> - **Approved rows only**, and only after the re-fill matches the fingerprint
+>   recorded at approval. Greenhouse only: Ashby and Lever still need a person.
+>   Never LinkedIn.
+> - **Read through the existing mailfeed grant** (`scraper-service-key`, ATS
+>   sender domains). No new mail route, and nothing proxied through jobplatform.
+> - **One try.** A missing, unreadable, refused or expired code sends the row to
+>   `needs_manual`. Never a second submit.
+> - **At most 3 sends per runner tick and 2 per employer per rolling 24h.**
+> - The code is never logged or stored. The `submitted` evidence records only
+>   `security_code: true`.
+>
+> Nothing changes in jobplatform itself. The reconciler still reads only
+> _that_ a code arrived. `GET /verification-codes` still refuses service
+> identities, and the Fill extension never types a code.
+
 > **Superseded in part, 2026-10-04.** The owner — who runs both the mail service
 > and the dashboard — asked to read codes on the dashboard instead of opening an
 > inbox, after the runner was taken off submission for code-checked boards.
