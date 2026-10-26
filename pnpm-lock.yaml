@@ -46,8 +46,8 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(vite@7.3.1(@types/node@26.1.1)(yaml@2.8.3))
       '@wolffm/catalogue':
-        specifier: ^1.0.7
-        version: 1.0.7
+        specifier: ^1.0.8
+        version: 1.0.8
       '@wolffm/task-ui-components':
         specifier: ^4.20.0
         version: 4.20.0(@wolffm/themes@5.12.12(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1259,8 +1259,8 @@ packages:
   '@vue/shared@3.5.30':
     resolution: {integrity: sha512-YXgQ7JjaO18NeK2K9VTbDHaFy62WrObMa6XERNfNOkAhD1F1oDSf3ZJ7K6GqabZ0BvSDHajp8qfS5Sa2I9n8uQ==}
 
-  '@wolffm/catalogue@1.0.7':
-    resolution: {integrity: sha512-wTwzjtxjjy7XW7Ix9ybKqf48f6xI8lbgjxh35hrZC6v3SmaP3w9SutD+8+qR/gsEhwQetZ5xc0DBj7HOCW39iw==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.7/d68f33b2d059c3f84a9463d9b5601e3bb066ec0c}
+  '@wolffm/catalogue@1.0.8':
+    resolution: {integrity: sha512-N79i8dYo23Hv3+IjvQg8GaSN2Bt3iVWGlzzN9kJJtlTggANXBjtQEjbiGql2dtmYlnFrw+SZxU1oferdyMlgqA==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.8/2d60feea015fdf094b22c7b47e15ecf918b57c69}
     engines: {node: '>=18'}
 
   '@wolffm/logger@1.4.0':
@@ -3787,7 +3787,7 @@ snapshots:
 
   '@vue/shared@3.5.30': {}
 
-  '@wolffm/catalogue@1.0.7': {}
+  '@wolffm/catalogue@1.0.8': {}
 
   '@wolffm/logger@1.4.0': {}
 
