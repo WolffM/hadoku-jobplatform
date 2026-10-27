@@ -237,3 +237,29 @@ names only — no values), then ask the operator to grant it. Diagnose with
 Full broker API, ACL commands, and key rotation live in the hadoku_site operational
 docs (`docs/child-apps/USING_VAULT.md`, `docs/operations/SECRETS.md`) — deliberately
 not mirrored here, since this repo is public.
+
+## Telemetry: where your app's data lives
+
+What a visitor did is in monitoring-api's D1, readable with this repo's own
+service key. Query it. Don't use Cloudflare Workers Logs (a normal
+`wrangler login` can't read them), and don't ask the operator what a visitor
+saw. If the log can't answer, add telemetry.
+
+```sh
+K=$(node -p "require('./.devvault.local.json').key")
+curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
+  "https://hadoku.me/health/api/logs/query?path=/jobplatform&since=2026-10-27T00:00:00Z&limit=200"
+```
+
+- Events your code posts go to `service_events`: `POST /health/api/telemetry`
+  with `context.service: "jobplatform"`, read back with
+  `GET /health/api/service-events?service=jobplatform`. Not `console.log`.
+  Browser events: POST to your own `/jobplatform/api/*` route and relay from
+  the backend, which holds the key.
+- Only finished requests that reach the edge are logged. A UI app's page
+  is served by GitHub Pages, so only its `/jobplatform/api/*` calls show up; a
+  tunnel app's whole prefix does.
+- `user_id c8c59a87-f8af-4da7-9c99-d9e536b3fca8` is the daily automated tour
+  (~09:2x UTC), not a visitor.
+
+Params, write format, caveats: `../hadoku_site/docs/child-apps/TELEMETRY.md`.
