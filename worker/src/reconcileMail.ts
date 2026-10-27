@@ -53,6 +53,22 @@ const MATCH_LOOKBACK_MS = 180 * 24 * 60 * 60 * 1000;
 const MATCH_SKEW_MS = 2 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long after a submit its mail may still arrive and be matched to it.
+ *
+ * ATS mail lands within seconds of the submit; days is slack for a slow
+ * employer, not a measured tail. Past it the mail can only match by being
+ * the sole open application to that company.
+ */
+const SEND_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
+ * How long after its mail the runner may report a submit. The ATS sends the
+ * confirmation the moment the form posts; the runner records `submitted` once
+ * it has read the result page — 89s later for Samsara on 2026-10-25.
+ */
+const SEND_REPORT_LAG_MS = 30 * 60 * 1000;
+
+/**
  * Two mails naming one company inside this window may be the same application
  * confirmed twice rather than two applications.
  *
@@ -113,7 +129,9 @@ interface AppRow {
 	id: string;
 	job_id: string;
 	company: string;
+	status: string;
 	created_at: string;
+	updated_at: string;
 }
 
 export async function reconcileMail(
@@ -211,8 +229,9 @@ async function applyMessage(
 	}
 
 	const candidates = await findCandidates(db, userId, parsed.company, message.receivedAt);
+	const target = pickTarget(candidates, message.receivedAt);
 
-	if (candidates.length === 0) {
+	if (!target) {
 		const duplicateOf = await findRecentUnmatched(db, userId, parsed.company, message);
 		if (duplicateOf) report.duplicatesFlagged++;
 		await recordUnmatched(
@@ -228,34 +247,57 @@ async function applyMessage(
 		return;
 	}
 
-	// The mail names a company and frequently no role — measured: neither
-	// Pinecone confirmation names one — so a single mail can legitimately
-	// correspond to any of several applications to that employer. Mark them all
-	// rather than picking one arbitrarily: "an application to Datadog was
-	// confirmed" is true of each, and a wrong single pick would be a fact
-	// nobody can later audit.
-	for (const row of candidates) {
-		if (parsed.kind === 'verification') {
-			await db
-				.prepare(
-					'UPDATE applications SET verification_requested_at = ? WHERE id = ? AND user_id = ?'
-				)
-				.bind(receivedAt, row.id, userId)
-				.run();
-		} else if (parsed.kind === 'confirmation') {
-			await db
-				.prepare(
-					`UPDATE applications SET confirmed_at = ?, confirmation_source = ?
-					 WHERE id = ? AND user_id = ?`
-				)
-				.bind(receivedAt, message.fromDomain, row.id, userId)
-				.run();
-		}
+	if (parsed.kind === 'verification') {
+		await db
+			.prepare('UPDATE applications SET verification_requested_at = ? WHERE id = ? AND user_id = ?')
+			.bind(receivedAt, target.id, userId)
+			.run();
+	} else if (parsed.kind === 'confirmation') {
+		await db
+			.prepare(
+				`UPDATE applications SET confirmed_at = ?, confirmation_source = ?
+				 WHERE id = ? AND user_id = ?`
+			)
+			.bind(receivedAt, message.fromDomain, target.id, userId)
+			.run();
 	}
 
 	if (parsed.kind === 'verification') report.verificationFlagged++;
 	else if (parsed.kind === 'confirmation') report.confirmed++;
 	else report.ignored++;
+}
+
+/**
+ * The ONE application a mail is about, or null when the mail cannot say.
+ *
+ * One mail is one event, so it marks one row. It used to mark every candidate,
+ * on the reasoning that "an application to Datadog was confirmed" is true of
+ * each — until a single Toast confirmation on 2026-10-25 stamped all eleven
+ * Toast rows, five of them `job_closed` and two submitted the NEXT day. A
+ * confirmation on a row nobody sent is the fabricated evidence this module
+ * exists to prevent.
+ *
+ * The anchor is the send. A row the runner submitted carries its submit time
+ * in `updated_at` (nothing writes a submitted row afterwards), and the ATS mails
+ * within seconds of it: the code just before, the confirmation just after —
+ * Samsara's confirmation landed 89s BEFORE the runner reported the submit. So
+ * the submitted row nearest the mail wins. Failing that, a mail can still mean
+ * an application the owner sent by hand, but only an unambiguous one: exactly
+ * one open row. Anything else is recorded unmatched, where it stays visible.
+ */
+function pickTarget(candidates: AppRow[], receivedAtMs: number): AppRow | null {
+	const open = candidates.filter((r) => r.status !== 'job_closed');
+	const distance = (r: AppRow) => Math.abs(Date.parse(r.updated_at) - receivedAtMs);
+	const sent = open.filter((r) => {
+		const at = Date.parse(r.updated_at);
+		return (
+			r.status === 'submitted' &&
+			at >= receivedAtMs - SEND_LOOKBACK_MS &&
+			at <= receivedAtMs + SEND_REPORT_LAG_MS
+		);
+	});
+	if (sent.length > 0) return sent.reduce((a, b) => (distance(b) < distance(a) ? b : a));
+	return open.length === 1 ? open[0] : null;
 }
 
 /** This owner's applications to this employer that could be what the mail means. */
@@ -269,7 +311,7 @@ async function findCandidates(
 	const to = new Date(receivedAtMs + MATCH_SKEW_MS).toISOString();
 	const res = await db
 		.prepare(
-			`SELECT a.id, a.job_id, j.company, a.created_at
+			`SELECT a.id, a.job_id, j.company, a.status, a.created_at, a.updated_at
 			 FROM applications a
 			 INNER JOIN jobs j ON j.id = a.job_id
 			 WHERE a.user_id = ? AND a.created_at BETWEEN ? AND ?`
