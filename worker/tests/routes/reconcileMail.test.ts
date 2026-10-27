@@ -28,7 +28,14 @@ function mail(over: Partial<FeedMessage> & { subject: string; id: string }): Fee
 
 async function seedApplication(
 	h: Awaited<ReturnType<typeof createHarness>>,
-	opts: { id: string; jobId: string; company: string; createdAt: string }
+	opts: {
+		id: string;
+		jobId: string;
+		company: string;
+		createdAt: string;
+		status?: string;
+		updatedAt?: string;
+	}
 ): Promise<void> {
 	await seedJob(h.db, {
 		id: opts.jobId,
@@ -39,9 +46,15 @@ async function seedApplication(
 		.prepare(
 			`INSERT INTO applications
 			   (id, user_id, job_id, variant_slug, mode, status, created_at, updated_at)
-			 VALUES (?, 'user-hadoku', ?, 'v1', 'review', 'filled', ?, ?)`
+			 VALUES (?, 'user-hadoku', ?, 'v1', 'review', ?, ?, ?)`
 		)
-		.bind(opts.id, opts.jobId, opts.createdAt, opts.createdAt)
+		.bind(
+			opts.id,
+			opts.jobId,
+			opts.status ?? 'filled',
+			opts.createdAt,
+			opts.updatedAt ?? opts.createdAt
+		)
 		.run();
 }
 
@@ -586,6 +599,137 @@ test('with no mailbox owner configured, mail routes refuse rather than guess', a
 			tier: 'service',
 		});
 		assert.equal(status, 503);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('one confirmation marks the one application it confirms, not every row at that employer', async () => {
+	// The real 2026-10-25 Toast mail. It confirmed the Android application the
+	// runner had submitted 18s earlier and was stamped onto all eleven Toast
+	// rows — closed postings, unsent ones, and two submitted the next day.
+	const sent = Date.UTC(2026, 9, 25, 20, 22, 49, 317);
+	const feed = await startFeed({
+		messages: [
+			mail({
+				id: 'toast-1',
+				receivedAt: Date.UTC(2026, 9, 25, 20, 23, 7, 457),
+				subject: 'Thank you for applying to Toast',
+			}),
+		],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		const rows: [string, string, string][] = [
+			['app-android', 'submitted', new Date(sent).toISOString()],
+			['app-enterprise', 'submitted', '2026-10-25T15:09:18.284Z'],
+			['app-next-day', 'submitted', '2026-10-26T20:25:41.284Z'],
+			['app-closed', 'job_closed', '2026-10-25T15:04:47.240Z'],
+			['app-manual', 'needs_manual', '2026-10-25T15:17:39.004Z'],
+		];
+		for (const [id, status, updatedAt] of rows) {
+			await seedApplication(h, {
+				id,
+				jobId: `greenhouse_${id}`,
+				company: 'Toast',
+				createdAt: '2026-09-10T04:42:00.000Z',
+				status,
+				updatedAt,
+			});
+		}
+
+		const { body } = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(body.data.confirmed, 1);
+
+		const confirmed = await h.db
+			.prepare('SELECT id FROM applications WHERE confirmed_at IS NOT NULL')
+			.all<{ id: string }>();
+		assert.deepEqual(
+			confirmed.results.map((r) => r.id),
+			['app-android']
+		);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('a confirmation that lands before the runner reports the submit still finds it', async () => {
+	// Samsara, 2026-10-25: the mail at 05:13:07, the runner's `submitted` at
+	// 05:14:36 — it reads the result page before it reports.
+	const feed = await startFeed({
+		messages: [
+			mail({
+				id: 'samsara-1',
+				receivedAt: Date.UTC(2026, 9, 25, 5, 13, 7, 308),
+				subject: 'Thank you for applying to Samsara',
+			}),
+		],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		await seedApplication(h, {
+			id: 'app-sent',
+			jobId: 'greenhouse_1',
+			company: 'Samsara',
+			createdAt: '2026-10-01T20:40:48.360Z',
+			status: 'submitted',
+			updatedAt: '2026-10-25T05:14:36.884Z',
+		});
+		await seedApplication(h, {
+			id: 'app-queued',
+			jobId: 'greenhouse_2',
+			company: 'Samsara',
+			createdAt: '2026-10-01T20:41:00.000Z',
+			status: 'queued',
+		});
+
+		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			method: 'POST',
+			tier: 'service',
+		});
+
+		const confirmed = await h.db
+			.prepare('SELECT id FROM applications WHERE confirmed_at IS NOT NULL')
+			.all<{ id: string }>();
+		assert.deepEqual(
+			confirmed.results.map((r) => r.id),
+			['app-sent']
+		);
+	} finally {
+		await h.dispose();
+		await feed.stop();
+	}
+});
+
+test('a mail that cannot say which of several open applications it means is recorded unmatched', async () => {
+	// Nothing submitted near it, two open rows: the owner may have sent either
+	// by hand. Picking one would be a guess nobody could audit later.
+	const feed = await startFeed({
+		messages: [mail({ id: 'dd-1', subject: 'Thank you for applying to Datadog' })],
+	});
+	const h = await createHarness({ mailFeedUrl: feed.url });
+	try {
+		for (const id of ['app-a', 'app-b']) {
+			await seedApplication(h, {
+				id,
+				jobId: `greenhouse_${id}`,
+				company: 'Datadog',
+				createdAt: '2026-09-10T00:00:00.000Z',
+				status: 'needs_manual',
+			});
+		}
+
+		const { body } = await h.json<{ data: Record<string, number> }>(
+			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
+			{ method: 'POST', tier: 'service' }
+		);
+		assert.equal(body.data.confirmed, 0);
+		assert.equal(body.data.unmatched, 1);
 	} finally {
 		await h.dispose();
 		await feed.stop();
