@@ -301,6 +301,22 @@ jobs:
           body: '{"event_type":"redeploy_service","client_payload":{"service":"${{ env.PM2_SERVICE_NAME }}","sha":"${{ github.sha }}"}}'
           service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
+      # The same bytes again on npmjs as @hadoku/*, so a repo outside the fleet
+      # can install them without a GitHub token (hadoku_site
+      # docs/operations/NPMJS_PUBLISHING.md). AFTER the notify, so an npmjs
+      # problem never holds back a fleet release.
+      - name: Stage the UI package for npmjs
+        if: steps.ui_changed.outputs.changed == 'true'
+        uses: WolffM/hadoku-actions/publish-npmjs@32c2a956c15e00214e29e6e7c515cef743c3be23
+        with:
+          package-dir: .
+
+      - name: Stage the worker package for npmjs
+        if: steps.worker_changed.outputs.changed == 'true'
+        uses: WolffM/hadoku-actions/publish-npmjs@32c2a956c15e00214e29e6e7c515cef743c3be23
+        with:
+          package-dir: worker
+
       # A red run is seen by nobody unless it says so itself: nothing polls
       # these repos. `always()` so RECOVERIES report too -- without the success
       # side the alert state stays broken and the next real failure arrives as a
@@ -310,5 +326,30 @@ jobs:
         uses: WolffM/hadoku-actions/report-job@v1
         with:
           job-name: jobplatform:publish
+          service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
+          started-at: ${{ env.JOB_STARTED_AT }}
+
+  # npmjs publishes through trusted publishing, which refuses self-hosted
+  # runners: the publish job above staged the gated tarballs, and this hosted
+  # job (no checkout, no secret but the reporter's) hands them to npm. Both
+  # @hadoku/* packages trust exactly this repo and workflow file.
+  npmjs:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write
+      actions: read
+    steps:
+      - name: Mark the start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+
+      - uses: WolffM/hadoku-actions/publish-npmjs/publish@32c2a956c15e00214e29e6e7c515cef743c3be23
+
+      - name: Report the outcome so a silent failure can't hide
+        if: always()
+        uses: WolffM/hadoku-actions/report-job@v1
+        with:
+          job-name: jobplatform:publish-npmjs
           service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
           started-at: ${{ env.JOB_STARTED_AT }}
