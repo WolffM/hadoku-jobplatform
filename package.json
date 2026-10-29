@@ -49,7 +49,7 @@
     "react-dom": "^19.0.0"
   },
   "dependencies": {
-    "@wolffm/logger": "^1.4.2",
+    "@wolffm/logger": "^1.4.3",
     "@wolffm/prefs-client": "^1.1.1",
     "react-router-dom": "^7.14.1",
     "zod": "^4.1.12"
