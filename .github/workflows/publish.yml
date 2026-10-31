@@ -14,9 +14,9 @@ on:
 # PM2_SERVICE_NAME:    PM2 service to redeploy on hadoku-server
 #                      (leave empty if no tunnel service)
 env:
-  PACKAGE_NAME: "@wolffm/jobplatform"
-  WORKER_PACKAGE_NAME: "@wolffm/jobplatform-worker"
-  PM2_SERVICE_NAME: ""
+  PACKAGE_NAME: '@wolffm/jobplatform'
+  WORKER_PACKAGE_NAME: '@wolffm/jobplatform-worker'
+  PM2_SERVICE_NAME: ''
 
 permissions:
   contents: read
@@ -331,7 +331,7 @@ jobs:
 
   # npmjs publishes through trusted publishing, which refuses self-hosted
   # runners: the publish job above staged the gated tarballs, and this hosted
-  # job (no checkout, no secret but the reporter's) hands them to npm. Both
+  # job (no checkout, no secret) hands them to npm. Both
   # @hadoku/* packages trust exactly this repo and workflow file.
   npmjs:
     needs: publish
@@ -340,16 +340,33 @@ jobs:
     permissions:
       id-token: write
       actions: read
+    outputs:
+      started-at: ${{ steps.start.outputs.at }}
     steps:
-      - name: Mark the start, so the reported duration is real
-        run: echo "JOB_STARTED_AT=$(date -u +%s)" >> "$GITHUB_ENV"
+      - name: Mark the start, for npmjs-report's duration
+        id: start
+        run: echo "at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
 
       - uses: WolffM/hadoku-actions/publish-npmjs/publish@32c2a956c15e00214e29e6e7c515cef743c3be23
+
+  # This job cannot report for itself: Cloudflare's Bot Fight Mode challenges
+  # every request from a GitHub-hosted runner to hadoku.me (403,
+  # cf-mitigated: challenge) before any worker runs, so its report never
+  # landed. Our runner reports the hosted job's result instead.
+  npmjs-report:
+    needs: npmjs
+    if: always()
+    runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
+    timeout-minutes: 5
+    steps:
+      - name: Carry the hosted job's start, so the reported duration is real
+        run: echo "JOB_STARTED_AT=${{ needs.npmjs.outputs.started-at }}" >> "$GITHUB_ENV"
 
       - name: Report the outcome so a silent failure can't hide
         if: always()
         uses: WolffM/hadoku-actions/report-job@v1
         with:
           job-name: jobplatform:publish-npmjs
+          outcome: ${{ needs.npmjs.result }}
           service-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
           started-at: ${{ env.JOB_STARTED_AT }}
