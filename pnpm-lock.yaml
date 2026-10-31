@@ -115,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.6.19
-        version: 1.6.19(hono@4.12.9)(zod@4.6.7)
+        specifier: ^1.6.20
+        version: 1.6.20(hono@4.12.9)(zod@4.6.7)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -1287,8 +1287,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/worker-utils@1.6.19':
-    resolution: {integrity: sha512-6t8eWtBJMloS3bLlKNrA+jsLQByD1JmdSMnjHa5PE8UDLS6NawprSh6ZGiHG2DGyV6vAN/MNYhh6Rkp4EvcFmg==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.6.19/733a3e043eba43b6771c074064a6041ca500f542}
+  '@wolffm/worker-utils@1.6.20':
+    resolution: {integrity: sha512-buSulIi+lHY3o/Rcpy6HFM7iJOtybBsF0VfmmFzDnfNq1xpBd0s8+4gR5QOvfkxXhyKF/4r9PyImlUNkPPUNlA==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.6.20/7c16ae46313e53ac330171bfc72b76e97f43811f}
     peerDependencies:
       hono: ^4.11.4
 
@@ -3806,7 +3806,7 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/worker-utils@1.6.19(hono@4.12.9)(zod@4.6.7)':
+  '@wolffm/worker-utils@1.6.20(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
       '@wolffm/logger': 1.4.3
