@@ -24,29 +24,28 @@ if [ -n "${CI-}" ] || [ -n "${GITHUB_ACTIONS-}" ]; then
   exit 0
 fi
 
-# Firing the hook is only half of it. A fresh worktree is missing everything
-# .gitignore excludes, and the gates below read some of it. Borrow those from
-# the main checkout rather than skipping the gate: same repo, and in the normal
-# case the same artifacts. A branch that genuinely CHANGES dependencies fails
-# loudly on the missing package instead, which is the outcome we want.
+# A fresh worktree is missing everything .gitignore excludes, node_modules
+# included. Install this worktree's OWN (pnpm hardlinks from its store, so it
+# takes seconds when the store is warm). Never link the main checkout's: through
+# those links the workspace packages resolve to the MAIN checkout's source, so a
+# branch that changes one is typechecked against the old code, and a
+# `pnpm install` run in the worktree writes through them into the main checkout.
+# Links an older copy of this preamble left behind are removed first.
 common_dir=$(git rev-parse --git-common-dir)
 case "$common_dir" in /*) ;; *) common_dir="$PWD/$common_dir" ;; esac
 main_checkout=$(dirname "$common_dir")
 
+if [ "$main_checkout" != "$PWD" ]; then
+  for nm in $(find . -maxdepth 4 \( -path ./.claude -o -name node_modules -type d \) -prune -o -name node_modules -type l -print); do
+    case "$(readlink "$nm")" in
+      "$main_checkout"/*) echo "🧹 Removing $nm, a link into the main checkout"; rm "$nm" ;;
+    esac
+  done
+fi
 if [ ! -e node_modules ]; then
-  if [ "$main_checkout" != "$PWD" ] && [ -d "$main_checkout/node_modules" ]; then
-    echo "🔗 No node_modules in this worktree — linking the main checkout's"
-    # pnpm lays node_modules out as a symlink farm over its own .pnpm store, so
-    # pointing at it works. A workspace keeps one PER PACKAGE, and a gate that
-    # shells into one (themes/, worker/, frontend/) fails on a missing
-    # devDependency if only the root is linked — so link every one it has.
-    for nm in $(cd "$main_checkout" && find . -maxdepth 4 -name node_modules -prune | sed 's|^\./||'); do
-      [ -e "$nm" ] && continue
-      [ -d "$(dirname "$nm")" ] || continue
-      ln -s "$main_checkout/$nm" "$nm"
-    done
-  else
-    echo "❌ No node_modules — run 'pnpm install' before committing."
+  echo "📦 No node_modules — installing this checkout's own"
+  if ! CI=true pnpm install --frozen-lockfile; then
+    echo "❌ pnpm install failed. A private @wolffm package needs NODE_AUTH_TOKEN; install, then commit again."
     exit 1
   fi
 fi
