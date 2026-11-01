@@ -77,6 +77,7 @@ admin too.
 | PUT    | /application-answers               | friend | Save or replace one answer †                                                                                   |
 | DELETE | /application-answers/:key          | friend | Forget one answer †                                                                                            |
 | GET    | /unanswered-questions              | friend | Questions the runner could not answer, most costly first †                                                     |
+| POST   | /\_account/erase                   | member | Account-erase hook, edge-router only (it 404s `_account` paths from outside); deletes the X-User-Id's own rows |
 
 \*`GET /jobs` is open, but `state=` requires friend. `hide_dismissed=` is a no-op
 when unauthed rather than an error, so the UI can default it on without a
