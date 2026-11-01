@@ -35,6 +35,7 @@ import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
 import { jobRoutes } from './routes/jobs/index.js';
 import { companyRoutes } from './routes/companies.js';
+import { accountRoutes } from './routes/account.js';
 
 interface AppContext {
 	Bindings: AppEnv;
@@ -69,6 +70,9 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 	app.route('/', profileRoutes);
 	app.route('/', jobRoutes);
 	app.route('/', companyRoutes);
+	// The account-erase hook. edge-router calls it on account deletion and 404s
+	// the path from outside; see routes/account.ts.
+	app.route('/', accountRoutes);
 
 	app.doc(
 		'/openapi.json',

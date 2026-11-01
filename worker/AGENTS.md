@@ -47,6 +47,9 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
   - `tailoring.ts` — the four V3 proxies over the `RESUME` service binding
 - `src/routes/profiles.ts` — profile CRUD + each profile's company slice
 - `src/routes/companies.ts` — read-only `/companies/match` and `/companies/probe` proxies
+- `src/routes/account.ts` — `POST /_account/erase`, the R12 account-erase hook edge-router
+  calls on account deletion. Its header is the per-table record of what is the person's own;
+  `tests/routes/erase.test.ts` fails when a table with a `user_id` column is not erased
 - `migrations/` — D1 database migrations
 - `tests/helpers/harness.ts` — integration harness: real D1 via Miniflare/workerd
   with every migration applied, the real edge-auth middleware, and a real
