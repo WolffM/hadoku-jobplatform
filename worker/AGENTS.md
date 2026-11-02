@@ -44,7 +44,7 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
   - `preflight.ts` — `GET /jobs/preflight` editor probe
   - `detail.ts` — `GET /jobs/{id}`
   - `state.ts` — `PUT`/`DELETE /jobs/{id}/state` (V2 triage)
-  - `tailoring.ts` — the four V3 proxies over the `RESUME` service binding
+  - `tailoring.ts` — the four V3 proxies to resume-api, through the edge (`EDGE` binding) as this worker's service identity; it never stamps a seal or tier itself
 - `src/routes/profiles.ts` — profile CRUD + each profile's company slice
 - `src/routes/companies.ts` — read-only `/companies/match` and `/companies/probe` proxies
 - `src/routes/account.ts` — `POST /_account/erase`, the R12 account-erase hook edge-router

@@ -39,7 +39,7 @@ admin too.
 | GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose                                |
 | PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                                                      |
 | DELETE | /jobs/:id/state                    | friend | Clear it                                                                                                       |
-| POST   | /jobs/:id/resume                   | friend | Tailored resume via the `RESUME` service binding                                                               |
+| POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity                            |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                              |
 | POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)                                       |
 | POST   | /jobs/:id/packet-link              | friend | Mint the shareable packet link; its slug is stashed on `job_states.variant_slug`                               |
@@ -200,7 +200,7 @@ dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension fi
 - Bundle react, react-dom, @wolffm/themes (externalized — see `vite.config.ts`)
 - Run its own Cloudflare Worker directly (host is in `hadoku_site/workers/jobplatform-api/`)
 - Handle scraping (that's hadoku-scrape)
-- Generate resumes itself (that's resume-bot; jobplatform proxies to it over the `RESUME` service binding as of V3)
+- Generate resumes itself (that's resume-bot; jobplatform calls it through the edge as its own service identity)
 
 ## External Dependencies
 

@@ -14,6 +14,7 @@
  * strict handler-return typing. gateAuthed (admin/friend) is registered on each
  * method+path first, then the handler.
  */
+import { EDGE_BASE } from '@wolffm/worker-utils/edge-routes';
 import type { AppEnv } from '../../types.js';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 
@@ -35,21 +36,35 @@ async function loadTailoringFields(
 		.first<JobTailoringFields>();
 }
 
+/**
+ * resume-api, reached the way any service caller reaches it: through the
+ * edge, over the EDGE binding, as this worker's own service identity. It
+ * used to be called over its own binding with `X-Edge-Auth` and
+ * `X-Hadoku-Tier` stamped from EDGE_AUTH_SECRET. Since 2026-11-02 each backend
+ * holds its own seal, so this worker's opens this worker alone, and a tier is
+ * the edge's to stamp, never a caller's.
+ */
+function resumeViaEdge(
+	env: AppEnv,
+	path: string,
+	init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string }
+): Promise<Response> {
+	if (!env.EDGE) throw new Error('EDGE service binding not configured');
+	const key = env.HADOKU_SERVICE_KEY?.trim();
+	if (!key) throw new Error('HADOKU_SERVICE_KEY not configured');
+	const headers = new Headers(init.headers);
+	headers.set('X-User-Key', key);
+	return env.EDGE.fetch(`${EDGE_BASE}${path}`, { ...init, headers });
+}
+
 async function callResumeBinding(
 	env: AppEnv,
 	path: string,
 	payload: Record<string, unknown>
 ): Promise<Response> {
-	if (!env.RESUME) {
-		throw new Error('RESUME service binding not configured');
-	}
-	return env.RESUME.fetch(`https://resume-api${path}`, {
+	return resumeViaEdge(env, path, {
 		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-			'X-Edge-Auth': env.EDGE_AUTH_SECRET ?? '',
-			'X-Hadoku-Tier': 'service',
-		},
+		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(payload),
 	});
 }
@@ -67,19 +82,9 @@ async function fetchMintedResume(
 	env: AppEnv,
 	slug: string
 ): Promise<{ markdown: string } | { expired: true }> {
-	if (!env.RESUME) {
-		throw new Error('RESUME service binding not configured');
-	}
-	const res = await env.RESUME.fetch(
-		`https://resume-api/resume/api/resume?v=${encodeURIComponent(slug)}`,
-		{
-			method: 'GET',
-			headers: {
-				'X-Edge-Auth': env.EDGE_AUTH_SECRET ?? '',
-				'X-Hadoku-Tier': 'service',
-			},
-		}
-	);
+	const res = await resumeViaEdge(env, `/resume/api/resume?v=${encodeURIComponent(slug)}`, {
+		method: 'GET',
+	});
 	if (!res.ok) return { expired: true };
 	const body: { content?: string; variant?: string } = await res.json();
 	if (!body.variant || !body.content) return { expired: true };

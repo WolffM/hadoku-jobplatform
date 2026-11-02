@@ -68,14 +68,6 @@ export interface AppEnv {
 	// resume-bot service binding (V3 — tailored application packets)
 	// ============================================================================
 
-	/**
-	 * Cloudflare service binding to the resume-api worker, declared in
-	 * hadoku_site wrangler.toml as [[services]] binding="RESUME" service="resume-api".
-	 * Bypasses the public edge; calls stamp X-Edge-Auth (= EDGE_AUTH_SECRET) +
-	 * X-Hadoku-Tier: service so resume-api's in-worker gate admits them.
-	 */
-	RESUME?: Fetcher;
-
 	// ============================================================================
 	// edge-router service binding (identity — display name -> userId)
 	// ============================================================================
