@@ -130,117 +130,37 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Check and bump UI version if needed
+      # The version is CI's, never a commit's (operator, 2026-11-01): one patch
+      # above the registry's newest, written to package.json in this workspace
+      # only and never committed back. A committed version ABOVE the registry is
+      # kept, so a deliberate minor or major bump still works. An unreadable
+      # registry FAILS here rather than guess. `published == 'true'` means this
+      # very commit already published the newest version (a re-run after a later
+      # step failed): skip the publish and redo what follows it.
+      - name: Version the UI package
+        id: ui_version
         if: steps.ui_changed.outputs.changed == 'true'
-        run: |
-          package_name=$(node -p "require('./package.json').name")
-          current_version=$(node -p "require('./package.json').version")
-          echo "Current version: $current_version"
-          # Loop until we find an unpublished version. Single-step bump is
-          # insufficient: if the pre-commit hook was skipped and a prior CI
-          # run already burned current+1, we'd write a duplicate version and
-          # pnpm publish silently no-ops ("There are no new packages").
-          # Start the walk from the registry's latest, not package.json: CI
-          # bumps are published but never committed back, so the committed
-          # version only falls behind — and this walk used to replay the whole
-          # gap one version at a time on every publish (tenhands died at
-          # attempt 99 of exactly that on 2026-08-05). From latest, one step.
-          latest_published=$(pnpm view "${package_name}" version 2>/dev/null || echo "")
-          if [ -n "$latest_published" ]; then
-            new_version=$(printf '%s\n%s\n' "$current_version" "$latest_published" | sort -V | tail -1)
-            echo "Registry latest: $latest_published; starting walk at $new_version"
-          else
-            echo "No published version found; starting from package.json"
-            new_version="$current_version"
-          fi
-          max_attempts=10
-          attempt=0
-          while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
-            attempt=$((attempt + 1))
-            if [ $attempt -ge $max_attempts ]; then
-              echo "ERROR: $max_attempts consecutive published versions from $new_version — from the registry's latest this should take one step, so the registry lookup most likely failed"
-              exit 1
-            fi
-            echo "Version $new_version already published, bumping... ($attempt/$max_attempts)"
-            major=$(echo $new_version | cut -d. -f1)
-            minor=$(echo $new_version | cut -d. -f2)
-            patch=$(echo $new_version | cut -d. -f3)
-            if [ $patch -ge 20 ]; then
-              new_minor=$((minor + 1))
-              new_version="$major.$new_minor.0"
-            else
-              new_patch=$((patch + 1))
-              new_version="$major.$minor.$new_patch"
-            fi
-          done
-          if [ "$new_version" != "$current_version" ]; then
-            node -e "const fs = require('fs'); const p = 'package.json'; const src = fs.readFileSync(p, 'utf8'); const next = src.replace(/(\"version\"\s*:\s*\")[^\"]*(\")/, (m, a, b) => a + process.argv[1] + b); if (next === src) { console.error('could not patch version in ' + p); process.exit(1); } fs.writeFileSync(p, next);" "$new_version"
-            echo "Version bumped: $current_version -> $new_version"
-            pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --lockfile-only
-          else
-            echo "Version $current_version not published yet"
-          fi
+        uses: WolffM/hadoku-actions/next-version@v1
         env:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
-      - name: Check and bump worker version if needed
+      - name: Version the worker package
+        id: worker_version
         if: steps.worker_changed.outputs.changed == 'true'
-        run: |
-          package_name=$(node -p "require('./worker/package.json').name")
-          current_version=$(node -p "require('./worker/package.json').version")
-          echo "Current worker version: $current_version"
-          # See UI bump step for the rationale on looping.
-          # Start the walk from the registry's latest, not package.json: CI
-          # bumps are published but never committed back, so the committed
-          # version only falls behind — and this walk used to replay the whole
-          # gap one version at a time on every publish (tenhands died at
-          # attempt 99 of exactly that on 2026-08-05). From latest, one step.
-          latest_published=$(pnpm view "${package_name}" version 2>/dev/null || echo "")
-          if [ -n "$latest_published" ]; then
-            new_version=$(printf '%s\n%s\n' "$current_version" "$latest_published" | sort -V | tail -1)
-            echo "Registry latest: $latest_published; starting walk at $new_version"
-          else
-            echo "No published version found; starting from package.json"
-            new_version="$current_version"
-          fi
-          max_attempts=10
-          attempt=0
-          while pnpm view "${package_name}@${new_version}" version 2>/dev/null; do
-            attempt=$((attempt + 1))
-            if [ $attempt -ge $max_attempts ]; then
-              echo "ERROR: $max_attempts consecutive published versions from $new_version — from the registry's latest this should take one step, so the registry lookup most likely failed"
-              exit 1
-            fi
-            echo "Version $new_version already published, bumping... ($attempt/$max_attempts)"
-            major=$(echo $new_version | cut -d. -f1)
-            minor=$(echo $new_version | cut -d. -f2)
-            patch=$(echo $new_version | cut -d. -f3)
-            if [ $patch -ge 20 ]; then
-              new_minor=$((minor + 1))
-              new_version="$major.$new_minor.0"
-            else
-              new_patch=$((patch + 1))
-              new_version="$major.$minor.$new_patch"
-            fi
-          done
-          if [ "$new_version" != "$current_version" ]; then
-            node -e "const fs = require('fs'); const p = 'worker/package.json'; const src = fs.readFileSync(p, 'utf8'); const next = src.replace(/(\"version\"\s*:\s*\")[^\"]*(\")/, (m, a, b) => a + process.argv[1] + b); if (next === src) { console.error('could not patch version in ' + p); process.exit(1); } fs.writeFileSync(p, next);" "$new_version"
-            echo "Worker version bumped: $current_version -> $new_version"
-            pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --lockfile-only
-          else
-            echo "Version $current_version not published yet"
-          fi
+        uses: WolffM/hadoku-actions/next-version@v1
+        with:
+          package-dir: worker
         env:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Publish UI package
-        if: steps.ui_changed.outputs.changed == 'true'
+        if: steps.ui_changed.outputs.changed == 'true' && steps.ui_version.outputs.published != 'true'
         run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish worker package
-        if: steps.worker_changed.outputs.changed == 'true'
+        if: steps.worker_changed.outputs.changed == 'true' && steps.worker_version.outputs.published != 'true'
         run: pnpm --filter @wolffm/jobplatform-worker publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
