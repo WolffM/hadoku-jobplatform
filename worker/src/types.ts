@@ -57,6 +57,12 @@ export interface AppEnv {
 	 * because names can be renamed. Unset means mail routes refuse (503).
 	 */
 	MAILFEED_OWNER_USER_ID?: string;
+	/**
+	 * Registry userIds, comma-separated, of the service callers that may name an
+	 * owner other than themselves (`ownerName`). Admin always may. Unset or empty
+	 * = admin only. hadoku_site sets it to the scraper's apply queue.
+	 */
+	ON_BEHALF_CALLER_USER_IDS?: string;
 
 	// ============================================================================
 	// resume-bot service binding (V3 — tailored application packets)

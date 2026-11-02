@@ -276,7 +276,8 @@ export function registerFeedRoute(app: JobsApp): void {
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				403: {
-					description: 'Only a service or admin caller may name an owner',
+					description:
+						'Only admin, or a service caller named in ON_BEHALF_CALLER_USER_IDS, may name an owner',
 					content: { 'application/json': { schema: IdentityErrorResponseSchema } },
 				},
 				404: {

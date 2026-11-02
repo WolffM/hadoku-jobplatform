@@ -321,6 +321,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// The operator, as the edge stub resolves "Hadoku". Mail routes serve
 		// this one identity and refuse every other (issue #21).
 		...(options.mailboxOwner === null ? {} : { MAILFEED_OWNER_USER_ID: 'user-hadoku' }),
+		// The one service caller the suite's act-as tests run as (the scraper in
+		// production). Any other service caller naming an owner is refused.
+		ON_BEHALF_CALLER_USER_IDS: 'the-service',
 	};
 
 	const app = createJobPlatformHandler(BASE);

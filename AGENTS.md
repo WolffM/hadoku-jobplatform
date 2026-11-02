@@ -83,8 +83,10 @@ admin too.
 when unauthed rather than an error, so the UI can default it on without a
 pre-flight auth check.
 
-†Accepts `ownerName=<display name>` to act **for** a person, and only from a
-service or admin caller (friend gets 403). This is how the PC-side runner, which
+†Accepts `ownerName=<display name>` to act **for** a person, and only from admin
+or a service caller whose registry userId is in `ON_BEHALF_CALLER_USER_IDS`
+(hadoku_site's wrangler `[vars]`: the scraper's apply runner). Any other caller,
+another service key included, gets 403. This is how the PC-side runner, which
 authenticates as a service, reaches the owner's rows. The name is resolved
 against the key registry, never trusted, and never stored. A route that silently
 ignores it is a bug and the dangerous kind — it answers for the SERVICE identity,

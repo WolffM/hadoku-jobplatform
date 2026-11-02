@@ -1,4 +1,5 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import {
 	isIdentityError,
 	resolveGranteeVia,
@@ -61,4 +62,32 @@ export async function resolveOwnerName(
 		await db.prepare('DELETE FROM owner_name_cache WHERE name_key = ?').bind(key).run();
 	}
 	return result;
+}
+
+/**
+ * Whether this caller may act for a named owner (`ownerName`): admin, or a
+ * service caller whose registry userId is in `ON_BEHALF_CALLER_USER_IDS`.
+ *
+ * Service tier alone used to be enough, and service tier is every service key
+ * in the fleet plus every person holding a service grant, so any of them could
+ * read and rewrite anyone's jobs, applications, answers and profiles. One
+ * caller sends it (the scraper's apply queue); the list names that one. The
+ * userId is compared whole: it is the edge-injected identity, never a name.
+ */
+/** What a caller that may not act for a named owner is told. */
+export const ON_BEHALF_REFUSAL =
+	'Only admin, or a service caller named in ON_BEHALF_CALLER_USER_IDS, may act on behalf of a named owner.';
+
+export function mayActOnBehalf(
+	auth: HadokuAuthContext,
+	callerId: string | null | undefined,
+	allowed: string | undefined
+): boolean {
+	if (tierAtLeast(auth, 'admin')) return true;
+	if (!tierAtLeast(auth, 'service') || !callerId) return false;
+	return (allowed ?? '')
+		.split(',')
+		.map((id) => id.trim())
+		.filter(Boolean)
+		.includes(callerId);
 }

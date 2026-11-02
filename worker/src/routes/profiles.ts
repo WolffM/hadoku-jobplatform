@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../types.js';
-import { requireMinTier, tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
+import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
-import { resolveOwnerName } from '../ownerName.js';
+import { mayActOnBehalf, ON_BEHALF_REFUSAL, resolveOwnerName } from '../ownerName.js';
 import {
 	CreateProfileSchema,
 	UpdateProfileSchema,
@@ -88,18 +88,12 @@ async function requireIdentity(
 	// parameter, falling back to the caller's own rows and reporting success.
 	const owner = c.req.query('ownerName')?.trim();
 	if (owner) {
-		// SERVICE OR ADMIN ONLY. A friend-tier caller is a signed-in human in a
-		// browser; letting one pass a name would make every profile route a way
-		// to read and edit somebody else's companies and scoring.
-		if (!tierAtLeast(c.get('authContext'), 'service')) {
-			return c.json(
-				{
-					success: false,
-					error: 'Forbidden',
-					message: 'Only a service or admin caller may act on behalf of a named owner.',
-				},
-				403
-			);
+		// ADMIN, OR A NAMED SERVICE CALLER (ownerName.ts mayActOnBehalf). A
+		// caller who may pass a name can read and edit somebody else's companies
+		// and scoring.
+		const callerId = c.req.header('X-User-Id')?.trim();
+		if (!mayActOnBehalf(c.get('authContext'), callerId, c.env.ON_BEHALF_CALLER_USER_IDS)) {
+			return c.json({ success: false, error: 'Forbidden', message: ON_BEHALF_REFUSAL }, 403);
 		}
 		const resolved = await resolveOwnerName(
 			c.env.JOB_PLATFORM_DB,
