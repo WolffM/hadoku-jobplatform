@@ -1,7 +1,7 @@
 import { z, type OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast, type HadokuAuthContext } from '@wolffm/worker-utils';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
-import { resolveOwnerName } from '../../ownerName.js';
+import { mayActOnBehalf, ON_BEHALF_REFUSAL, resolveOwnerName } from '../../ownerName.js';
 import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import type { AppEnv } from '../../types.js';
 import { NoIdentityError, resolveUserId } from '../../userId.js';
@@ -21,7 +21,7 @@ export interface RouteContext {
 export const ownerNameQuery = z.object({
 	ownerName: z.string().optional().openapi({
 		description:
-			"Act as this registry display name. SERVICE or ADMIN callers only — this is how the PC-side runner reaches the owner's rows while authenticating as itself. Resolved against the key registry; never stored.",
+			"Act as this registry display name. Admin, or a service caller named in ON_BEHALF_CALLER_USER_IDS, only — this is how the PC-side runner reaches the owner's rows while authenticating as itself. Resolved against the key registry; never stored.",
 	}),
 });
 
@@ -138,10 +138,11 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  * The runner drained its own service-owned queue for a day while the owner's
  * dashboard showed nothing, which is what this exists to fix.
  *
- * SERVICE OR ADMIN ONLY, and that gate is the whole security of it. A
- * friend-tier caller is a signed-in human in a browser; letting one pass
- * `ownerName=SomeoneElse` would turn every per-user route into a way to read and
- * mutate another person's queue. Friend gets 403 — not a 404, because the row
+ * ADMIN, OR A SERVICE CALLER NAMED IN ON_BEHALF_CALLER_USER_IDS
+ * (ownerName.ts `mayActOnBehalf`), and that gate is the whole security of it:
+ * whoever may pass `ownerName=SomeoneElse` can read and mutate another person's
+ * queue. Service tier alone is every service key in the fleet and every person
+ * with a service grant, so it used to be exactly that hole. Anyone else gets 403 — not a 404, because the row
  * they are reaching for is real and refusing to say so would be misleading
  * about their OWN permissions rather than about someone else's data.
  *
@@ -156,7 +157,7 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  * perfectly valid application that simply belongs to the wrong person. It cost
  * a debugging round on 2026-09-07 and would have cost another one every time.
  * Reading both here rather than per-route means no future route can reintroduce
- * it. Accepting the query adds no privilege: the service-or-admin gate below
+ * it. Accepting the query adds no privilege: the on-behalf gate below
  * and the resolve-never-trust rule apply to the value whatever carried it.
  *
  * IT IS CALLED `ownerName`, NOT `owner`, AND THAT IS LOAD-BEARING. The field
@@ -177,7 +178,12 @@ export async function effectiveUserId(
 			query?: (name: string) => string | undefined;
 		};
 		get: (k: 'authContext') => HadokuAuthContext;
-		env: { EDGE?: Fetcher; HADOKU_SERVICE_KEY?: string; JOB_PLATFORM_DB: D1Database };
+		env: {
+			EDGE?: Fetcher;
+			HADOKU_SERVICE_KEY?: string;
+			JOB_PLATFORM_DB: D1Database;
+			ON_BEHALF_CALLER_USER_IDS?: string;
+		};
 	},
 	ownerName: string | undefined
 ): Promise<EffectiveUser> {
@@ -193,14 +199,14 @@ export async function effectiveUserId(
 	}
 	if (!named || !named.trim()) return { userId: callerId, onBehalfOf: null };
 
-	if (!tierAtLeast(c.get('authContext'), 'service')) {
+	if (!mayActOnBehalf(c.get('authContext'), callerId, c.env.ON_BEHALF_CALLER_USER_IDS)) {
 		return {
 			error: {
 				status: 403,
 				body: {
 					success: false as const,
 					error: 'Forbidden',
-					message: 'Only a service or admin caller may act on behalf of a named owner.',
+					message: ON_BEHALF_REFUSAL,
 				},
 			},
 		};

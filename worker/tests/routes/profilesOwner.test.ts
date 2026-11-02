@@ -88,7 +88,7 @@ describe('profiles ?owner', () => {
 		await seedOwnerProfile();
 		const { status, body } = await get('/profiles?ownerName=Hadoku', 'friend', 'some-human');
 		assert.equal(status, 403);
-		assert.match(body.message, /service or admin/i);
+		assert.match(body.message, /admin, or a service caller named/i);
 	});
 
 	it('an unknown owner is 404, never a silent fallback to the caller', async () => {

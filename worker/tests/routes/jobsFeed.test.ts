@@ -549,7 +549,7 @@ describe('jobs already queued for the runner', () => {
 	 * 400 as fresh postings, all `application_status: null`. Nothing errored;
 	 * the list was simply wrong.
 	 */
-	const feedAs = async (qs: string, tier: string, userId = 'svc-runner') => {
+	const feedAs = async (qs: string, tier: string, userId = 'the-service') => {
 		return h.json<{
 			success: boolean;
 			data: { jobs: { id: string; application_status: string | null }[] };

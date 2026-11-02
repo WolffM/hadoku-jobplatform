@@ -304,7 +304,29 @@ describe('acting on behalf of a named owner', () => {
 	});
 });
 
-describe('only a service or admin may act as someone else', () => {
+describe('only admin, or a NAMED service caller, may act as someone else', () => {
+	it('refuses a service caller that ON_BEHALF_CALLER_USER_IDS does not name', async () => {
+		// Service tier is every service key in the fleet and every person with a
+		// service grant. Tier alone used to be enough here.
+		const { status, body } = await req('/applications?ownerName=Hadoku', {
+			method: 'GET',
+			tier: 'service',
+			userId: 'another-service',
+		});
+		assert.equal(status, 403);
+		assert.match(body.message, /admin, or a service caller named/i);
+	});
+
+	it('refuses an unnamed service caller on the write path too', async () => {
+		const { status } = await req('/jobs/j1/apply', {
+			method: 'POST',
+			tier: 'service',
+			userId: 'another-service',
+			body: JSON.stringify({ ownerName: 'Hadoku' }),
+		});
+		assert.equal(status, 403);
+	});
+
 	it('refuses a friend-tier caller — this is the whole gate', async () => {
 		// A signed-in human in a browser. If this passed, every per-user route
 		// would become a way to read and mutate another person's queue.
@@ -314,7 +336,7 @@ describe('only a service or admin may act as someone else', () => {
 			userId: 'some-human',
 		});
 		assert.equal(status, 403);
-		assert.match(body.message, /service or admin/i);
+		assert.match(body.message, /admin, or a service caller named/i);
 	});
 
 	it('refuses a friend-tier caller on the write path too', async () => {
@@ -441,7 +463,7 @@ describe('standing answers on behalf of a named owner', () => {
 			{ tier: 'friend', userId: 'some-human' }
 		);
 		assert.equal(status, 403, 'a signed-in human must not write to another person’s answers');
-		assert.match(body.message, /service or admin/i);
+		assert.match(body.message, /admin, or a service caller named/i);
 		assert.deepEqual(await storedFor(HADOKU), []);
 	});
 

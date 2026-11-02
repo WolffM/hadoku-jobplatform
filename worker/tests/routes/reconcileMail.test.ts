@@ -75,7 +75,7 @@ test('a Greenhouse security code marks the application awaiting verification, no
 
 		const { status, body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(status, 200);
 		assert.equal(body.data.verification_flagged, 1);
@@ -113,6 +113,7 @@ test('reconciliation never overwrites the runner status — the disagreement is 
 		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 
 		const row = await h.db
@@ -143,7 +144,7 @@ test('a confirmation for an application we have no row for is recorded, not drop
 	try {
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.unmatched, 1);
 
@@ -183,7 +184,7 @@ test('two confirmations for one company minutes apart are flagged, never counted
 	try {
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.duplicates_flagged, 1, 'the second must be flagged against the first');
 
@@ -221,7 +222,7 @@ test('ATS account mail marks nothing', async () => {
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.ignored, 1);
 		assert.equal(body.data.unmatched, 0);
@@ -245,7 +246,7 @@ test('an unreachable feed is a 502, never an empty mailbox', async () => {
 	try {
 		const { status, body } = await h.json<{ success: boolean; message: string }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(status, 502);
 		assert.equal(body.success, false);
@@ -263,6 +264,7 @@ test('a 403 from the feed is reported rather than read as silence', async () => 
 			{
 				method: 'POST',
 				tier: 'service',
+				userId: 'the-service',
 			}
 		);
 		assert.equal(status, 502);
@@ -279,7 +281,7 @@ test('an empty grant is warned about, because it makes every poll look quiet', a
 	try {
 		const { body } = await h.json<{ data: { warnings: string[]; scope_domains: number } }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.scope_domains, 0);
 		assert.equal(body.data.warnings.length, 1);
@@ -296,6 +298,7 @@ test('the feed is called with the service key, and no mail credential exists', a
 		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 		assert.ok(feed.keys.length > 0);
 		assert.ok(
@@ -340,6 +343,7 @@ test('message bodies are never written to the database', async () => {
 		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 
 		// Sweep every text column of every table this feature writes.
@@ -396,7 +400,7 @@ test('mail never matches another identity’s applications', async () => {
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.confirmed, 0, 'must not confirm against another user’s row');
 		assert.equal(body.data.unmatched, 1, 'it is unmatched FOR THIS OWNER, and recorded as such');
@@ -423,13 +427,13 @@ test('a re-run does not make every mail a duplicate of its own earlier record', 
 	try {
 		const first = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(first.body.data.duplicates_flagged, 0);
 
 		const second = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku&reset=true`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(second.body.data.duplicates_flagged, 0, 'a replay must not invent a duplicate');
 
@@ -463,7 +467,7 @@ test('an application queued weeks before its code mail still matches', async () 
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.verification_flagged, 1);
 		assert.equal(body.data.unmatched, 0);
@@ -490,7 +494,7 @@ test('an application queued AFTER the mail is not matched to it', async () => {
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.verification_flagged, 0);
 		assert.equal(body.data.unmatched, 1);
@@ -526,6 +530,7 @@ test('the results can actually be read back', async () => {
 		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 
 		const { status, body } = await h.json<{
@@ -534,7 +539,10 @@ test('the results can actually be read back', async () => {
 				unmatched: { company: string; kind: string }[];
 				applications: { company: string; verification_requested_at: string | null }[];
 			};
-		}>(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, { tier: 'service' });
+		}>(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
+			tier: 'service',
+			userId: 'the-service',
+		});
 
 		assert.equal(status, 200);
 		assert.ok(body.data.lastRunAt, 'the run must be visible');
@@ -582,6 +590,7 @@ test('only the mailbox owner can reconcile or read the mail (issue #21)', async 
 		assert.equal(own.status, 200);
 		const view = await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			tier: 'service',
+			userId: 'the-service',
 		});
 		assert.equal(view.status, 200);
 	} finally {
@@ -597,6 +606,7 @@ test('with no mailbox owner configured, mail routes refuse rather than guess', a
 		const { status } = await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 		assert.equal(status, 503);
 	} finally {
@@ -641,7 +651,7 @@ test('one confirmation marks the one application it confirms, not every row at t
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.confirmed, 1);
 
@@ -691,6 +701,7 @@ test('a confirmation that lands before the runner reports the submit still finds
 		await h.json(`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`, {
 			method: 'POST',
 			tier: 'service',
+			userId: 'the-service',
 		});
 
 		const confirmed = await h.db
@@ -726,7 +737,7 @@ test('a mail that cannot say which of several open applications it means is reco
 
 		const { body } = await h.json<{ data: Record<string, number> }>(
 			`${BASE}/ingest/reconcile-mail?ownerName=Hadoku`,
-			{ method: 'POST', tier: 'service' }
+			{ method: 'POST', tier: 'service', userId: 'the-service' }
 		);
 		assert.equal(body.data.confirmed, 0);
 		assert.equal(body.data.unmatched, 1);

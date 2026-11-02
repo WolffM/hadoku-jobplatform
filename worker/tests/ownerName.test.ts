@@ -6,7 +6,8 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
-import { OWNER_NAME_TTL_MS, resolveOwnerName } from '../src/ownerName.ts';
+import { mayActOnBehalf, OWNER_NAME_TTL_MS, resolveOwnerName } from '../src/ownerName.ts';
+import type { HadokuAuthContext } from '@wolffm/worker-utils';
 import { createHarness, type Harness } from './helpers/harness.ts';
 
 /** An edge stub that counts lookups and answers from a mutable name table. */
@@ -116,5 +117,33 @@ describe('resolveOwnerName', () => {
 		const r = await resolveOwnerName(h.db, undefined, 'k', 'Hadoku', T0 + 1);
 		assert.ok(isIdentityError(r));
 		assert.equal(r.code, 'NO_REGISTRY');
+	});
+});
+
+describe('mayActOnBehalf: who may name an owner other than themselves', () => {
+	const at = (userType: string) => ({ userType }) as unknown as HadokuAuthContext;
+	const NAMED = 'svc-a, svc-b';
+
+	it('admits admin whatever the list says', () => {
+		assert.equal(mayActOnBehalf(at('admin'), 'anyone', undefined), true);
+	});
+
+	it('admits a service caller the list names, and no other', () => {
+		assert.equal(mayActOnBehalf(at('service'), 'svc-b', NAMED), true);
+		assert.equal(mayActOnBehalf(at('service'), 'svc-c', NAMED), false);
+	});
+
+	it('never admits below service, even when named', () => {
+		assert.equal(mayActOnBehalf(at('friend'), 'svc-a', NAMED), false);
+	});
+
+	it('an unset or empty list is admin only', () => {
+		assert.equal(mayActOnBehalf(at('service'), 'svc-a', undefined), false);
+		assert.equal(mayActOnBehalf(at('service'), 'svc-a', ' , '), false);
+	});
+
+	it('matches the userId whole, never a prefix, and needs one', () => {
+		assert.equal(mayActOnBehalf(at('service'), 'svc', NAMED), false);
+		assert.equal(mayActOnBehalf(at('service'), null, NAMED), false);
 	});
 });

@@ -366,7 +366,7 @@ export const SetApplicationStatusSchema = z
 		// kept, so a bare transition never wipes the runner's screenshots.
 		error: z.string().optional(),
 		evidence: z.record(z.string(), z.unknown()).optional(),
-		/** Act as this registry display name. SERVICE or ADMIN only. */
+		/** Act as this registry display name. Admin, or a named service caller, only (mayActOnBehalf). */
 		ownerName: z.string().optional(),
 	})
 	.openapi('SetApplicationStatus');
