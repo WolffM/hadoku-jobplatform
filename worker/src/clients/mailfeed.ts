@@ -47,12 +47,32 @@ function baseUrl(env: AppEnv): string {
 	return (env.MAILFEED_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, '');
 }
 
+/**
+ * The feed lives behind the edge (contact-api's `/contact/api/mailfeed` rule
+ * and its allow list), and a plain `fetch` from this worker to hadoku.me does
+ * not reach edge-router: a worker's subrequest into its own zone skips the
+ * other workers on it and lands on the origin, which answers 404. That is how
+ * every scheduled reconcile failed with "mail feed returned 404" on 2026-11-02
+ * (hadoku-jobplatform#25). So the default feed is reached over the EDGE
+ * binding, as tailoring reaches resume-api. An explicit MAILFEED_BASE_URL (the
+ * test suite's loopback feed, a local run) is fetched directly.
+ */
+function feedFetch(
+	env: AppEnv,
+	url: string,
+	init: { headers: Record<string, string> }
+): Promise<Response> {
+	if (env.MAILFEED_BASE_URL) return fetch(url, init);
+	if (!env.EDGE) throw new Error('EDGE service binding not configured');
+	return env.EDGE.fetch(url, init);
+}
+
 async function get<T>(env: AppEnv, path: string): Promise<T | { error: string }> {
 	const key = env.HADOKU_SERVICE_KEY;
 	if (!key) return { error: 'HADOKU_SERVICE_KEY is not bound — cannot read the mail feed' };
 	let res: Response;
 	try {
-		res = await fetch(`${baseUrl(env)}${path}`, { headers: { 'X-User-Key': key } });
+		res = await feedFetch(env, `${baseUrl(env)}${path}`, { headers: { 'X-User-Key': key } });
 	} catch (err) {
 		return { error: `mail feed unreachable: ${err instanceof Error ? err.message : String(err)}` };
 	}
