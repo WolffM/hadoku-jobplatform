@@ -15,8 +15,9 @@
  *           past the gate.
  *
  *   RESUME  resume-api is a separately deployed worker we cannot reach from a
- *           test, so `startResumeService()` runs a real node:http server and
- *           binds it as the `Fetcher`. The calls leave the process over HTTP
+ *           test, so `startResumeService()` runs a real node:http server, and
+ *           the fake edge forwards `/resume/*` to it, as the real edge does
+ *           (the worker reaches resume-api through the EDGE binding). The calls leave the process over HTTP
  *           and come back as real Responses; only the far-side implementation
  *           is ours. It records what it received so tests can assert on the
  *           payload the binding actually sent.
@@ -143,6 +144,7 @@ export async function startResumeService(): Promise<ResumeService> {
 				headers: {
 					'x-edge-auth': req.headers['x-edge-auth'] as string | undefined,
 					'x-hadoku-tier': req.headers['x-hadoku-tier'] as string | undefined,
+					'x-user-key': req.headers['x-user-key'] as string | undefined,
 					'content-type': req.headers['content-type'] as string | undefined,
 				},
 			});
@@ -230,14 +232,18 @@ export interface Harness {
  * report differently, and a fake that only ever succeeds would let all three
  * collapse into one status without any test noticing.
  */
-export function defaultEdge(): Fetcher {
+export function defaultEdge(resume?: ResumeService): Fetcher {
 	return {
-		async fetch(input: Request | string | URL): Promise<Response> {
+		async fetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
 			// `.url`, not `.toString()`: the resolver passes a Request, and
 			// stringifying one yields "[object Request]". Getting this wrong made
 			// every call look like an unreachable resolver, which is the failure
 			// mode this fake exists to tell apart from the others.
 			const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+			// resume-api's routes, which the real edge proxies to that worker.
+			if (resume && new URL(raw).pathname.startsWith('/resume/')) {
+				return resume.binding.fetch(raw, init) as unknown as Promise<Response>;
+			}
 			const name = (new URL(raw).searchParams.get('name') ?? '').toLowerCase();
 			if (name === 'hadoku') {
 				return Response.json({ userId: 'user-hadoku', name: 'Hadoku', tier: 'admin' });
@@ -266,11 +272,6 @@ export interface HarnessOptions {
 	 * "no such user".
 	 */
 	edge?: Fetcher | null;
-	/**
-	 * Leave `env.RESUME` unset, as it is in a deployment where the service
-	 * binding was never declared. The tailoring routes must fail loudly there.
-	 */
-	withoutResumeBinding?: boolean;
 	/**
 	 * Point the mail feed at a loopback server instead of contact-api.
 	 *
@@ -308,12 +309,11 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// POSTs to production. The call is fire-and-forget and its failure is
 		// logged, so a refused connection is the honest local answer.
 		SCRAPER_BASE_URL: 'http://127.0.0.1:1',
-		...(options.withoutResumeBinding ? {} : { RESUME: resume.binding }),
 		// Stand-in for the edge-router service binding. Name resolution is the
 		// one thing it is asked for, so the fake answers exactly that and
 		// nothing else — including the failure shapes, which carry different
 		// meanings the route has to keep apart.
-		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge() }),
+		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge(resume) }),
 		// A closed port by default, for the same reason as SCRAPER_BASE_URL: a
 		// test that reconciles without declaring a feed should fail loudly
 		// rather than quietly read production mail.

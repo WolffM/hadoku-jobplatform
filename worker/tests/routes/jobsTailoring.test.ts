@@ -1,15 +1,15 @@
 /**
  * POST /jobs/{id}/{resume,cover-letter,application-extras,packet-link} — V3.
  *
- * These proxy to resume-api over the RESUME service binding. The harness binds a
- * real HTTP server in resume-api's place, so the request genuinely leaves the
- * worker and the assertions are on the payload that actually went over the
- * wire — including the X-Edge-Auth / X-Hadoku-Tier stamping the far side's gate
- * depends on.
+ * These call resume-api through the edge (the EDGE binding) as this worker's
+ * own service identity. The harness runs a real HTTP server in resume-api's
+ * place behind the fake edge, so the request genuinely leaves the worker and
+ * the assertions are on the payload that actually went over the wire,
+ * including the key the edge authenticates and the tier it does NOT get told.
  */
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { BASE, EDGE_SECRET, createHarness, type Harness } from '../helpers/harness.ts';
+import { BASE, createHarness, type Harness } from '../helpers/harness.ts';
 import { seedJob, seedJobState } from '../helpers/seed.ts';
 
 let h: Harness;
@@ -66,11 +66,14 @@ describe('POST /jobs/{id}/resume', () => {
 		assert.equal(call.body.description, 'Distributed systems in Go.');
 	});
 
-	it('stamps the service-tier provenance headers the far-side gate needs', async () => {
+	it('presents its own service key and stamps no seal or tier of its own', async () => {
 		await h.json(`${BASE}/jobs/tailor-1/resume`, { method: 'POST', ...AUTH });
 		const call = h.resume.calls.at(-1);
-		assert.equal(call?.headers['x-edge-auth'], EDGE_SECRET);
-		assert.equal(call?.headers['x-hadoku-tier'], 'service');
+		assert.equal(call?.headers['x-user-key'], 'test-service-key');
+		// The edge stamps both, from the key. This worker's own EDGE_AUTH_SECRET is
+		// its seal alone and opens no other backend (hadoku_site, 2026-11-02).
+		assert.equal(call?.headers['x-edge-auth'], undefined);
+		assert.equal(call?.headers['x-hadoku-tier'], undefined);
 	});
 
 	it('tolerates an absent body — every option is optional', async () => {
@@ -356,8 +359,8 @@ describe('resume-api failures surface as 502, not 500', () => {
 });
 
 describe('the binding being unconfigured is an error, not a silent skip', () => {
-	it('fails loudly when RESUME is missing', async () => {
-		const bare = await createHarness({ withoutResumeBinding: true });
+	it('fails loudly when EDGE, its way to resume-api, is missing', async () => {
+		const bare = await createHarness({ edge: null });
 		try {
 			await seedJob(bare.db, { id: 'no-binding' });
 			const res = await bare.fetch(`${BASE}/jobs/no-binding/resume`, {
