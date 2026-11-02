@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@wolffm/logger": "^1.4.3",
-    "@wolffm/prefs-client": "^1.1.13",
+    "@wolffm/prefs-client": "^1.1.14",
     "react-router-dom": "^7.14.1",
     "zod": "^4.1.12"
   },
@@ -64,8 +64,8 @@
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
     "@wolffm/catalogue": "^1.0.11",
-    "@wolffm/task-ui-components": "^4.23.7",
-    "@wolffm/themes": "^5.13.20",
+    "@wolffm/task-ui-components": "^4.23.8",
+    "@wolffm/themes": "^5.13.21",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
