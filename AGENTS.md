@@ -213,7 +213,7 @@ dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension fi
 ## CI/CD
 
 - Push to main -> `publish.yml` builds both packages -> publishes -> dispatches to hadoku_site
-- Version bumping: pre-commit hook (`.husky/pre-commit`) + CI fallback
+- Versions are CI's, never a commit's: `publish.yml` sets each package to the registry's newest + 1 patch (`hadoku-actions/next-version`), never committed back. Do not edit a version number
 - Required secret: `HADOKU_SITE_TOKEN` (GitHub Packages auth + dispatch)
 
 ## Auth & secrets (hadoku ecosystem)

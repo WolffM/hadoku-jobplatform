@@ -90,65 +90,9 @@ fi
 
 echo "Linting and formatting complete!"
 
-# ----------------------------------------------------------------------------
-# Version bumping
-# ----------------------------------------------------------------------------
-# Bump package.json on every commit so publishes always have a unique version.
-# Also bump worker/package.json when the commit touches worker/ files —
-# without this, worker code changes ship against a stale version and GH
-# Packages silently no-ops the publish ("no new packages" in CI output).
-#
-# Each package is bumped independently (patch+1, rollover at .20 to next
-# minor). Versions are NOT kept in sync between root and worker — they each
-# track their own release cadence.
-
-bump_version() {
-  pkg_path="$1"
-  label="$2"
-
-  current=$(node -p "require('./${pkg_path}').version")
-  major=$(echo "${current}" | cut -d. -f1)
-  minor=$(echo "${current}" | cut -d. -f2)
-  patch=$(echo "${current}" | cut -d. -f3)
-
-  if [ "${patch}" -eq 20 ]; then
-    new_minor=$((minor + 1))
-    new_version="${major}.${new_minor}.0"
-    echo "${label}: rolling over to minor version"
-  else
-    new_patch=$((patch + 1))
-    new_version="${major}.${minor}.${new_patch}"
-  fi
-
-  node -e "
-const fs = require('fs');
-const p = '${pkg_path}';
-const src = fs.readFileSync(p, 'utf8');
-const next = src.replace(/(\"version\"\s*:\s*\")[^\"]*(\")/, (m, a, b) => a + '${new_version}' + b);
-if (next === src) { console.error('could not patch version in ' + p); process.exit(1); }
-fs.writeFileSync(p, next);
-"
-
-  echo "${label} version bumped: ${current} -> ${new_version}"
-}
-
-echo "Bumping versions..."
-
-# Always bump the root (UI) package — matches existing behavior
-bump_version "package.json" "UI"
-git add package.json
-
-# Conditionally bump the worker package when worker/ files are in this commit
-if echo "${STAGED_FILES}" | grep -q '^worker/'; then
-  bump_version "worker/package.json" "Worker"
-  git add worker/package.json
-else
-  echo "Worker: no worker/ files staged, skipping version bump"
-fi
-
-# Update lock file once, after all bumps
-pnpm install --lockfile-only
-git add pnpm-lock.yaml
+# No version bump. A version is CI's, never a commit's: publish.yml sets each
+# package's version to one patch above the registry's newest
+# (WolffM/hadoku-actions/next-version), in the CI workspace only.
 
 # Re-stage files that may have been touched by lint/format
 if [ -n "${STAGED_FILES}" ]; then

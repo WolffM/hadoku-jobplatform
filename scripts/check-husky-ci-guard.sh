@@ -27,7 +27,7 @@ if out=$(CI=true sh "$hook" 2>&1); then
     *) bad "CI=true exited 0 but printed no reason: $out" ;;
   esac
   case "$out" in
-    *"Running pre-commit checks"*|*"Running typecheck"*|*"version bumped"*)
+    *"Running pre-commit checks"*|*"Running typecheck"*)
       bad "CI=true still ran the gates — the guard is too late in the file" ;;
     *) ok "CI=true ran no gate" ;;
   esac
@@ -47,8 +47,8 @@ else
 fi
 
 # ── 3. The guard must be CONDITIONAL ────────────────────────────────────────
-# Running the hook for real outside CI would bump versions and rewrite the
-# lockfile, so this asserts on the file: the gates are still there to run, and
+# Running the hook for real outside CI would lint-fix and reformat the working
+# tree, so this asserts on the file: the gates are still there to run, and
 # standing down is tied to the CI variables rather than unconditional.
 if grep -q 'pnpm run typecheck' "$hook"; then
   ok "the gates are still in the hook for developers"
