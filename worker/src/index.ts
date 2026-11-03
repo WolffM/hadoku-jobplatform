@@ -18,6 +18,7 @@
 
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
+import { timing } from 'hono/timing';
 import {
 	createEdgeAuth,
 	wrappedValidationHook,
@@ -57,6 +58,14 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 			maxAge: 86400,
 		})
 	);
+
+	// Server-Timing on every response. edge-router stores the header on the
+	// request's row in request_logs, so a slow route's steps are queryable
+	// without Workers Logs (issue #26). Routes name their own steps with
+	// startTime/endTime; `total` alone is still the worker's share of the
+	// edge's `duration`. On Workers the clock advances only across I/O, so
+	// these are wait times, not CPU — which is what a D1-bound route spends.
+	app.use('*', timing({ totalDescription: 'worker' }));
 
 	// Edge-auth — trusts the edge-stamped tier (centralized auth channel)
 	// instead of resolving keys in-worker. Drop-in for the removed createHadokuAuth;

@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import { formUrl } from '../../formUrl.js';
 import { createRoute, z } from '@hono/zod-openapi';
+import { startTime, endTime } from 'hono/timing';
 import {
 	ApplicationsResponseSchema,
 	ApplicationResponseSchema,
@@ -419,7 +420,9 @@ export function registerApplicationRoutes(app: JobsApp): void {
 		}),
 		async (c) => {
 			const { status, ownerName } = c.req.valid('query');
+			startTime(c, 'who');
 			const who = await effectiveUserId(c, ownerName);
+			endTime(c, 'who');
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const filter = status ? ' AND a.status = ?' : '';
@@ -432,6 +435,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				 WHERE a.user_id = ?${filter}
 				 ORDER BY a.updated_at DESC`
 			);
+			startTime(c, 'apps');
 			const rows = await (status ? stmt.bind(userId, status) : stmt.bind(userId)).all<
 				ApplicationRow & {
 					title: string;
@@ -446,11 +450,14 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			// One read for the whole list: every row is reconciled against the same
 			// standing answers, and a per-row query would be N+1 for a value that
 			// cannot change between them.
+			endTime(c, 'apps');
+			startTime(c, 'answers');
 			const answerRows = await c.env.JOB_PLATFORM_DB.prepare(
 				'SELECT question_key, question, answer FROM application_answers WHERE user_id = ?'
 			)
 				.bind(userId)
 				.all<{ question_key: string; question: string; answer: string }>();
+			endTime(c, 'answers');
 			const stored = new Map(
 				answerRows.results.map((a) => [a.question_key, { question: a.question, answer: a.answer }])
 			);

@@ -16,9 +16,20 @@
  *    failures that day were D1 refusing within 10-70ms while four other
  *    batches held it for ~9s each. They were transient, and a transient D1
  *    failure now answers 503 with Retry-After.
+ *
+ * Issue #26 added two more. The 2026-10-30 scrape lost 39 batches in a
+ * five-second window to `D1_ERROR: internal error; reference = ...`, with no
+ * long-held statement behind it and every batch around them succeeding. That
+ * message was not on the list, so each went out as a 500 the scraper drops
+ * rather than a 503 it retries. And every failure now also lands in
+ * monitoring-api's `service_events`, so a run of them is visible from this
+ * side, not only from the caller's.
  */
 import type { Context } from 'hono';
 import { logger } from './logger.js';
+import type { AppEnv } from './types.js';
+import { canPostTelemetry, postServiceEvent } from './clients/telemetry.js';
+import { runAfterResponse } from './background.js';
 
 /**
  * Cloudflare's documented transient D1 errors, the ones its guidance says to
@@ -30,6 +41,12 @@ const TRANSIENT_D1 = [
 	'storage caused object to be reset',
 	'reset because its code was updated',
 	'transient issue on remote node',
+	// Not on Cloudflare's list, but it is how D1 answered the 2026-10-30 burst
+	// (issue #26): 39 refusals inside five seconds, nothing held the database,
+	// the same batches' neighbours went through. A retry costs the caller one
+	// round trip; a 500 costs it the batch. Prefixed so a non-D1 "internal
+	// error" from somewhere else is not swept in.
+	'D1_ERROR: internal error',
 ];
 
 const RETRY_AFTER_SECONDS = 5;
@@ -60,6 +77,33 @@ export function errorHandler(err: Error, c: Context): Response {
 		transient,
 		stack: err.stack,
 	});
+
+	// One row per failure. The opening seconds of a bad scrape are ~40 of
+	// these; a night like 10-17 is ~900, which is still the honest record.
+	// The status is in the context so a query can tell a retried 503 from a
+	// dropped 500 without parsing the message.
+	// Typed here rather than in the signature: this handler is also mounted on
+	// plain Hono apps in tests, which have no bindings at all.
+	const env = c.env as AppEnv | undefined;
+	if (canPostTelemetry(env)) {
+		runAfterResponse(
+			c,
+			'telemetry: unhandled error',
+			postServiceEvent(env, {
+				level: transient ? 'warn' : 'error',
+				event: 'unhandled_error',
+				message: `${c.req.method} ${c.req.path} ${message ?? err.name}`,
+				context: {
+					method: c.req.method,
+					path: c.req.path,
+					status: transient ? 503 : 500,
+					transient,
+					message,
+					causes,
+				},
+			})
+		);
+	}
 
 	if (transient) {
 		c.header('Retry-After', String(RETRY_AFTER_SECONDS));

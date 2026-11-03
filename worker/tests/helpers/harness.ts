@@ -214,6 +214,8 @@ export interface Harness {
 	): Promise<{ status: number; body: T }>;
 	db: D1Database;
 	resume: ResumeService;
+	/** Bodies the worker POSTed to monitoring-api's /health/api/telemetry, in order. */
+	telemetry: unknown[];
 	/**
 	 * Await everything the worker handed to waitUntil, returning how many there
 	 * were — so a test can assert work was BACKGROUNDED, not merely that it
@@ -232,7 +234,7 @@ export interface Harness {
  * report differently, and a fake that only ever succeeds would let all three
  * collapse into one status without any test noticing.
  */
-export function defaultEdge(resume?: ResumeService): Fetcher {
+export function defaultEdge(resume?: ResumeService, telemetry?: unknown[]): Fetcher {
 	return {
 		async fetch(input: Request | string | URL, init?: RequestInit): Promise<Response> {
 			// `.url`, not `.toString()`: the resolver passes a Request, and
@@ -243,6 +245,12 @@ export function defaultEdge(resume?: ResumeService): Fetcher {
 			// resume-api's routes, which the real edge proxies to that worker.
 			if (resume && new URL(raw).pathname.startsWith('/resume/')) {
 				return resume.binding.fetch(raw, init) as unknown as Promise<Response>;
+			}
+			// monitoring-api's service_events intake. Recorded rather than dropped,
+			// so a test can assert what the worker reported.
+			if (telemetry && new URL(raw).pathname === '/health/api/telemetry') {
+				telemetry.push(JSON.parse(String(init?.body)));
+				return Response.json({ success: true });
 			}
 			const name = (new URL(raw).searchParams.get('name') ?? '').toLowerCase();
 			if (name === 'hadoku') {
@@ -297,6 +305,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 	await applyMigrations(db);
 
 	const resume = await startResumeService();
+	const telemetry: unknown[] = [];
 
 	const env: AppEnv = {
 		EDGE_AUTH_SECRET: EDGE_SECRET,
@@ -313,7 +322,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// one thing it is asked for, so the fake answers exactly that and
 		// nothing else — including the failure shapes, which carry different
 		// meanings the route has to keep apart.
-		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge(resume) }),
+		...(options.edge === null ? {} : { EDGE: options.edge ?? defaultEdge(resume, telemetry) }),
 		// A closed port by default, for the same reason as SCRAPER_BASE_URL: a
 		// test that reconciles without declaring a feed should fail loudly
 		// rather than quietly read production mail.
@@ -384,6 +393,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		},
 		db,
 		resume,
+		telemetry,
 		async dispose() {
 			// Let anything still in waitUntil finish against a live database.
 			// Disposing Miniflare first poisons the D1 stub underneath it, so a

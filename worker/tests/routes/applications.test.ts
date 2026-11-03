@@ -294,6 +294,15 @@ describe('GET /applications', () => {
 		assert.equal(globex.variant_slug, 'globex-slug');
 	});
 
+	it('names its steps in Server-Timing, for the request log (issue #26)', async () => {
+		const res = await h.fetch(`${BASE}/applications`, { tier: 'friend', userId: OWNER });
+		assert.equal(res.status, 200);
+		const timing = res.headers.get('Server-Timing') ?? '';
+		for (const step of ['who', 'apps', 'answers', 'total']) {
+			assert.match(timing, new RegExp(`\\b${step};dur=`), `${step} in "${timing}"`);
+		}
+	});
+
 	it('filters by ?status=', async () => {
 		await seedJobState(h.db, {
 			job_id: 'ap-2',
