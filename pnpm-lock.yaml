@@ -12,8 +12,8 @@ importers:
         specifier: ^1.4.3
         version: 1.4.3
       '@wolffm/prefs-client':
-        specifier: ^1.1.19
-        version: 1.1.19(react@19.2.4)(zod@4.3.6)
+        specifier: ^1.1.20
+        version: 1.1.20(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -49,11 +49,11 @@ importers:
         specifier: ^1.0.11
         version: 1.0.11
       '@wolffm/task-ui-components':
-        specifier: ^4.23.14
-        version: 4.23.14(@wolffm/themes@5.13.27(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^4.23.15
+        version: 4.23.15(@wolffm/themes@5.13.28(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^5.13.27
-        version: 5.13.27(react@19.2.4)
+        specifier: ^5.13.28
+        version: 5.13.28(react@19.2.4)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -1267,22 +1267,22 @@ packages:
     resolution: {integrity: sha512-Slc+zFMo1PODZ0+YuhmbdISNl/UPnB7//M+VMTN8ZbR1YMMDKnkFMR2I8gvt7invaYMno5N0iOW3iJkeCC5lUw==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.4.3/b567775fac1a91f83fe006c9be7fa778fe76e073}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.1.19':
-    resolution: {integrity: sha512-ECBgfo5C1CmnuSBEGEcBRDJdn1vKiaHf+NXSE4TNlGzxHJEZ0J7KDsLoIBmEtae0T0TsjTdB6rmotUnS50KPVQ==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.1.19/850eb4452adaf590242a642960489cff85947073}
+  '@wolffm/prefs-client@1.1.20':
+    resolution: {integrity: sha512-CetnuFMLOyizfu5wID33veYtQ/TF+Qw2DEgXrjqRiL/SvtmJnIEWgaOMxveG28ygM5POs6xCTX/UrC25tEbK2g==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.1.20/a19d1c80b1f1bb22c3e37e3c3b8a78a2004c3bb0}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       zod: ^4.0.0
 
-  '@wolffm/task-ui-components@4.23.14':
-    resolution: {integrity: sha512-+4CIRzgXDPXwd+6e6/qyPLHjnQ+x+0j9yYneKN8Zr7V0jnxm4bzWA67dagGlkhcJmxAVsFi9issOJLGGm2kFng==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.23.14/bf3a55d89aaae5ec01b9e223b5529947e8c84657}
+  '@wolffm/task-ui-components@4.23.15':
+    resolution: {integrity: sha512-SjTRtzDlpb4EEVMnTugEJgAvW4xh+LOGuVG+lviafMMOyBXIMJDdv/UNwnROSjpOuoKyXKWFd7XIv3pgqAQjSg==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.23.15/7d9f8c925de052d81ec6f351193d06cc2948c79d}
     peerDependencies:
       '@wolffm/themes': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@wolffm/themes@5.13.27':
-    resolution: {integrity: sha512-MFmTfpA5LI2JYq6yeYQCIgUNDOc9fYaQnu+Kh5PZbiTADhTIDuIBg3aSelDNz1e9VZ6Lw1x2OTYVrH20lcJY6w==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.13.27/9f50a3b95890fec4b3d3c329ea80d3bbbc9e13cd}
+  '@wolffm/themes@5.13.28':
+    resolution: {integrity: sha512-S4CKRuY0ckg0hGg7qiG1BK+C9qD5K2gU23zBwAz89mlxfE3GuwQfytr3JohkseQIxaSGOwa1wF2zeg4IQW1fDA==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.13.28/8ecea8b2ba3324bf0f3e6ccdf77d25122e75ad48}
     hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3789,20 +3789,20 @@ snapshots:
 
   '@wolffm/logger@1.4.3': {}
 
-  '@wolffm/prefs-client@1.1.19(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/prefs-client@1.1.20(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@4.23.14(@wolffm/themes@5.13.27(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@wolffm/task-ui-components@4.23.15(@wolffm/themes@5.13.28(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': 5.13.27(react@19.2.4)
+      '@wolffm/themes': 5.13.28(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@wolffm/themes@5.13.27(react@19.2.4)':
+  '@wolffm/themes@5.13.28(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': 1.1.19(react@19.2.4)(zod@4.3.6)
+      '@wolffm/prefs-client': 1.1.20(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
       zod: 4.3.6
 
