@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi';
+import { startTime, endTime } from 'hono/timing';
 import type { AppEnv } from '../types.js';
 import { requireMinTier, type HadokuAuthContext } from '@wolffm/worker-utils';
 import {
@@ -255,10 +256,12 @@ app.openapi(ingestRoute, async (c) => {
 	// inserted[i] — did jobs[i] land as a new row (true) or hit an existing URL
 	// or id and get ignored (false)? Each statement reports its own changes.
 	const inserted: boolean[] = [];
+	startTime(c, 'insert');
 	for (let i = 0; i < stmts.length; i += INGEST_BATCH_CHUNK) {
 		const results = await db.batch(stmts.slice(i, i + INGEST_BATCH_CHUNK));
 		for (const r of results) inserted.push((r.meta?.changes ?? 0) > 0);
 	}
+	endTime(c, 'insert');
 	const accepted = inserted.filter(Boolean).length;
 	const skipped = jobs.length - accepted;
 
@@ -305,11 +308,14 @@ app.openapi(ingestRoute, async (c) => {
 			);
 		}
 	}
+	startTime(c, 'seen');
 	if (seenStmts.length) await db.batch(seenStmts);
+	endTime(c, 'seen');
 
 	// A posting back on its board after its description was stripped gets it
 	// back. Found by a read rather than folded into the bump, so the rows that
 	// never lost theirs — nearly all of them — cost no extra write.
+	startTime(c, 'restore');
 	if (strippedStmts.length) {
 		const found = await db.batch<{ url: string }>(strippedStmts);
 		const stripped = new Set(found.flatMap((r) => r.results.map((row) => row.url)));
@@ -324,6 +330,7 @@ app.openapi(ingestRoute, async (c) => {
 			await db.batch(restores.slice(i, i + INGEST_BATCH_CHUNK));
 		}
 	}
+	endTime(c, 'restore');
 
 	// Keep every profile's precomputed ranking covering the newest postings.
 	//
@@ -333,7 +340,9 @@ app.openapi(ingestRoute, async (c) => {
 	// throws, the marker stays behind and the feed falls back to ranking live
 	// rather than quietly omitting the postings that just landed.
 	if (accepted > 0) {
+		startTime(c, 'rank');
 		await rankNewJobs(db);
+		endTime(c, 'rank');
 	}
 
 	// No cull or strip here. Both used to run on every board's final batch —

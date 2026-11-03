@@ -28,7 +28,15 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/errorHandler.ts` — the app's `onError`. Logs an unhandled exception's
   message and cause as fields (Workers Logs drops the first line of a D1
   error's stack), and answers Cloudflare's documented transient D1 errors with
-  503 + `Retry-After` instead of a 500 (issue #24)
+  503 + `Retry-After` instead of a 500 (issue #24) — plus D1's bare
+  `internal error`, which cost 39 batches on 2026-10-30 (issue #26). Every
+  failure is also posted to monitoring-api's `service_events`
+  (`event=unhandled_error`, `service=jobplatform`)
+- `src/clients/telemetry.ts` — `postServiceEvent`, over the EDGE binding as this
+  worker's service key. Read back with `GET /health/api/service-events?service=jobplatform`
+- Every response carries `Server-Timing` (hono `timing()` in `index.ts`), which
+  edge-router stores per row in `request_logs.server_timing`. `/ingest` names
+  `insert/seen/restore/rank`; `/applications` names `who/apps/answers`
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`
