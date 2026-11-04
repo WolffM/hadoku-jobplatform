@@ -21,6 +21,17 @@ env:
 permissions:
   contents: read
   packages: write
+  # Read this workflow's own run history: the change check reaches back to
+  # the last commit a publish succeeded on.
+  actions: read
+
+# One publish at a time. Two overlapping runs walk the registry to the same
+# next version and the newer commit dies 409 unpublished
+# (hadoku-dataplatform#31). Never cancel-in-progress: a run stopped between
+# publishing and notifying ships a release hadoku_site never hears about.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -77,6 +88,7 @@ jobs:
         env:
           BEFORE: ${{ github.event.before }}
           EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # A manual dispatch is an explicit "publish now". It exists to recover
           # a publish that was skipped, so the change check must never veto it:
@@ -101,6 +113,27 @@ jobs:
             || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
             echo "No usable push base ('$base'); falling back to HEAD~1"
             base="HEAD~1"
+          fi
+          # The concurrency group keeps ONE run waiting, so a third push cancels it
+          # and its range is never diffed; a failed run strands its range too. Reach
+          # back to the last commit a publish SUCCEEDED on when that is older than the
+          # push base (hadoku-dataplatform#31). An unreadable history keeps the base.
+          last=$(node -e '
+            const file = process.env.GITHUB_WORKFLOW_REF.split("@")[0].split("/").pop();
+            const url = `${process.env.GITHUB_API_URL}/repos/${process.env.GITHUB_REPOSITORY}` +
+              `/actions/workflows/${file}/runs?status=success&per_page=1` +
+              `&branch=${encodeURIComponent(process.env.GITHUB_REF_NAME)}`;
+            fetch(url, { headers: { authorization: `Bearer ${process.env.GH_TOKEN}`,
+                                    accept: "application/vnd.github+json" } })
+              .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+              .then(j => console.log(j.workflow_runs[0]?.head_sha ?? ""))
+              .catch(e => { console.error(e.message); process.exit(1); });
+          ') || { echo "::warning::Could not read the last successful publish; using the push base"; last=""; }
+          if [ -n "$last" ] && git cat-file -e "${last}^{commit}" 2>/dev/null \
+            && [ "$(git rev-parse "$last")" != "$(git rev-parse "$base")" ] \
+            && git merge-base --is-ancestor "$last" "$base"; then
+            echo "Last successful publish was ${last}, before the push base: widening the range to it"
+            base="$last"
           fi
           echo "base=$base" >> $GITHUB_OUTPUT
           echo "Comparing ${base}..HEAD:"
