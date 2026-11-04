@@ -233,6 +233,14 @@ nothing else. Reads of another repo's secrets, and every write/admin operation,
 return 403 by design; those are operator-only and there is no self-service path to
 them.
 
+There are no shared service keys any more (all released 2026-11-03). Each person
+holds their own 7-day credential: the operator issues a service grant for
+`jobplatform-service-key` (friend tier or above), and `npx @hadoku/dev-vault login`
+writes it here after a passkey + authenticator approval at hadoku.me. Expired → log in
+again. Outside the fleet (no `../hadoku_site`), `npx @hadoku/dev-vault` replaces the
+`node ../hadoku_site/scripts/secrets/dev-vault.mjs` path everywhere below; README →
+"Getting access" has the steps.
+
 Adding a new `process.env.X`: declare the mapping in `.devvault.json` (commit-safe,
 names only — no values), then ask the operator to grant it. Diagnose with
 `node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`.
