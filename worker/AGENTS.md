@@ -24,7 +24,9 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
 - `src/userId.ts` — resolves the identity D1 rows are keyed by
 - `src/ownerName.ts` — the ONLY way to resolve an `ownerName`: `resolveGranteeVia`
   behind a 15-minute cache in D1 (`owner_name_cache`), since every uncached resolve is a full
-  key-registry scan at the edge (issue #23). Successes only; 404/409/503 are never kept
+  key-registry scan at the edge (issue #23). Successes only; 404/409/503 are never kept.
+  A hit in the last half of its TTL is refreshed behind the response (pass `defer`), so a
+  caller asking every 5 minutes never waits on the edge (issue #26)
 - `src/errorHandler.ts` — the app's `onError`. Logs an unhandled exception's
   message and cause as fields (Workers Logs drops the first line of a D1
   error's stack), and answers Cloudflare's documented transient D1 errors with
@@ -36,7 +38,7 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
   worker's service key. Read back with `GET /health/api/service-events?service=jobplatform`
 - Every response carries `Server-Timing` (hono `timing()` in `index.ts`), which
   edge-router stores per row in `request_logs.server_timing`. `/ingest` names
-  `insert/seen/restore/rank`; `/applications` names `who/apps/answers`
+  `insert/seen/restore/rank`; `/applications` names `who/read`
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`

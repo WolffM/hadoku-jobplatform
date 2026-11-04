@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
 import { resolveOwnerName } from '../../ownerName.js';
+import { runAfterResponse } from '../../background.js';
 import { tierAtLeast } from '@wolffm/worker-utils';
 import {
 	ErrorResponseSchema,
@@ -123,7 +124,9 @@ export function registerOwnerRoutes(app: JobsApp): void {
 				c.env.JOB_PLATFORM_DB,
 				c.env.EDGE,
 				c.env.HADOKU_SERVICE_KEY ?? '',
-				name
+				name,
+				Date.now(),
+				(label, work) => runAfterResponse(c, label, work)
 			);
 			if (isIdentityError(resolved)) {
 				// The three codes mean genuinely different things and must not be

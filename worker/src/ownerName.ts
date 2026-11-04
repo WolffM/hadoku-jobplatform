@@ -20,35 +20,30 @@ import {
 export const OWNER_NAME_TTL_MS = 15 * 60_000;
 
 /**
- * `resolveGranteeVia`, remembered for {@link OWNER_NAME_TTL_MS} in D1.
+ * When a remembered name has less than this left, a hit answers from the row
+ * AND re-asks the edge behind the response.
  *
- * D1, not an in-isolate Map: the Map was measured missing on requests 20s
- * apart, because consecutive requests rarely share an isolate.
- *
- * The contract is unchanged: callers pass a NAME and get back a userId the
- * edge resolved — this only stops asking it the same question every tick.
- * Only a success is kept. A 404/409 deletes the row, so a retired or renamed
- * name is never answered from cache once the edge has said so, and a 503 is an
- * outage, never an answer worth keeping. An unbound `EDGE` skips the cache:
- * that is a deployment fault and must keep reporting NO_REGISTRY.
+ * Without it every third tick of the five-minute runner was a miss: the row
+ * expired between ticks, and that request paid the edge's registry scan,
+ * 500-1000ms and once 15s (issue #26; 74% of all `GET /applications` time on
+ * 2026-11-03). Half the TTL means a caller that asks at least that often keeps
+ * the row fresh and never waits on the edge. An expired row is still never
+ * answered from, so the rename bound above is unchanged.
  */
-export async function resolveOwnerName(
+export const OWNER_NAME_REFRESH_AHEAD_MS = OWNER_NAME_TTL_MS / 2;
+
+/** Hands work to `waitUntil`; see `runAfterResponse` in background.ts. */
+export type Defer = (label: string, work: Promise<unknown>) => void;
+
+/** Ask the edge and record what it said: a success is kept, a 404/409 forgets the name. */
+async function resolveAndRemember(
 	db: D1Database,
-	edge: EdgeIdentityBinding | undefined,
+	edge: EdgeIdentityBinding,
 	serviceKey: string,
 	name: string,
-	now: number = Date.now()
+	key: string,
+	now: number
 ): Promise<IdentityResult> {
-	if (!edge) return resolveGranteeVia(edge, { serviceKey, name });
-	const key = name.trim().toLowerCase();
-	const hit = await db
-		.prepare(
-			'SELECT user_id, name, tier FROM owner_name_cache WHERE name_key = ? AND expires_at > ?'
-		)
-		.bind(key, now)
-		.first<{ user_id: string; name: string | null; tier: string | null }>();
-	if (hit) return { userId: hit.user_id, name: hit.name, ...(hit.tier ? { tier: hit.tier } : {}) };
-
 	const result = await resolveGranteeVia(edge, { serviceKey, name });
 	if (!isIdentityError(result)) {
 		await db
@@ -62,6 +57,47 @@ export async function resolveOwnerName(
 		await db.prepare('DELETE FROM owner_name_cache WHERE name_key = ?').bind(key).run();
 	}
 	return result;
+}
+
+/**
+ * `resolveGranteeVia`, remembered for {@link OWNER_NAME_TTL_MS} in D1.
+ *
+ * D1, not an in-isolate Map: the Map was measured missing on requests 20s
+ * apart, because consecutive requests rarely share an isolate.
+ *
+ * The contract is unchanged: callers pass a NAME and get back a userId the
+ * edge resolved — this only stops asking it the same question every tick.
+ * Only a success is kept. A 404/409 deletes the row, so a retired or renamed
+ * name is never answered from cache once the edge has said so, and a 503 is an
+ * outage, never an answer worth keeping. An unbound `EDGE` skips the cache:
+ * that is a deployment fault and must keep reporting NO_REGISTRY.
+ *
+ * With `defer`, a hit inside {@link OWNER_NAME_REFRESH_AHEAD_MS} of expiry is
+ * refreshed behind the response. Without it the row simply runs out.
+ */
+export async function resolveOwnerName(
+	db: D1Database,
+	edge: EdgeIdentityBinding | undefined,
+	serviceKey: string,
+	name: string,
+	now: number = Date.now(),
+	defer?: Defer
+): Promise<IdentityResult> {
+	if (!edge) return resolveGranteeVia(edge, { serviceKey, name });
+	const key = name.trim().toLowerCase();
+	const hit = await db
+		.prepare(
+			'SELECT user_id, name, tier, expires_at FROM owner_name_cache WHERE name_key = ? AND expires_at > ?'
+		)
+		.bind(key, now)
+		.first<{ user_id: string; name: string | null; tier: string | null; expires_at: number }>();
+	if (hit) {
+		if (defer && hit.expires_at - now <= OWNER_NAME_REFRESH_AHEAD_MS) {
+			defer('owner name refresh', resolveAndRemember(db, edge, serviceKey, name, key, now));
+		}
+		return { userId: hit.user_id, name: hit.name, ...(hit.tier ? { tier: hit.tier } : {}) };
+	}
+	return resolveAndRemember(db, edge, serviceKey, name, key, now);
 }
 
 /**

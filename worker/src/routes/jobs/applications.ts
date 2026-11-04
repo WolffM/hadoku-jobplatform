@@ -435,34 +435,37 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				 WHERE a.user_id = ?${filter}
 				 ORDER BY a.updated_at DESC`
 			);
-			startTime(c, 'apps');
-			const rows = await (status ? stmt.bind(userId, status) : stmt.bind(userId)).all<
-				ApplicationRow & {
-					title: string;
-					company: string;
-					location: string;
-					ats: string | null;
-					slug: string | null;
-					url: string;
-				}
-			>();
-
-			// One read for the whole list: every row is reconciled against the same
-			// standing answers, and a per-row query would be N+1 for a value that
-			// cannot change between them.
-			endTime(c, 'apps');
-			startTime(c, 'answers');
-			const answerRows = await c.env.JOB_PLATFORM_DB.prepare(
-				'SELECT question_key, question, answer FROM application_answers WHERE user_id = ?'
-			)
-				.bind(userId)
-				.all<{ question_key: string; question: string; answer: string }>();
-			endTime(c, 'answers');
+			// The queue and the standing answers it is reconciled against, in one
+			// round trip. Both depend only on userId, and as two awaits they were
+			// two D1 latencies back to back (~110ms at p50 on 2026-11-03). The
+			// answers are read once for the whole list: a per-row query would be
+			// N+1 for a value that cannot change between rows.
+			startTime(c, 'read');
+			const [rows, answerRows] = await c.env.JOB_PLATFORM_DB.batch<unknown>([
+				status ? stmt.bind(userId, status) : stmt.bind(userId),
+				c.env.JOB_PLATFORM_DB.prepare(
+					'SELECT question_key, question, answer FROM application_answers WHERE user_id = ?'
+				).bind(userId),
+			]);
+			endTime(c, 'read');
+			const appRows = rows.results as (ApplicationRow & {
+				title: string;
+				company: string;
+				location: string;
+				ats: string | null;
+				slug: string | null;
+				url: string;
+			})[];
+			const answers = answerRows.results as {
+				question_key: string;
+				question: string;
+				answer: string;
+			}[];
 			const stored = new Map(
-				answerRows.results.map((a) => [a.question_key, { question: a.question, answer: a.answer }])
+				answers.map((a) => [a.question_key, { question: a.question, answer: a.answer }])
 			);
 
-			const applications = rows.results.map((r) => {
+			const applications = appRows.map((r) => {
 				const app = toApplication(r);
 				return {
 					...app,

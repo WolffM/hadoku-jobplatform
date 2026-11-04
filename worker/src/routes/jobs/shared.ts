@@ -5,6 +5,7 @@ import { mayActOnBehalf, ON_BEHALF_REFUSAL, resolveOwnerName } from '../../owner
 import type { D1Database, Fetcher } from '@cloudflare/workers-types';
 import type { AppEnv } from '../../types.js';
 import { NoIdentityError, resolveUserId } from '../../userId.js';
+import { runAfterResponse, type HasExecutionCtx } from '../../background.js';
 import { ALL_LEVELS, type RoleLevel } from '../../roleClassify.js';
 
 export interface RouteContext {
@@ -172,7 +173,7 @@ export function isEffectiveUserError(v: EffectiveUser): v is { error: IdentityRe
  * 2026-09-03. Keep any future on-behalf-of parameter in the `*Name` shape.
  */
 export async function effectiveUserId(
-	c: {
+	c: HasExecutionCtx & {
 		req: {
 			header: (name: string) => string | undefined;
 			query?: (name: string) => string | undefined;
@@ -216,7 +217,9 @@ export async function effectiveUserId(
 		c.env.JOB_PLATFORM_DB,
 		c.env.EDGE,
 		c.env.HADOKU_SERVICE_KEY ?? '',
-		named
+		named,
+		Date.now(),
+		(label, work) => runAfterResponse(c, label, work)
 	);
 	if (isIdentityError(resolved)) {
 		// The three codes mean different things; 503 especially must not read as
