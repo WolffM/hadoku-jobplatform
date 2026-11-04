@@ -221,7 +221,7 @@ dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension fi
 ## Auth & secrets (hadoku ecosystem)
 
 - **Browser fetches** must hit `hadoku.me/{prefix}/*` via edge-router — NEVER `*.hadoku.me` direct subdomains. The `hadoku_session` cookie (`Domain=.hadoku.me`, 30d sliding) is set on `/auth` and resolved server-side by edge-router into `X-User-Key` for the backend.
-- **Secrets**: vault-broker model, NO `.env` files. Local dev fetches via `.devvault.json` + `node ../hadoku_site/scripts/secrets/dev-vault.mjs -- <cmd>`. If `pnpm dev` fails, run `node ../hadoku_site/scripts/secrets/dev-vault.mjs --check` for diagnostics. **Tutorial: `../hadoku_site/docs/child-apps/USING_VAULT.md`**. Operational reference: `../hadoku_site/docs/operations/SECRETS.md`.
+- **Secrets**: vault-broker model, NO `.env` files. Local dev fetches via `.devvault.json` + `pnpm exec dev-vault -- <cmd>` (`@wolffm/dev-vault` is a dev dependency; `pnpm dev` and `pnpm test:e2e` already use it). If `pnpm dev` fails, run `pnpm exec dev-vault --check` for diagnostics. **Tutorial: `../hadoku_site/docs/child-apps/USING_VAULT.md`**. Operational reference: `../hadoku_site/docs/operations/SECRETS.md`.
 - **Auth model**: 1:1 named user-keys. `/auth` accepts key + name; whoami returns the name. Admin endpoints `GET/POST/DELETE /session/admin/keys` manage the registry. See `../hadoku_site/docs/planning/next-work.md`.
 
 ## Vault — how this repo gets its dev secrets
@@ -237,13 +237,12 @@ There are no shared service keys any more (all released 2026-11-03). Each person
 holds their own 7-day credential: the operator issues a service grant for
 `jobplatform-service-key` (friend tier or above), and `npx @hadoku/dev-vault login`
 writes it here after a passkey + authenticator approval at hadoku.me. Expired → log in
-again. Outside the fleet (no `../hadoku_site`), `npx @hadoku/dev-vault` replaces the
-`node ../hadoku_site/scripts/secrets/dev-vault.mjs` path everywhere below; README →
-"Getting access" has the steps.
+again. Step by step, for someone outside the fleet: https://hadoku.me/docs/contributing/#jobplatform
+(one page for every hadoku repo).
 
 Adding a new `process.env.X`: declare the mapping in `.devvault.json` (commit-safe,
 names only — no values), then ask the operator to grant it. Diagnose with
-`node ../hadoku_site/scripts/secrets/dev-vault.mjs --check`.
+`pnpm exec dev-vault --check`.
 
 Full broker API, ACL commands, and key rotation live in the hadoku_site operational
 docs (`docs/child-apps/USING_VAULT.md`, `docs/operations/SECRETS.md`) — deliberately

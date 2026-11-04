@@ -48,6 +48,9 @@ importers:
       '@wolffm/catalogue':
         specifier: ^1.0.11
         version: 1.0.11
+      '@wolffm/dev-vault':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@wolffm/task-ui-components':
         specifier: ^4.23.16
         version: 4.23.16(@wolffm/themes@5.13.29(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1262,6 +1265,11 @@ packages:
   '@wolffm/catalogue@1.0.11':
     resolution: {integrity: sha512-KVTwSm9ritt5OUAUjukHbAH80LnzzoMqoeAsXLJ5EYbQoTvCDRxqhVnOEMc3uQLoZ3rtIeWP6YAui+M1a1cROQ==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.11/dfcf666e4d6c844d78b24cf92bf4f4d2dda46610}
     engines: {node: '>=18'}
+
+  '@wolffm/dev-vault@1.5.6':
+    resolution: {integrity: sha512-xql6TRvhuq0U4KLfGTxOvwm1/ICS2cydHaE4Geb64JMygNb2EldeCI1uQSkuNWOmRUpDlSI9sDKOPvrxm2F4FA==, tarball: https://npm.pkg.github.com/download/@wolffm/dev-vault/1.5.6/e56b13636d0bcd4d7363ad99663ad08840ec6da3}
+    engines: {node: '>=18'}
+    hasBin: true
 
   '@wolffm/logger@1.4.3':
     resolution: {integrity: sha512-Slc+zFMo1PODZ0+YuhmbdISNl/UPnB7//M+VMTN8ZbR1YMMDKnkFMR2I8gvt7invaYMno5N0iOW3iJkeCC5lUw==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.4.3/b567775fac1a91f83fe006c9be7fa778fe76e073}
@@ -3786,6 +3794,8 @@ snapshots:
   '@vue/shared@3.5.30': {}
 
   '@wolffm/catalogue@1.0.11': {}
+
+  '@wolffm/dev-vault@1.5.6': {}
 
   '@wolffm/logger@1.4.3': {}
 
