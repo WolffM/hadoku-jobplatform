@@ -145,13 +145,65 @@ the edge degrades to `public` rather than being trusted.
 
 ---
 
-## Development
+## Getting access
 
-Requires `pnpm`. The dev server needs secrets brokered from the parent repo, so a
-standalone clone will build and test but not fully run.
+Installing (the `@wolffm/*` dependencies come from GitHub Packages), the dev server and
+the authed e2e suite all need secrets from the hadoku vault. You read them with your own
+credential, which lasts 7 days. No hadoku_site clone and no GitHub token are needed.
+
+1. Ask the operator for a service grant for `jobplatform-service-key`. Your hadoku.me
+   account must be friend tier or above. You cannot request one yourself.
+2. Sign in at [hadoku.me](https://hadoku.me) on the computer you will approve from, and
+   save a passkey there: settings gear, or [hadoku.me/auth](https://hadoku.me/auth)
+   while signed in → "Save a passkey".
+3. In your clone, run `npx @hadoku/dev-vault login`. It prints a code and a link to
+   `https://hadoku.me/account/device?code=XXXX-XXXX`; leave it running. The request
+   lives 24 hours.
+4. Open the link. The first time only: "Set up" → tap your passkey → scan the QR into an
+   authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, …) → type
+   its 6-digit code → Confirm. Then pick the identity, type the app's current code,
+   Approve, and tap your passkey.
+5. The command writes `.devvault.local.json` (gitignored, mode 0600) with your `key`,
+   `expiresAt` and `identity`. Check it with `npx @hadoku/dev-vault --check`.
+6. Add to your user `.npmrc` (`~/.npmrc`, or `%USERPROFILE%\.npmrc` on Windows):
+
+   ```
+   //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+   ```
+
+   dev-vault fills `NODE_AUTH_TOKEN` for whatever it runs.
+
+When the credential expires, run `npx @hadoku/dev-vault login` again.
+
+`pnpm dev` and `pnpm test:e2e` call `../hadoku_site/scripts/secrets/dev-vault.mjs`,
+which you won't have. Run the same thing through the package:
 
 ```bash
-pnpm install
+npx @hadoku/dev-vault -- pnpm install
+node extension/build.mjs && npx @hadoku/dev-vault -- vite               # pnpm dev
+node scripts/free-port.mjs 5173 && npx @hadoku/dev-vault -- playwright test   # pnpm test:e2e
+```
+
+On Windows, dev-vault cannot start a `.cmd` shim (`pnpm`, `vite`, `playwright`)
+directly; put `cmd /c` after the `--`, e.g. `npx @hadoku/dev-vault -- cmd /c vite`.
+
+- **The passkey dialog is empty** ("Choose a passkey" with nothing in it, on Windows):
+  there is no passkey on this computer. Save one (step 2), or pick "Use another device"
+  and scan the QR with the phone that holds yours.
+- **The request expired**: run `npx @hadoku/dev-vault login` again.
+- **401, or "required: friend", from hadoku.me**: the credential has expired, or you hold
+  no grant. Log in again; if that is refused, ask the operator.
+
+---
+
+## Development
+
+Requires `pnpm`, and a credential for installing and for the dev server (see
+[Getting access](#getting-access)). Without one a clone builds and tests but does not
+fully run.
+
+```bash
+pnpm install      # outside the fleet: npx @hadoku/dev-vault -- pnpm install
 
 pnpm dev          # dev server on :5173
 pnpm build        # build both packages
