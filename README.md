@@ -187,8 +187,8 @@ node scripts/free-port.mjs 5173 && npx @hadoku/dev-vault -- playwright test   # 
 - **The passkey dialog is empty** ("Choose a passkey" with nothing in it, on Windows):
   the passkey is not on this computer. Pick "Use another device"
   and scan the QR with the phone that holds yours.
-- **"Cloudflare refused this network"**: cloud servers, Codespaces and some VPNs are
-  blocked before hadoku.me sees them. Run it from a home or office connection.
+- **"Cloudflare refused this network"**: should not happen from any network, VPNs
+  and cloud machines included. Tell the operator; it means the bot-protection rule broke.
 - **The request expired**: run `npx @hadoku/dev-vault login` again.
 - **401, or "required: friend", from hadoku.me**: the credential has expired, or you hold
   no grant. Log in again; if that is refused, ask the operator.
