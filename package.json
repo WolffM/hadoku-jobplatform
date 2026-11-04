@@ -26,7 +26,7 @@
     "./style.css": "./dist/style.css"
   },
   "scripts": {
-    "dev": "node extension/build.mjs && node ../hadoku_site/scripts/secrets/dev-vault.mjs -- vite",
+    "dev": "node extension/build.mjs && dev-vault -- vite",
     "build": "node extension/build.mjs && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "doctor": "node scripts/check-node-modules-links.mjs",
@@ -35,8 +35,8 @@
     "lint:css": "stylelint \"src/**/*.css\" && node node_modules/@wolffm/themes/scripts/check-usage.mjs ./src",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "test:e2e": "node scripts/free-port.mjs 5173 && node ../hadoku_site/scripts/secrets/dev-vault.mjs -- playwright test",
-    "test:e2e:headed": "node scripts/free-port.mjs 5173 && node ../hadoku_site/scripts/secrets/dev-vault.mjs -- playwright test --headed",
+    "test:e2e": "node scripts/free-port.mjs 5173 && dev-vault -- playwright test",
+    "test:e2e:headed": "node scripts/free-port.mjs 5173 && dev-vault -- playwright test --headed",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true",
     "build:extension": "node extension/build.mjs",
     "test:extension": "node extension/build.mjs && playwright test -c extension/playwright.config.ts"
@@ -64,6 +64,7 @@
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
     "@wolffm/catalogue": "^1.0.11",
+    "@wolffm/dev-vault": "^1.5.6",
     "@wolffm/task-ui-components": "^4.23.16",
     "@wolffm/themes": "^5.13.29",
     "esbuild": "^0.28.2",

@@ -147,51 +147,11 @@ the edge degrades to `public` rather than being trusted.
 
 ## Getting access
 
-Installing (the `@wolffm/*` dependencies come from GitHub Packages), the dev server and
-the authed e2e suite all need secrets from the hadoku vault. You read them with your own
-credential, which lasts 7 days. No hadoku_site clone and no GitHub token are needed.
-
-1. Ask the operator for a service grant for `jobplatform-service-key`. Your hadoku.me
-   account must be friend tier or above. You cannot request one yourself.
-2. Sign in at [hadoku.me](https://hadoku.me) on the computer you will approve from.
-   If you have no passkey yet, the approval page asks you to save one first (Windows
-   Hello, Touch ID, or your phone).
-3. In your clone, run `npx @hadoku/dev-vault login`. It prints a code and a link to
-   `https://hadoku.me/account/device?code=XXXX-XXXX`; leave it running. The request
-   lives 24 hours.
-4. Open the link. The first time only: "Set up" → tap your passkey → scan the QR into an
-   authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, …) → type
-   its 6-digit code → Confirm. Then pick the identity, type the app's current code,
-   Approve, and tap your passkey.
-5. The command writes `.devvault.local.json` (gitignored, mode 0600) with your `key`,
-   `expiresAt` and `identity`. Check it with `npx @hadoku/dev-vault --check`.
-6. Add to your user `.npmrc` (`~/.npmrc`, or `%USERPROFILE%\.npmrc` on Windows):
-
-   ```
-   //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-   ```
-
-   dev-vault fills `NODE_AUTH_TOKEN` for whatever it runs.
-
-When the credential expires, run `npx @hadoku/dev-vault login` again.
-
-`pnpm dev` and `pnpm test:e2e` call `../hadoku_site/scripts/secrets/dev-vault.mjs`,
-which you won't have. Run the same thing through the package:
-
-```bash
-npx @hadoku/dev-vault -- pnpm install
-node extension/build.mjs && npx @hadoku/dev-vault -- vite               # pnpm dev
-node scripts/free-port.mjs 5173 && npx @hadoku/dev-vault -- playwright test   # pnpm test:e2e
-```
-
-- **The passkey dialog is empty** ("Choose a passkey" with nothing in it, on Windows):
-  the passkey is not on this computer. Pick "Use another device"
-  and scan the QR with the phone that holds yours.
-- **"Cloudflare refused this network"**: should not happen from any network, VPNs
-  and cloud machines included. Tell the operator; it means the bot-protection rule broke.
-- **The request expired**: run `npx @hadoku/dev-vault login` again.
-- **401, or "required: friend", from hadoku.me**: the credential has expired, or you hold
-  no grant. Log in again; if that is refused, ask the operator.
+Installing, the dev server and the signed-in e2e suite need your own credential.
+Getting one is the same for every hadoku repo, so the steps live on one page:
+**[hadoku.me/docs/contributing/#jobplatform](https://hadoku.me/docs/contributing/#jobplatform)**.
+The identity to ask for is `jobplatform-service-key`. Once you have it, `pnpm dev` and
+`pnpm test:e2e` work as they are: they run through dev-vault (a dev dependency).
 
 ---
 
