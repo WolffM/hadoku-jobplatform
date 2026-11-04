@@ -6,7 +6,12 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { isIdentityError } from '@wolffm/worker-utils/identity';
-import { mayActOnBehalf, OWNER_NAME_TTL_MS, resolveOwnerName } from '../src/ownerName.ts';
+import {
+	mayActOnBehalf,
+	OWNER_NAME_REFRESH_AHEAD_MS,
+	OWNER_NAME_TTL_MS,
+	resolveOwnerName,
+} from '../src/ownerName.ts';
 import type { HadokuAuthContext } from '@wolffm/worker-utils';
 import { createHarness, type Harness } from './helpers/harness.ts';
 
@@ -117,6 +122,105 @@ describe('resolveOwnerName', () => {
 		const r = await resolveOwnerName(h.db, undefined, 'k', 'Hadoku', T0 + 1);
 		assert.ok(isIdentityError(r));
 		assert.equal(r.code, 'NO_REGISTRY');
+	});
+});
+
+/** Collects what resolveOwnerName hands to waitUntil, so a test can run it when it chooses. */
+function collectingDefer() {
+	const deferred: { label: string; work: Promise<unknown> }[] = [];
+	return {
+		deferred,
+		defer: (label: string, work: Promise<unknown>) => deferred.push({ label, work }),
+	};
+}
+
+const expiresAt = async () =>
+	(
+		await h.db
+			.prepare("SELECT expires_at FROM owner_name_cache WHERE name_key = 'hadoku'")
+			.first<{ expires_at: number }>()
+	)?.expires_at;
+
+describe('resolveOwnerName: refresh ahead of expiry (issue #26)', () => {
+	it('leaves a fresh row alone', async () => {
+		const { edge, calls } = countingEdge({ hadoku: HADOKU });
+		await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0);
+		const { deferred, defer } = collectingDefer();
+		const r = await resolveOwnerName(
+			h.db,
+			edge,
+			'k',
+			'Hadoku',
+			T0 + OWNER_NAME_TTL_MS - OWNER_NAME_REFRESH_AHEAD_MS - 1,
+			defer
+		);
+		assert.ok(!isIdentityError(r) && r.userId === 'user-hadoku');
+		assert.equal(deferred.length, 0);
+		assert.equal(calls.length, 1);
+	});
+
+	it('answers from the row, and re-asks the edge only behind the response', async () => {
+		const { edge, calls } = countingEdge({ hadoku: HADOKU });
+		await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0);
+		const late = T0 + OWNER_NAME_TTL_MS - OWNER_NAME_REFRESH_AHEAD_MS;
+		const { deferred, defer } = collectingDefer();
+
+		const r = await resolveOwnerName(h.db, edge, 'k', 'Hadoku', late, defer);
+		assert.ok(!isIdentityError(r) && r.userId === 'user-hadoku');
+		assert.equal(deferred.length, 1, 'the refresh was handed to waitUntil');
+		assert.equal(deferred[0].label, 'owner name refresh');
+
+		await deferred[0].work;
+		assert.equal(calls.length, 2);
+		assert.equal(
+			await expiresAt(),
+			late + OWNER_NAME_TTL_MS,
+			'the row now runs a full TTL from the refresh'
+		);
+	});
+
+	it('keeps a runner that asks every five minutes off the edge entirely', async () => {
+		// After the first resolve, every edge call hangs until released. A tick
+		// that waited on one would never return; a deferred refresh just sits
+		// there until the test lets it through.
+		const held: (() => void)[] = [];
+		let first = true;
+		const edge = {
+			async fetch(): Promise<Response> {
+				if (!first) await new Promise<void>((release) => held.push(release));
+				first = false;
+				return Response.json(HADOKU.body);
+			},
+		};
+		const { deferred, defer } = collectingDefer();
+		for (let tick = 0; tick < 12; tick++) {
+			const r = await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0 + tick * 5 * 60_000, defer);
+			assert.ok(!isIdentityError(r) && r.userId === 'user-hadoku', `tick ${tick}`);
+			for (const release of held.splice(0)) release();
+			await Promise.all(deferred.splice(0).map((d) => d.work));
+		}
+	});
+
+	it('forgets the name when the refresh learns it is gone', async () => {
+		const table: Record<string, { status: number; body: unknown }> = { hadoku: HADOKU };
+		const { edge } = countingEdge(table);
+		await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0);
+		delete table.hadoku;
+		const { deferred, defer } = collectingDefer();
+		await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0 + OWNER_NAME_TTL_MS - 1, defer);
+		await deferred[0].work;
+		assert.equal(await expiresAt(), undefined);
+	});
+
+	it('still never answers from an expired row', async () => {
+		const table: Record<string, { status: number; body: unknown }> = { hadoku: HADOKU };
+		const { edge } = countingEdge(table);
+		await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0);
+		delete table.hadoku;
+		const { deferred, defer } = collectingDefer();
+		const r = await resolveOwnerName(h.db, edge, 'k', 'Hadoku', T0 + OWNER_NAME_TTL_MS, defer);
+		assert.ok(isIdentityError(r) && r.status === 404);
+		assert.equal(deferred.length, 0);
 	});
 });
 

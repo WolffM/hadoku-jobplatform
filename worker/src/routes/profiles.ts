@@ -56,7 +56,7 @@ app.use('/profiles', requireIdentity);
 app.use('/profiles/*', requireIdentity);
 
 async function requireIdentity(
-	c: {
+	c: HasExecutionCtx & {
 		req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined };
 		json: (b: unknown, s?: 401 | 403 | 404 | 409 | 503) => Response;
 		get: (k: 'authContext') => HadokuAuthContext;
@@ -99,7 +99,9 @@ async function requireIdentity(
 			c.env.JOB_PLATFORM_DB,
 			c.env.EDGE,
 			c.env.HADOKU_SERVICE_KEY ?? '',
-			owner
+			owner,
+			Date.now(),
+			(label, work) => runAfterResponse(c, label, work)
 		);
 		if (isIdentityError(resolved)) {
 			const status = ([404, 409, 503] as const).includes(resolved.status as 404 | 409 | 503)

@@ -298,7 +298,7 @@ describe('GET /applications', () => {
 		const res = await h.fetch(`${BASE}/applications`, { tier: 'friend', userId: OWNER });
 		assert.equal(res.status, 200);
 		const timing = res.headers.get('Server-Timing') ?? '';
-		for (const step of ['who', 'apps', 'answers', 'total']) {
+		for (const step of ['who', 'read', 'total']) {
 			assert.match(timing, new RegExp(`\\b${step};dur=`), `${step} in "${timing}"`);
 		}
 	});
