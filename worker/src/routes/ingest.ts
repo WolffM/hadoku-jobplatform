@@ -12,6 +12,7 @@ import { mailboxOwnerRefusal, reconcileMail, reconcileView } from '../reconcileM
 import { effectiveUserId, isEffectiveUserError, ownerNameQuery } from './jobs/shared.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
+import { geoKeys } from '../geo.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
 import {
@@ -145,6 +146,7 @@ async function rankNewJobs(db: AppEnv['JOB_PLATFORM_DB']): Promise<void> {
 app.use('/ingest', requireMinTier('friend'));
 app.use('/ingest/backfill-slugs', requireMinTier('friend'));
 app.use('/ingest/backfill-roles', requireMinTier('friend'));
+app.use('/ingest/backfill-geo', requireMinTier('friend'));
 app.use('/ingest/backfill-salary', requireMinTier('friend'));
 app.use('/ingest/cull', requireMinTier('friend'));
 app.use('/ingest/rebuild-rank', requireMinTier('friend'));
@@ -223,8 +225,8 @@ app.openapi(ingestRoute, async (c) => {
 					job_type, workplace_type, salary_min, salary_max,
 					description, posted_date, application_url, department,
 					scraper_used, raw, scraped_at, last_seen_at, ats, slug,
-					role_track, role_level, slug_source
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					role_track, role_level, slug_source, geo_keys
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				job.id,
@@ -249,7 +251,8 @@ app.openapi(ingestRoute, async (c) => {
 				slug,
 				role.track,
 				role.level,
-				slugSource
+				slugSource,
+				geoKeys(job.location)
 			);
 	});
 
@@ -630,6 +633,106 @@ app.openapi(backfillRolesRoute, async (c) => {
 			unclassifiable,
 			remaining,
 			has_more: all ? rows.results.length === limit : remaining > unclassifiable,
+		},
+	});
+});
+
+// ============================================================================
+// POST /ingest/backfill-geo — fill jobs.geo_keys (migration 0030) for rows
+// ingested before it, and re-read every row after geo.ts learns new places.
+//
+// A row with no known place gets '' rather than staying NULL, so the default
+// mode only ever walks forward and stops. `reread=true` instead pages the whole
+// table by id from `after`, handing back `next_after` until it is done.
+// ============================================================================
+
+const backfillGeoRoute = createRoute({
+	method: 'post',
+	path: '/ingest/backfill-geo',
+	tags: ['Ingest'],
+	summary: "Populate jobs.geo_keys from each posting's location",
+	description:
+		'Bounded by `limit` (default 1000) per call. Default mode: rows still NULL, loop until ' +
+		'`has_more` is false. `reread=true`: every row by id, passing back `next_after` as ' +
+		'`after` until `has_more` is false.',
+	request: {
+		query: z.object({
+			limit: z.coerce.number().int().min(1).max(2000).default(1000),
+			reread: z.enum(['true', 'false']).default('false'),
+			after: z.string().default('').openapi({ description: 'reread only: the id to resume after' }),
+		}),
+	},
+	responses: {
+		200: {
+			description: 'Backfill batch complete',
+			content: {
+				'application/json': {
+					schema: z
+						.object({
+							success: z.literal(true),
+							data: z.object({
+								scanned: z.number(),
+								placed: z.number(),
+								remaining: z.number().nullable(),
+								next_after: z.string().nullable(),
+								has_more: z.boolean(),
+							}),
+						})
+						.openapi('BackfillGeoResponse'),
+				},
+			},
+		},
+	},
+});
+
+app.openapi(backfillGeoRoute, async (c) => {
+	const { limit, reread, after } = c.req.valid('query');
+	const db = c.env.JOB_PLATFORM_DB;
+	const all = reread === 'true';
+	const rows = await db
+		.prepare(
+			all
+				? 'SELECT id, location FROM jobs WHERE id > ? ORDER BY id LIMIT ?'
+				: 'SELECT id, location FROM jobs WHERE geo_keys IS NULL LIMIT ?'
+		)
+		.bind(...(all ? [after, limit] : [limit]))
+		.all<{ id: string; location: string }>();
+
+	let placed = 0;
+	const stmts = rows.results.map((row) => {
+		const keys = geoKeys(row.location ?? '');
+		if (keys) placed++;
+		return db.prepare('UPDATE jobs SET geo_keys = ? WHERE id = ?').bind(keys, row.id);
+	});
+	for (let i = 0; i < stmts.length; i += INGEST_BATCH_CHUNK) {
+		await db.batch(stmts.slice(i, i + INGEST_BATCH_CHUNK));
+	}
+
+	if (all) {
+		const last = rows.results.at(-1)?.id ?? null;
+		return c.json({
+			success: true as const,
+			data: {
+				scanned: rows.results.length,
+				placed,
+				remaining: null,
+				next_after: last,
+				has_more: rows.results.length === limit,
+			},
+		});
+	}
+	const remainingRow = await db
+		.prepare('SELECT COUNT(*) AS n FROM jobs WHERE geo_keys IS NULL')
+		.first<{ n: number }>();
+	const remaining = remainingRow?.n ?? 0;
+	return c.json({
+		success: true as const,
+		data: {
+			scanned: rows.results.length,
+			placed,
+			remaining,
+			next_after: null,
+			has_more: remaining > 0,
 		},
 	});
 });

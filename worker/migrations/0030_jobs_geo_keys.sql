@@ -1,0 +1,13 @@
+-- Where each posting is, as the places its free-text location names, for the
+-- feed's radius filter (near= / radius_miles=). Written at ingest by
+-- geo.ts `geoKeys` and backfilled by POST /ingest/backfill-geo:
+--
+--   '|san-francisco-ca|new-york-ny|'  every known place the string names
+--   ''                                 read, and no known place in it
+--   NULL                               not read yet — backfill pending
+--
+-- Pipe-delimited so the feed can test membership with one LIKE per nearby
+-- place ('%|seattle-wa|%') against a short list it computes from the radius.
+-- No index: the filter runs per candidate row alongside the feed's other
+-- WHERE terms, and a leading-wildcard LIKE could not use one anyway.
+ALTER TABLE jobs ADD COLUMN geo_keys TEXT;

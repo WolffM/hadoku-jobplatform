@@ -22,6 +22,10 @@ import {
 	type JobsApp,
 } from './shared.js';
 import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
+import { placesWithin, resolvePlace } from '../../geo.js';
+
+/** The most places one near= filter will test; see the filter's comment. */
+const MAX_NEARBY = 80;
 
 // Two-stage score-on-read. Descriptions are what make whole-corpus scoring
 // impossible in one pass (30k rows × ~4KB each), but they feed only ONE factor
@@ -260,6 +264,29 @@ export function registerFeedRoute(app: JobsApp): void {
 						.max(1)
 						.default(0)
 						.openapi({ description: 'Minimum score filter' }),
+					near: z
+						.string()
+						.trim()
+						.min(1)
+						.max(100)
+						.optional()
+						.openapi({
+							description:
+								'Radius filter centre: a place key from GET /locations, or free text ' +
+								'("Seattle, WA"). Keeps postings that name a place within radius_miles of it ' +
+								'(and remote ones, unless include_remote=false). A posting whose location ' +
+								'names no known place is only kept as remote. 400 when nothing matches.',
+						}),
+					radius_miles: z.coerce
+						.number()
+						.int()
+						.min(1)
+						.max(500)
+						.default(25)
+						.openapi({ description: 'Radius for near=, in miles.' }),
+					include_remote: z.enum(['true', 'false']).default('true').openapi({
+						description: 'With near=, also keep remote postings wherever they are.',
+					}),
 					min_salary: z.coerce
 						.number()
 						.min(0)
@@ -275,6 +302,10 @@ export function registerFeedRoute(app: JobsApp): void {
 				200: {
 					description: 'Job list',
 					content: { 'application/json': { schema: JobsResponseSchema } },
+				},
+				400: {
+					description: 'near= names no known place',
+					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
 				401: {
 					description: 'state= requires auth',
@@ -312,6 +343,9 @@ export function registerFeedRoute(app: JobsApp): void {
 				workplace,
 				min_score,
 				min_salary,
+				near,
+				radius_miles,
+				include_remote,
 			} = c.req.valid('query');
 			const hideDismissed = hideDismissedRaw === 'true';
 			const hideQueued = hideQueuedRaw === 'true';
@@ -416,6 +450,30 @@ export function registerFeedRoute(app: JobsApp): void {
 			if (min_salary !== undefined) {
 				wheres.push('(j.salary_max IS NULL OR j.salary_max >= ?)');
 				whereBinds.push(min_salary);
+			}
+
+			// Radius: the places within reach of the centre, each a LIKE against
+			// the pipe-delimited jobs.geo_keys (migration 0030). The list is
+			// bounded — the place table is a few hundred cities, and a radius
+			// wide enough to reach more than MAX_NEARBY of them is a region, not
+			// a commute.
+			if (near) {
+				const center = resolvePlace(near);
+				if (!center) {
+					return c.json(
+						{
+							success: false as const,
+							error: 'Bad request',
+							message: `No known place matches '${near}' — try GET /locations?q=`,
+						},
+						400
+					);
+				}
+				const nearby = placesWithin(center, radius_miles).slice(0, MAX_NEARBY);
+				const terms = nearby.map(() => 'j.geo_keys LIKE ?');
+				if (include_remote === 'true') terms.unshift("j.workplace_type = 'remote'");
+				wheres.push(`(${terms.join(' OR ')})`);
+				whereBinds.push(...nearby.map((p) => `%|${p.key}|%`));
 			}
 
 			// State / hide_dismissed clauses reference the LEFT JOIN above, which
