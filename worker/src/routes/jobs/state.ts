@@ -5,6 +5,9 @@ import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
 /**
  * PUT / DELETE /jobs/{id}/state — the caller's triage state for one job.
  *
+ * A change of state is also a row on the job's timeline (job_events, kind
+ * 'state'); see pipeline.ts for the rest of that timeline.
+ *
  * gateAuthed is registered as middleware on the plain method+path first; the
  * openapi routes below then run as the next handler in the same chain. Keep
  * that order.
@@ -51,11 +54,16 @@ export function registerStateRoutes(app: JobsApp): void {
 			const body = c.req.valid('json');
 			const db = c.env.JOB_PLATFORM_DB;
 
-			// Verify the job exists — better error than relying on FK to scream.
+			// Verify the job exists — better error than relying on FK to scream —
+			// and read the state it is leaving, for the timeline.
 			const exists = await db
-				.prepare('SELECT id FROM jobs WHERE id = ?')
-				.bind(id)
-				.first<{ id: string }>();
+				.prepare(
+					`SELECT j.id, js.state AS prev FROM jobs j
+					 LEFT JOIN job_states js ON js.job_id = j.id AND js.user_id = ?
+					 WHERE j.id = ?`
+				)
+				.bind(userId, id)
+				.first<{ id: string; prev: string | null }>();
 			if (!exists) {
 				return c.json(
 					{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
@@ -68,7 +76,7 @@ export function registerStateRoutes(app: JobsApp): void {
 			// carries no slug (e.g. moving applied → saved) must not wipe the record of
 			// what was already sent. A fresh slug overwrites; a null leaves it be.
 			const variantSlug = body.variant_slug ?? null;
-			await db
+			const upsert = db
 				.prepare(
 					`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
 					 VALUES (?, ?, ?, NULL, ?, ?)
@@ -77,8 +85,24 @@ export function registerStateRoutes(app: JobsApp): void {
 					   updated_at = excluded.updated_at,
 					   variant_slug = COALESCE(excluded.variant_slug, job_states.variant_slug)`
 				)
-				.bind(id, userId, body.state, now, variantSlug)
-				.run();
+				.bind(id, userId, body.state, now, variantSlug);
+			// The timeline records transitions, not writes: re-sending the state a
+			// job already has (a packet re-recorded on 'applied', a double click)
+			// changes nothing a person would call an event.
+			if (exists.prev === body.state) {
+				await upsert.run();
+			} else {
+				await db.batch([
+					upsert,
+					db
+						.prepare(
+							`INSERT INTO job_events
+							   (job_id, user_id, kind, from_state, to_state, note, occurred_at, created_at)
+							 VALUES (?, ?, 'state', ?, ?, NULL, ?, ?)`
+						)
+						.bind(id, userId, exists.prev, body.state, now, now),
+				]);
+			}
 
 			return c.json(
 				{
@@ -96,7 +120,8 @@ export function registerStateRoutes(app: JobsApp): void {
 			method: 'delete',
 			path: '/jobs/{id}/state',
 			tags: ['Jobs'],
-			summary: 'Clear triage state for a job — returns the row to implicit "new"',
+			summary:
+				'Clear triage state for a job — returns the row to implicit "new" and drops its timeline',
 			request: {
 				params: z.object({ id: z.string() }),
 			},
@@ -129,11 +154,15 @@ export function registerStateRoutes(app: JobsApp): void {
 				);
 			}
 			const { id } = c.req.valid('param');
-			const result = await c.env.JOB_PLATFORM_DB.prepare(
-				'DELETE FROM job_states WHERE job_id = ? AND user_id = ?'
-			)
-				.bind(id, userId)
-				.run();
+			const db = c.env.JOB_PLATFORM_DB;
+			// Clearing returns the posting to 'new' — out of the pipeline, and
+			// back within reach of the cull — so its timeline goes with it. A
+			// timeline left behind would describe an application the person has
+			// just said is not one, and the cull would take it later anyway.
+			const [result] = await db.batch([
+				db.prepare('DELETE FROM job_states WHERE job_id = ? AND user_id = ?').bind(id, userId),
+				db.prepare('DELETE FROM job_events WHERE job_id = ? AND user_id = ?').bind(id, userId),
+			]);
 			const deleted = (result.meta?.changes ?? 0) > 0;
 			return c.json({ success: true as const, data: { job_id: id, deleted } }, 200);
 		}

@@ -298,6 +298,22 @@ describe('POST /jobs/{id}/packet-link', () => {
 		assert.equal(row?.state, 'saved', 'fresh row lands as saved');
 	});
 
+	it('puts the fresh row on the timeline once (new → saved), and a re-mint adds nothing', async () => {
+		await h.db.prepare("DELETE FROM job_events WHERE job_id = 'tailor-1'").run();
+		const mint = () =>
+			h.json(`${BASE}/jobs/tailor-1/packet-link`, {
+				method: 'POST',
+				...AUTH,
+				body: JSON.stringify({ resume_markdown: '# R' }),
+			});
+		await mint();
+		await mint();
+		const events = await h.db
+			.prepare("SELECT kind, from_state, to_state FROM job_events WHERE job_id = 'tailor-1'")
+			.all();
+		assert.deepEqual(events.results, [{ kind: 'state', from_state: null, to_state: 'saved' }]);
+	});
+
 	it('honours an explicit ttl_days', async () => {
 		await h.json(`${BASE}/jobs/tailor-1/packet-link`, {
 			method: 'POST',

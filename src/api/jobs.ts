@@ -17,11 +17,19 @@ export interface ScoreBreakdown {
 export type RoleTrack = 'ic' | 'manager' | 'unknown'
 
 /**
- * V2 triage states. 'new' surfaces on read when the authed caller hasn't
- * touched a job yet. Writeable values exclude 'new' (no row = 'new').
+ * Triage states (V2) and the pipeline past "applied" (V5). Mirrors JOB_STATES
+ * in worker/src/schemas.ts. 'new' surfaces on read when the authed caller
+ * hasn't touched a job yet. Writeable values exclude 'new' (no row = 'new').
  */
-export type JobStateRead = 'new' | 'interested' | 'dismissed' | 'saved' | 'applied'
-export type JobStateWrite = 'interested' | 'dismissed' | 'saved' | 'applied'
+export type JobStateWrite =
+  | 'interested'
+  | 'dismissed'
+  | 'saved'
+  | 'applied'
+  | 'interviewing'
+  | 'offered'
+  | 'rejected'
+export type JobStateRead = 'new' | JobStateWrite
 
 /** A curation vote on a posting: thumbs up or thumbs down. */
 export type VoteValue = 1 | -1

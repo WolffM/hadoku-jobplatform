@@ -89,6 +89,14 @@ async function seedPerson(userId: string): Promise<void> {
 	await seedJobState(h.db, { job_id: jobA, user_id: userId, state: 'applied' });
 	await seedJobState(h.db, { job_id: jobB, user_id: userId, state: 'dismissed' });
 	await run(
+		`INSERT INTO job_events (job_id, user_id, kind, from_state, to_state, note, occurred_at, created_at)
+		 VALUES (?, ?, 'state', NULL, 'applied', NULL, ?, ?)`,
+		jobA,
+		userId,
+		now,
+		now
+	);
+	await run(
 		`INSERT INTO job_feedback (id, user_id, job_id, vote, reason, created_at)
 		 VALUES (?, ?, ?, 1, 'stack', ?)`,
 		`fb-${userId}`,
@@ -149,6 +157,7 @@ const SEEDED: Record<string, number> = {
 	profiles: 1,
 	profile_tombstones: 1,
 	job_states: 2,
+	job_events: 1,
 	job_feedback: 1,
 	applications: 1,
 	application_answers: 1,

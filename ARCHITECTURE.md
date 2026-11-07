@@ -14,7 +14,7 @@ Cross-repo orchestration (scraper cadence, resume-bot block pipeline, link-tailo
 | **V2 — Triage State**          | Shipped   | Per-job, per-user lifecycle: `interested / dismissed / saved / applied / offered / rejected`. Prevents re-evaluating the same jobs. Prereq for V4/V5.                                                              |
 | **V3 — Tailored Applications** | Shipped   | Per-job tailored resume + cover letter via resume-bot (service binding from jobplatform-api)                                                                                                                       |
 | **V4 — Auto Apply**            | In review | Approve-to-apply queue + PC-side form runner with Ashby / Greenhouse / Lever adapters. Fills and screenshots today; **nothing has been submitted yet**. LinkedIn is out of scope (account flagged for automation). |
-| **V5 — Tracking & Follow-ups** | Deferred  | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                                                                                       |
+| **V5 — Tracking & Follow-ups** | API live  | Timeline per application, notes, follow-up dates, Kanban across in-flight pipelines. Extends V2 state table.                                                                                                       |
 | **V6 — Alerts & Digest**       | Deferred  | Daily email / push when new jobs score above per-profile threshold. Uses V2 state to suppress already-triaged.                                                                                                     |
 
 ---
@@ -444,15 +444,28 @@ Browser execution happens in hadoku-scrape; result webhooks back and writes
 state=`applied` in the V2 table. A submitted packet also archives the exact
 materials sent — provenance for V5 follow-ups.
 
-### V5 — deferred (tracking & follow-ups)
+### V5 — API shipped 2026-11-06, UI in progress (tracking & follow-ups)
+
+Built from the JobPulse merge: its Kanban (To Apply → Applied → Interviewing →
+Offer → Rejected) and activity log are this milestone. Migration 0028.
 
 ```
-GET   /applications              ← list tracked applications with timeline
-GET   /jobs/:id/timeline         ← state transition history for one job
-PUT   /jobs/:id/follow-up        ← set next_follow_up_date, contact_name, notes
+PUT    /jobs/:id/state             ← now also interviewing / offered / rejected; a CHANGE writes a timeline row
+GET    /pipeline                   ← every posting with a state (dismissed opt-in), tracking + applied_at + last_event_at
+PATCH  /jobs/:id/tracking          ← notes, priority (1-3), follow_up_at, contact_name, contact_email; null clears
+GET    /jobs/:id/events            ← the timeline, by occurred_at
+POST   /jobs/:id/events            ← log a note / interview / contact / follow_up
+DELETE /jobs/:id/events/:eventId   ← person-written rows only; a transition is never deleted
 ```
 
-New `job_events (id, job_id, user_id, event_type, notes, occurred_at)` append-only log. UI: vertical timeline in the job detail drawer + Kanban across all in-flight applications.
+- **In the pipeline = has a `job_states` row.** The tracking columns live on that
+  row, and the same row is what keeps a posting out of the daily cull, so a
+  listing that closes mid-interview stays readable. Tracking or logging on a
+  posting with no state is a 409.
+- **`job_events` is append-only.** `kind = 'state'` rows are written by
+  PUT /state (and by a packet mint that creates the row) only when the state
+  actually changes; person rows carry `occurred_at` as entered. Clearing the
+  state (DELETE /state) drops that posting's timeline with it.
 
 ### V6 — deferred (alerts & digest)
 

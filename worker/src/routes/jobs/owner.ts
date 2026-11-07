@@ -160,8 +160,10 @@ export function registerOwnerRoutes(app: JobsApp): void {
 					.bind(resolved.userId, now, id),
 				db
 					.prepare(
-						`INSERT OR REPLACE INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
-						 SELECT job_id, ?, state, notes, ?, variant_slug
+						`INSERT OR REPLACE INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug,
+						   priority, follow_up_at, contact_name, contact_email)
+						 SELECT job_id, ?, state, notes, ?, variant_slug,
+						   priority, follow_up_at, contact_name, contact_email
 						 FROM job_states WHERE job_id = ? AND user_id = ?`
 					)
 					.bind(resolved.userId, now, row.job_id, row.user_id),

@@ -1,5 +1,5 @@
 import { createRoute } from '@hono/zod-openapi';
-import { ErrorResponseSchema, PacketsResponseSchema } from '../../schemas.js';
+import { asJobStateRead, ErrorResponseSchema, PacketsResponseSchema } from '../../schemas.js';
 import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
 
 /**
@@ -71,7 +71,7 @@ export function registerPacketsRoute(app: JobsApp): void {
 				title: r.title,
 				company: r.company,
 				location: r.location,
-				state: r.state as 'interested' | 'dismissed' | 'saved' | 'applied',
+				state: asJobStateRead(r.state),
 				variant_slug: r.variant_slug,
 				updated_at: r.updated_at,
 			}));

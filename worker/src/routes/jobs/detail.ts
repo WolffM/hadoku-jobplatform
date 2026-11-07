@@ -1,5 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi';
-import { JobResponseSchema, ErrorResponseSchema } from '../../schemas.js';
+import {
+	asJobStateRead,
+	JobResponseSchema,
+	ErrorResponseSchema,
+	type JobStateReadValue,
+} from '../../schemas.js';
 import { scoreJob } from '../../scoring.js';
 import { applyTier } from '../../applyTier.js';
 import { loadScorableProfile } from '../../profileScore.js';
@@ -80,9 +85,8 @@ export function registerDetailRoute(app: JobsApp): void {
 			}
 
 			// Per-user state if authed.
-			type StateRead = 'new' | 'interested' | 'dismissed' | 'saved' | 'applied';
 			const userId = await maybeUserId(c);
-			let state: StateRead | null = null;
+			let state: JobStateReadValue | null = null;
 			let stateUpdatedAt: string | null = null;
 
 			// Has the runner actually driven a form on THIS board before?
@@ -129,7 +133,7 @@ export function registerDetailRoute(app: JobsApp): void {
 						.bind(id, userId),
 				]);
 				const stateRow = stateRes.results[0] as { state: string; updated_at: string } | undefined;
-				state = stateRow ? (stateRow.state as StateRead) : 'new';
+				state = asJobStateRead(stateRow?.state);
 				stateUpdatedAt = stateRow?.updated_at ?? null;
 				const appRow = appRes.results[0] as { status?: string } | undefined;
 				applicationStatus = appRow?.status ?? null;

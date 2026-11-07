@@ -233,16 +233,30 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		// runner's service identity got the slug and the owner's application row
 		// never did, so every fill minted again — and on an approved row the mint's
 		// re-queue erased the approval (18 of them, 2026-10-02).
+		//
+		// A fresh row is a transition (new → saved) and goes on the timeline,
+		// written FIRST in the batch so its NOT EXISTS sees the state before it.
 		const now = new Date().toISOString();
-		await c.env.JOB_PLATFORM_DB.prepare(
-			`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
-			 VALUES (?, ?, 'saved', NULL, ?, ?)
-			 ON CONFLICT (job_id, user_id) DO UPDATE SET
-			   variant_slug = excluded.variant_slug,
-			   updated_at = excluded.updated_at`
-		)
-			.bind(id, who.userId, now, variant.slug)
-			.run();
+		const db = c.env.JOB_PLATFORM_DB;
+		await db.batch([
+			db
+				.prepare(
+					`INSERT INTO job_events
+					   (job_id, user_id, kind, from_state, to_state, note, occurred_at, created_at)
+					 SELECT ?1, ?2, 'state', NULL, 'saved', NULL, ?3, ?3
+					 WHERE NOT EXISTS (SELECT 1 FROM job_states WHERE job_id = ?1 AND user_id = ?2)`
+				)
+				.bind(id, who.userId, now),
+			db
+				.prepare(
+					`INSERT INTO job_states (job_id, user_id, state, notes, updated_at, variant_slug)
+					 VALUES (?, ?, 'saved', NULL, ?, ?)
+					 ON CONFLICT (job_id, user_id) DO UPDATE SET
+					   variant_slug = excluded.variant_slug,
+					   updated_at = excluded.updated_at`
+				)
+				.bind(id, who.userId, now, variant.slug),
+		]);
 
 		const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
 		return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);

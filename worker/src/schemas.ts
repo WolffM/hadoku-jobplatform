@@ -84,19 +84,29 @@ export const ScoreBreakdownSchema = z
 /** As classified at ingest. 'unknown' only for a blank title. */
 export const RoleTrackSchema = z.enum(['ic', 'manager', 'unknown']).openapi('RoleTrack');
 
-// Triage states (V2). 'new' is implicit — the absence of a job_states row.
-// Code reads/writes only 'interested' | 'dismissed' | 'saved' | 'applied'.
-// V5 will add 'offered' | 'rejected'. The DB column is unconstrained TEXT,
-// so adding states later is a code-only change.
-export const JobStateSchema = z
-	.enum(['interested', 'dismissed', 'saved', 'applied'])
-	.openapi('JobState');
+// Triage states (V2) and the pipeline past "applied" (V5). 'new' is implicit —
+// the absence of a job_states row. The DB column is unconstrained TEXT, so a
+// state is a code-only change: this list is the one place it is made.
+export const JOB_STATES = [
+	'interested',
+	'dismissed',
+	'saved',
+	'applied',
+	'interviewing',
+	'offered',
+	'rejected',
+] as const;
+export const JobStateSchema = z.enum(JOB_STATES).openapi('JobState');
 export type JobStateValue = z.infer<typeof JobStateSchema>;
 
 // Read-only state on returned jobs. 'new' surfaces here when there's no row.
-export const JobStateReadSchema = z
-	.enum(['new', 'interested', 'dismissed', 'saved', 'applied'])
-	.openapi('JobStateRead');
+export const JobStateReadSchema = z.enum(['new', ...JOB_STATES]).openapi('JobStateRead');
+export type JobStateReadValue = z.infer<typeof JobStateReadSchema>;
+
+/** D1 hands back plain TEXT; anything this code never wrote reads as 'new'. */
+export function asJobStateRead(v: string | null | undefined): JobStateReadValue {
+	return v && (JOB_STATES as readonly string[]).includes(v) ? (v as JobStateValue) : 'new';
+}
 
 // The application lifecycle. 'needs_manual', 'failed' and 'job_closed' are the
 // honest failure exits. The runner posts transitions via /applications/:id/status;
@@ -725,3 +735,110 @@ export const AddProfileCompanyResponseSchema = S(
 export const DeleteCompanyResponseSchema = S(
 	z.object({ deleted: z.literal(true), id: z.string() })
 ).openapi('DeleteCompanyResponse');
+
+// ============================================================================
+// V5 pipeline — tracking an application after it is sent (routes/jobs/pipeline.ts)
+// ============================================================================
+
+/** Kinds a person writes; 'state' rows are written by PUT /jobs/:id/state only. */
+export const PERSON_EVENT_KINDS = ['note', 'interview', 'contact', 'follow_up'] as const;
+export const JobEventKindSchema = z.enum(['state', ...PERSON_EVENT_KINDS]).openapi('JobEventKind');
+
+export const JobEventSchema = z
+	.object({
+		id: z.number().int(),
+		job_id: z.string(),
+		kind: JobEventKindSchema,
+		from_state: JobStateSchema.nullable(),
+		to_state: JobStateSchema.nullable(),
+		note: z.string().nullable(),
+		occurred_at: z.string(),
+		created_at: z.string(),
+	})
+	.openapi('JobEvent');
+
+export const JobEventsResponseSchema = S(z.object({ events: z.array(JobEventSchema) })).openapi(
+	'JobEventsResponse'
+);
+export const JobEventResponseSchema = S(z.object({ event: JobEventSchema })).openapi(
+	'JobEventResponse'
+);
+
+const NOTE_MAX = 5000;
+/** A calendar date or a full ISO timestamp, as a person would enter either. */
+const WhenSchema = z
+	.string()
+	.regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/, {
+		message: 'a date (YYYY-MM-DD) or an ISO timestamp',
+	});
+
+export const AddJobEventSchema = z
+	.object({
+		kind: z.enum(PERSON_EVENT_KINDS),
+		note: z.string().trim().min(1).max(NOTE_MAX),
+		/** When it happened; defaults to now. */
+		occurred_at: WhenSchema.optional(),
+	})
+	.openapi('AddJobEvent');
+
+export const PrioritySchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+
+/** Every field optional; `null` clears one. At least one must be present. */
+export const SetTrackingSchema = z
+	.object({
+		notes: z.string().max(NOTE_MAX).nullable().optional(),
+		priority: PrioritySchema.nullable().optional(),
+		follow_up_at: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'a date, YYYY-MM-DD' })
+			.nullable()
+			.optional(),
+		contact_name: z.string().trim().max(200).nullable().optional(),
+		contact_email: z.string().trim().email().max(320).nullable().optional(),
+	})
+	.refine((o) => Object.values(o).some((v) => v !== undefined), {
+		message: 'name at least one field to change',
+	})
+	.openapi('SetTracking');
+
+export const TrackingSchema = z
+	.object({
+		notes: z.string().nullable(),
+		priority: PrioritySchema.nullable(),
+		follow_up_at: z.string().nullable(),
+		contact_name: z.string().nullable(),
+		contact_email: z.string().nullable(),
+	})
+	.openapi('Tracking');
+
+export const TrackingResponseSchema = S(
+	z.object({ job_id: z.string(), tracking: TrackingSchema })
+).openapi('TrackingResponse');
+
+export const PipelineItemSchema = z
+	.object({
+		job_id: z.string(),
+		title: z.string(),
+		company: z.string(),
+		location: z.string(),
+		workplace_type: z.string(),
+		salary_min: z.number().nullable(),
+		salary_max: z.number().nullable(),
+		url: z.string(),
+		posted_date: z.string().nullable(),
+		state: JobStateSchema,
+		updated_at: z.string(),
+		tracking: TrackingSchema,
+		variant_slug: z.string().nullable(),
+		/** The apply queue's view of the same posting, when it has been queued. */
+		application_status: ApplicationStatusSchema.nullable(),
+		/** First time it moved to 'applied', from the timeline. */
+		applied_at: z.string().nullable(),
+		/** Newest timeline row, of any kind. */
+		last_event_at: z.string().nullable(),
+	})
+	.openapi('PipelineItem');
+
+export const PipelineResponseSchema = S(z.object({ items: z.array(PipelineItemSchema) })).openapi(
+	'PipelineResponse'
+);

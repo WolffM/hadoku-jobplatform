@@ -21,6 +21,7 @@ import { registerOwnerRoutes } from './owner.js';
 import { registerApplicationRoutes } from './applications.js';
 import { registerVerificationRoutes } from './verification.js';
 import { registerFillRoutes } from './fill.js';
+import { registerPipelineRoutes } from './pipeline.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -29,6 +30,7 @@ registerPreflightRoute(app); // before the param route below — see above
 registerPacketsRoute(app); // ditto — /jobs/packets must beat /jobs/{id}
 registerDetailRoute(app);
 registerStateRoutes(app);
+registerPipelineRoutes(app); // /jobs/{id}/tracking|events are deeper than /jobs/{id}: no capture
 registerFeedbackRoutes(app);
 registerTailoringRoutes(app);
 // The approve-to-apply queue rides on the jobs app for the shared friend gate;
