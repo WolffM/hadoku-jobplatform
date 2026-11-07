@@ -344,6 +344,29 @@
   border-color: var(--color-text-tertiary);
 }
 
+.jp-drawer__cta--state-interviewing.jp-drawer__cta--active {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary-dark);
+}
+
+.jp-drawer__cta--state-offered.jp-drawer__cta--active {
+  background-color: var(--color-success);
+  color: var(--color-on-success);
+  border-color: var(--color-success-dark);
+}
+
+.jp-drawer__cta--state-rejected.jp-drawer__cta--active {
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+  border-color: var(--color-danger);
+}
+
+/* The two state rows (triage, then V5) sit one above the other. */
+.jp-drawer__actions--states + .jp-drawer__actions--states {
+  margin-top: var(--hdk-space-md);
+}
+
 .jp-drawer__facts-state {
   padding: var(--hdk-space-xs) var(--hdk-space-md) !important;
   font-weight: var(--font-weight-bold);
@@ -370,6 +393,21 @@
 .jp-drawer__facts-state--dismissed {
   background-color: var(--color-neutral-bg) !important;
   color: var(--color-text-tertiary) !important;
+}
+
+.jp-drawer__facts-state--interviewing {
+  background-color: var(--color-primary) !important;
+  color: var(--color-on-primary) !important;
+}
+
+.jp-drawer__facts-state--offered {
+  background-color: var(--color-success) !important;
+  color: var(--color-on-success) !important;
+}
+
+.jp-drawer__facts-state--rejected {
+  background-color: var(--color-danger-bg) !important;
+  color: var(--color-on-danger-bg) !important;
 }
 
 /* Auto-apply capability, shown above the Apply actions.

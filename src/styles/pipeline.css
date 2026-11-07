@@ -1,0 +1,302 @@
+/* ============================================================================
+   Pipeline (V5) — the board, and the drawer's tracking + timeline panel.
+   Column heads reuse jp-jobcard__state from job-list.css, so this sheet loads
+   after it.
+   ============================================================================ */
+
+.jp-pipe__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hdk-space-lg);
+  margin-bottom: var(--hdk-space-lg);
+}
+
+.jp-pipe__summary {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+/* Six columns side by side; narrower screens scroll the board sideways rather
+   than squeezing a card below readable width. */
+.jp-pipe__board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(180px, 1fr));
+  gap: var(--hdk-space-md);
+  overflow-x: auto;
+  padding-bottom: var(--hdk-space-md);
+  align-items: start;
+}
+
+.jp-pipe__col {
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  padding: var(--hdk-space-md);
+  min-height: 160px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.jp-pipe__col--drop {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-bg);
+}
+
+.jp-pipe__col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-pipe__count {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-pipe__cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-pipe-card {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius-sm);
+  box-shadow: var(--hdk-shadow-sm);
+  color: var(--color-text);
+  cursor: grab;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.jp-pipe-card:hover {
+  box-shadow: var(--hdk-shadow-md);
+  border-color: var(--color-border);
+}
+
+.jp-pipe-card--moving {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.jp-pipe-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  padding: var(--hdk-space-md);
+  cursor: pointer;
+}
+
+.jp-pipe-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-pipe-card__company {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--hdk-text-sm);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-pipe-card__title {
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-pipe-card__meta {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+  /* Multi-city locations run to five lines; two is enough to recognise one. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.jp-pipe-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-xs);
+  margin-top: var(--hdk-space-xs);
+}
+
+.jp-pipe-card__move {
+  display: block;
+  width: calc(100% - 2 * var(--hdk-space-md));
+  margin: 0 var(--hdk-space-md) var(--hdk-space-md);
+  padding: var(--hdk-space-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-xs);
+  font-family: inherit;
+}
+
+.jp-pipe-chip {
+  padding: 1px var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.jp-pipe-chip--overdue {
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+}
+
+.jp-pipe-chip--today {
+  background-color: var(--color-warning-bg);
+  color: var(--color-on-warning-bg);
+}
+
+.jp-pipe-chip--upcoming,
+.jp-pipe-chip--neutral {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-on-neutral-bg);
+}
+
+.jp-pipe-chip--priority-1 {
+  background-color: var(--color-danger);
+  color: var(--color-on-danger);
+}
+
+.jp-pipe-chip--priority-3 {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-on-neutral-bg);
+}
+
+/* ----------------------------------------------------------------------------
+   Drawer: tracking fields and the timeline
+   ---------------------------------------------------------------------------- */
+
+.jp-tracking {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hdk-space-md) var(--hdk-space-lg);
+}
+
+.jp-tracking__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-tracking__field--wide,
+.jp-tracking__actions,
+.jp-tracking .jp-error {
+  grid-column: 1 / -1;
+}
+
+.jp-tracking input,
+.jp-tracking select,
+.jp-tracking textarea,
+.jp-timeline__add input,
+.jp-timeline__add select,
+.jp-timeline__add textarea {
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-size: var(--hdk-text-sm);
+  font-family: inherit;
+}
+
+.jp-tracking__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+}
+
+.jp-timeline__add {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: var(--hdk-space-sm);
+  margin-bottom: var(--hdk-space-lg);
+}
+
+.jp-timeline__add-note {
+  grid-column: 1 / -1;
+  resize: vertical;
+}
+
+.jp-timeline__add button {
+  grid-column: 1 / 2;
+}
+
+.jp-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 var(--hdk-space-lg);
+  border-left: 2px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-md);
+}
+
+.jp-timeline__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--hdk-space-md);
+}
+
+.jp-timeline__kind {
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-timeline__item--state .jp-timeline__kind {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+}
+
+.jp-timeline__when {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-timeline__delete {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jp-timeline__delete:hover {
+  color: var(--color-text);
+}
+
+.jp-timeline__note {
+  margin: var(--hdk-space-xs) 0 0;
+  font-size: var(--hdk-text-sm);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .jp-tracking {
+    grid-template-columns: 1fr;
+  }
+}

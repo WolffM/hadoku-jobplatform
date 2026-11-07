@@ -125,6 +125,23 @@
   color: var(--color-text-tertiary);
 }
 
+/* V5 — past "applied". The two hopeful states are FILLED so they stand out
+   from the tints above; rejected is a danger tint, quiet but unmistakable. */
+.jp-jobcard__state--interviewing {
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.jp-jobcard__state--offered {
+  background-color: var(--color-success);
+  color: var(--color-on-success);
+}
+
+.jp-jobcard__state--rejected {
+  background-color: var(--color-danger-bg);
+  color: var(--color-on-danger-bg);
+}
+
 /* Dim the whole card for dismissed jobs that slipped through (e.g. when
    the user picks state=dismissed explicitly). */
 .jp-jobcard--state-dismissed {

@@ -257,6 +257,22 @@ describe('PATCH /jobs/{id}/tracking', () => {
 		assert.equal(item.tracking.priority, 2);
 	});
 
+	it('shows up on GET /jobs/{id}, and is null for a posting with no state', async () => {
+		await setState('p-1', 'interviewing');
+		await track('p-1', { follow_up_at: '2026-11-20', contact_name: 'Pat' });
+		const detail = (id: string) =>
+			call<{ data: { job: { tracking: Tracking | null } } }>(`/jobs/${id}`);
+		const t = (await detail('p-1')).body.data.job.tracking;
+		assert.deepEqual(t, {
+			notes: null,
+			priority: null,
+			follow_up_at: '2026-11-20',
+			contact_name: 'Pat',
+			contact_email: null,
+		});
+		assert.equal((await detail('p-2')).body.data.job.tracking, null);
+	});
+
 	it('409s a posting with no state, and 404s one that does not exist', async () => {
 		assert.equal((await track('p-1', { notes: 'x' })).status, 409);
 		assert.equal((await track('nope', { notes: 'x' })).status, 404);

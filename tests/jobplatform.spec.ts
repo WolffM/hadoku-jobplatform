@@ -348,7 +348,7 @@ authedDescribe('triage state (V2)', () => {
     return body.data.profiles[0].id
   }
 
-  test('drawer shows the triage section with 4 state buttons when authed', async ({
+  test('drawer shows the triage and pipeline state buttons when authed', async ({
     page,
     request
   }) => {
@@ -359,7 +359,15 @@ authedDescribe('triage state (V2)', () => {
     const drawer = page.getByRole('dialog')
     await expect(drawer).toBeVisible({ timeout: 10_000 })
 
-    for (const state of ['interested', 'saved', 'applied', 'dismissed']) {
+    for (const state of [
+      'interested',
+      'saved',
+      'dismissed',
+      'applied',
+      'interviewing',
+      'offered',
+      'rejected'
+    ]) {
       await expect(drawer.getByTestId(`state-action-${state}`)).toBeEnabled()
     }
   })
@@ -532,6 +540,79 @@ authedDescribe('triage state (V2)', () => {
         (await visible.json()) as { data: { jobs: Array<{ id: string; state: string }> } }
       ).data.jobs.map(j => j.id)
       expect(dismissedIds).toContain(target.id)
+    } finally {
+      await clearState(request, target.id)
+    }
+  })
+
+  /**
+   * V5 end to end: a posting in the pipeline shows in its column, moves
+   * columns from the card, and its drawer records tracking and a timeline.
+   * DELETE /state clears the timeline with the state, so the cleanup leaves
+   * the e2e account's pipeline as it found it.
+   */
+  test('pipeline board: move a card, track it, log to its timeline; cleanup', async ({
+    page,
+    request
+  }) => {
+    await signIn(request)
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=25')
+    const jobs = ((await list.json()) as { data: { jobs: Array<{ id: string; state: string }> } })
+      .data.jobs
+    const target = jobs.find(j => j.state === 'new')
+    expect(target, 'need a posting with no state').toBeDefined()
+    if (!target) return
+    const api = `http://localhost:5173/jobplatform/api/jobs/${encodeURIComponent(target.id)}`
+
+    try {
+      const put = await request.put(`${api}/state`, {
+        data: { state: 'applied' },
+        headers: { 'Content-Type': 'application/json' }
+      })
+      expect(put.ok()).toBe(true)
+
+      await gotoAuthed(page, '/pipeline')
+      const card = page.locator(`[data-testid="pipe-card"][data-job-id="${target.id}"]`)
+      await expect(page.getByTestId('pipe-col-applied').locator(card)).toBeVisible({
+        timeout: 15_000
+      })
+
+      // Move it from the card's own control — the same PUT the drawer makes.
+      const moved = page.waitForResponse(
+        r => r.url().endsWith(`/jobs/${target.id}/state`) && r.request().method() === 'PUT'
+      )
+      await card.getByRole('combobox').selectOption('interviewing')
+      expect((await moved).ok()).toBe(true)
+      await expect(page.getByTestId('pipe-col-interviewing').locator(card)).toBeVisible()
+
+      // Open it: the drawer sits over the board, under /pipeline.
+      await card.locator('.jp-pipe-card__open').click()
+      await expect(page).toHaveURL(new RegExp(`#/pipeline/jobs/${target.id}`))
+      const drawer = page.getByRole('dialog')
+      const panel = drawer.getByTestId('tracking-panel')
+      await expect(panel).toBeVisible({ timeout: 10_000 })
+
+      const patched = page.waitForResponse(
+        r => r.url().endsWith(`/jobs/${target.id}/tracking`) && r.request().method() === 'PATCH'
+      )
+      await panel.getByTestId('tracking-follow-up').fill('2026-01-02')
+      await panel.getByTestId('tracking-save').click()
+      expect((await patched).ok()).toBe(true)
+
+      const timeline = drawer.getByTestId('timeline')
+      await expect(timeline).toContainText('Applied → Interviewing')
+      const logged = page.waitForResponse(
+        r => r.url().endsWith(`/jobs/${target.id}/events`) && r.request().method() === 'POST'
+      )
+      await timeline.getByTestId('timeline-note').fill('e2e: phone screen')
+      await timeline.getByTestId('timeline-add').click()
+      expect((await logged).status()).toBe(201)
+      await expect(timeline).toContainText('e2e: phone screen')
+
+      // Closing returns to the board, which re-read: the past date is overdue.
+      await page.keyboard.press('Escape')
+      await expect(page).toHaveURL(/#\/pipeline$/)
+      await expect(card.getByTestId('pipe-follow-up')).toContainText('was')
     } finally {
       await clearState(request, target.id)
     }

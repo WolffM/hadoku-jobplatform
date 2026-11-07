@@ -164,6 +164,20 @@ export const JobSummarySchema = z
 	})
 	.openapi('JobSummary');
 
+/** V5: 1 high · 2 normal · 3 low. */
+export const PrioritySchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+
+/** What a person tracks about one application (job_states, migration 0028). */
+export const TrackingSchema = z
+	.object({
+		notes: z.string().nullable(),
+		priority: PrioritySchema.nullable(),
+		follow_up_at: z.string().nullable(),
+		contact_name: z.string().nullable(),
+		contact_email: z.string().nullable(),
+	})
+	.openapi('Tracking');
+
 export const JobDetailSchema = JobSummarySchema.extend({
 	/**
 	 * Whether the form runner has an adapter for this posting. A PREDICTION
@@ -195,6 +209,8 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	scraper_used: z.string().nullable(),
 	run_id: z.string().nullable(),
 	state_updated_at: z.string().nullable(),
+	/** V5 tracking; null when the caller has no state for this posting (or is anonymous). */
+	tracking: TrackingSchema.nullable(),
 }).openapi('JobDetail');
 
 // PUT /jobs/:id/state — body
@@ -781,8 +797,6 @@ export const AddJobEventSchema = z
 	})
 	.openapi('AddJobEvent');
 
-export const PrioritySchema = z.union([z.literal(1), z.literal(2), z.literal(3)]);
-
 /** Every field optional; `null` clears one. At least one must be present. */
 export const SetTrackingSchema = z
 	.object({
@@ -800,16 +814,6 @@ export const SetTrackingSchema = z
 		message: 'name at least one field to change',
 	})
 	.openapi('SetTracking');
-
-export const TrackingSchema = z
-	.object({
-		notes: z.string().nullable(),
-		priority: PrioritySchema.nullable(),
-		follow_up_at: z.string().nullable(),
-		contact_name: z.string().nullable(),
-		contact_email: z.string().nullable(),
-	})
-	.openapi('Tracking');
 
 export const TrackingResponseSchema = S(
 	z.object({ job_id: z.string(), tracking: TrackingSchema })

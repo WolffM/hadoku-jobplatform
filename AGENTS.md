@@ -22,7 +22,7 @@ Monorepo with two pnpm workspace packages:
 | **V2 — Triage State**          | Shipped  | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
 | **V3 — Tailored Applications** | Shipped  | Resume + cover letter via service binding to resume-api                       |
 | **V4 — Auto Apply**            | Deferred | Automated apply (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)      |
-| **V5 — Tracking & Follow-ups** | API live | Timeline per application, Kanban view, follow-up dates                        |
+| **V5 — Tracking & Follow-ups** | Shipped  | Timeline per application, Kanban view, follow-up dates                        |
 | **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold            |
 
 ## Worker API
@@ -35,7 +35,7 @@ admin too.
 | ------ | ---------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | /health                            | open   | Health check                                                                                                                          |
 | GET    | /jobs                              | open\* | List jobs (profile_id, min_score, min_salary, sort, state, hide_dismissed, hide_queued, near/radius_miles/include_remote, ownerName†) |
-| GET    | /jobs/:id                          | open   | Job detail + score breakdown                                                                                                          |
+| GET    | /jobs/:id                          | open   | Job detail + score breakdown; the caller's V5 `tracking` when they have a state                                                       |
 | GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose                                                       |
 | GET    | /locations?q=                      | open   | Places the near= filter knows (geo.ts), prefix matches first, as {key, label}                                                         |
 | PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                                                                             |

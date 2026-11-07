@@ -19,6 +19,7 @@ import { invalidateResource } from '../api/resource'
 import { useResource } from '../api/useResource'
 import { prepareApplicationPacket } from '../api/applyQueue'
 import { VoteControl } from './VoteControl'
+import { ApplicationTracking } from './ApplicationTracking'
 
 interface Props {
   auth: Auth
@@ -30,6 +31,8 @@ interface Props {
   onClose: () => void
   onStateChange?: (jobId: string, newState: JobStateRead) => void
   onVoteChange?: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
+  /** Tracking or the timeline changed — the pipeline board re-reads. */
+  onTrackingChange?: () => void
 }
 
 // Track and companies are hard filters, not score factors, so they never appear
@@ -45,11 +48,19 @@ const BREAKDOWN_LABELS: Record<keyof ScoreBreakdown, string> = {
   discipline_factor: 'Discipline'
 }
 
-const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[] = [
-  { state: 'interested', label: 'Interested', verb: 'Mark interested' },
-  { state: 'saved', label: 'Saved', verb: 'Save' },
-  { state: 'applied', label: 'Applied', verb: 'Mark applied' },
-  { state: 'dismissed', label: 'Dismissed', verb: 'Dismiss' }
+// Two rows: deciding about a posting, then what happened after applying (V5).
+const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[][] = [
+  [
+    { state: 'interested', label: 'Interested', verb: 'Mark interested' },
+    { state: 'saved', label: 'Saved', verb: 'Save' },
+    { state: 'dismissed', label: 'Dismissed', verb: 'Dismiss' }
+  ],
+  [
+    { state: 'applied', label: 'Applied', verb: 'Mark applied' },
+    { state: 'interviewing', label: 'Interviewing', verb: 'Interviewing' },
+    { state: 'offered', label: 'Offered', verb: 'Offer' },
+    { state: 'rejected', label: 'Rejected', verb: 'Rejected' }
+  ]
 ]
 
 // Greenhouse descriptions are HTML (<p>, <br>, <li>). Lever and LinkedIn are
@@ -156,7 +167,8 @@ export function JobDrawer({
   initialVote,
   onClose,
   onStateChange,
-  onVoteChange
+  onVoteChange,
+  onTrackingChange
 }: Props) {
   const [actionError, setActionError] = useState<string | null>(null)
   // Optimistic local state so the buttons update without a full refetch.
@@ -465,28 +477,41 @@ export function JobDrawer({
                   }}
                 />
               </div>
-              <div className="jp-drawer__actions">
-                {STATE_ACTIONS.map(({ state, label, verb }) => {
-                  const isActive = currentState === state
-                  const isPending = pendingState === state
-                  return (
-                    <button
-                      key={state}
-                      type="button"
-                      className={`jp-drawer__cta jp-drawer__cta--state-${state}${
-                        isActive ? ' jp-drawer__cta--active' : ''
-                      }`}
-                      disabled={!stateButtonsEnabled || pendingState !== null}
-                      onClick={() => void handleSetState(state)}
-                      aria-pressed={isActive}
-                      data-testid={`state-action-${state}`}
-                    >
-                      {isPending ? '…' : isActive ? label : verb}
-                    </button>
-                  )
-                })}
-              </div>
+              {STATE_ACTIONS.map((row, i) => (
+                <div className="jp-drawer__actions jp-drawer__actions--states" key={i}>
+                  {row.map(({ state, label, verb }) => {
+                    const isActive = currentState === state
+                    const isPending = pendingState === state
+                    return (
+                      <button
+                        key={state}
+                        type="button"
+                        className={`jp-drawer__cta jp-drawer__cta--state-${state}${
+                          isActive ? ' jp-drawer__cta--active' : ''
+                        }`}
+                        disabled={!stateButtonsEnabled || pendingState !== null}
+                        onClick={() => void handleSetState(state)}
+                        aria-pressed={isActive}
+                        data-testid={`state-action-${state}`}
+                      >
+                        {isPending ? '…' : isActive ? label : verb}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
             </section>
+
+            {currentState && currentState !== 'new' && (
+              <ApplicationTracking
+                key={jobId}
+                auth={auth}
+                jobId={jobId}
+                state={currentState}
+                tracking={job.tracking}
+                onChanged={() => onTrackingChange?.()}
+              />
+            )}
 
             <section className="jp-drawer__section">
               <h3>Apply</h3>

@@ -41,6 +41,9 @@ const STATE_FILTERS: { value: '' | JobStateRead; label: string }[] = [
   { value: 'interested', label: 'Interested' },
   { value: 'saved', label: 'Saved' },
   { value: 'applied', label: 'Applied' },
+  { value: 'interviewing', label: 'Interviewing' },
+  { value: 'offered', label: 'Offered' },
+  { value: 'rejected', label: 'Rejected' },
   { value: 'dismissed', label: 'Dismissed' }
 ]
 

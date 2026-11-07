@@ -21,6 +21,7 @@ import { JobDrawer } from './components/JobDrawer'
 import { ApplicationsList } from './components/ApplicationsList'
 import { PacketsList } from './components/PacketsList'
 import { PacketDetail } from './components/PacketDetail'
+import { PipelineBoard } from './components/PipelineBoard'
 import type { Auth } from './api/auth'
 import { invalidateResource } from './api/resource'
 import type { FeedbackReason, JobStateRead, VoteValue } from './api/jobs'
@@ -31,7 +32,10 @@ type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
 interface DashboardOutletCtx {
   onJobStateChanged: (jobId: string, state: JobStateRead) => void
-  onJobVoted: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
+  /** The feed shadows votes; the board shows none, so it leaves this out. */
+  onJobVoted?: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
+  /** Tracking or timeline edited in the drawer. Only the pipeline board listens. */
+  onTrackingChanged?: () => void
 }
 
 /**
@@ -93,7 +97,11 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
           <Routes>
             <Route element={<Dashboard auth={auth} />}>
               <Route index element={null} />
-              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} />} />
+              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} base="/" />} />
+            </Route>
+            <Route path="pipeline" element={<PipelinePage auth={auth} />}>
+              <Route index element={null} />
+              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} base="/pipeline" />} />
             </Route>
             <Route path="applications" element={<ApplicationsPage auth={auth} />} />
             <Route path="packets" element={<PacketsPage auth={auth} />} />
@@ -119,11 +127,16 @@ function TopNav() {
     ? 'packets'
     : pathname.startsWith('/applications')
       ? 'applications'
-      : 'feed'
+      : pathname.startsWith('/pipeline')
+        ? 'pipeline'
+        : 'feed'
   return (
     <nav className="job-platform__nav">
       <Link to="/" className={section === 'feed' ? 'active' : undefined}>
         Feed
+      </Link>
+      <Link to="/pipeline" className={section === 'pipeline' ? 'active' : undefined}>
+        Pipeline
       </Link>
       <Link to="/applications" className={section === 'applications' ? 'active' : undefined}>
         Applications
@@ -132,6 +145,32 @@ function TopNav() {
         Packets
       </Link>
     </nav>
+  )
+}
+
+/**
+ * The Pipeline view (V5) — every posting the person has a state for, as a
+ * board. The drawer opens over it under /pipeline/jobs/:id, so closing it
+ * comes back here rather than to the feed, and anything the drawer changes
+ * bumps the board's reload.
+ */
+function PipelinePage({ auth }: { auth: Auth }) {
+  const navigate = useNavigate()
+  const [reloadKey, setReloadKey] = useState(0)
+  const bump = useCallback(() => setReloadKey(k => k + 1), [])
+  const ctx: DashboardOutletCtx = useMemo(
+    () => ({ onJobStateChanged: bump, onTrackingChanged: bump }),
+    [bump]
+  )
+  return (
+    <section className="jp-main">
+      <PipelineBoard
+        auth={auth}
+        reloadKey={reloadKey}
+        onSelect={jobId => void navigate(`/pipeline/jobs/${encodeURIComponent(jobId)}`)}
+      />
+      <Outlet context={ctx} />
+    </section>
   )
 }
 
@@ -340,7 +379,8 @@ function Dashboard({ auth }: { auth: Auth }) {
   )
 }
 
-function JobDrawerRoute({ auth }: { auth: Auth }) {
+/** The drawer, over whichever view opened it; `base` is where closing returns. */
+function JobDrawerRoute({ auth, base }: { auth: Auth; base: '/' | '/pipeline' }) {
   const { jobId } = useParams<{ jobId: string }>()
   const [searchParams] = useSearchParams()
   const profileId = searchParams.get('profile')
@@ -356,7 +396,7 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
 
   const closeDrawer = () => {
     const params = profileId ? `?profile=${encodeURIComponent(profileId)}` : ''
-    void navigate(`/${params}`)
+    void navigate(`${base}${params}`)
   }
 
   return (
@@ -368,6 +408,7 @@ function JobDrawerRoute({ auth }: { auth: Auth }) {
       onClose={closeDrawer}
       onStateChange={(id, state) => ctx.onJobStateChanged(id, state)}
       onVoteChange={ctx.onJobVoted}
+      onTrackingChange={ctx.onTrackingChanged}
     />
   )
 }

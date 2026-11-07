@@ -1,5 +1,6 @@
 import { authHeaders, type Auth } from './auth'
 import type { ProfileTrack, RoleLevel } from './profiles'
+import type { Tracking } from './pipeline'
 
 const BASE_URL = '/jobplatform/api'
 
@@ -101,6 +102,8 @@ export interface JobDetail extends JobSummary {
   scraper_used: string | null
   run_id: string | null
   state_updated_at: string | null
+  /** V5 tracking; null without a state (or signed out). */
+  tracking: Tracking | null
 }
 
 export interface JobsListResponse {

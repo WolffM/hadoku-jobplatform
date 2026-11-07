@@ -8,6 +8,7 @@ import {
 import { scoreJob } from '../../scoring.js';
 import { applyTier } from '../../applyTier.js';
 import { loadScorableProfile } from '../../profileScore.js';
+import { TRACKING_COLS, toTracking, type TrackingRow } from './pipeline.js';
 import {
 	asApplicationStatus,
 	asRoleLevel,
@@ -88,6 +89,7 @@ export function registerDetailRoute(app: JobsApp): void {
 			const userId = await maybeUserId(c);
 			let state: JobStateReadValue | null = null;
 			let stateUpdatedAt: string | null = null;
+			let tracking: ReturnType<typeof toTracking> | null = null;
 
 			// Has the runner actually driven a form on THIS board before?
 			//
@@ -126,15 +128,20 @@ export function registerDetailRoute(app: JobsApp): void {
 			if (userId) {
 				const [stateRes, appRes] = await db.batch<Record<string, unknown>>([
 					db
-						.prepare('SELECT state, updated_at FROM job_states WHERE job_id = ? AND user_id = ?')
+						.prepare(
+							`SELECT state, updated_at, ${TRACKING_COLS} FROM job_states WHERE job_id = ? AND user_id = ?`
+						)
 						.bind(id, userId),
 					db
 						.prepare('SELECT status FROM applications WHERE job_id = ? AND user_id = ?')
 						.bind(id, userId),
 				]);
-				const stateRow = stateRes.results[0] as { state: string; updated_at: string } | undefined;
+				const stateRow = stateRes.results[0] as unknown as
+					| (TrackingRow & { state: string; updated_at: string })
+					| undefined;
 				state = asJobStateRead(stateRow?.state);
 				stateUpdatedAt = stateRow?.updated_at ?? null;
+				tracking = stateRow ? toTracking(stateRow) : null;
 				const appRow = appRes.results[0] as { status?: string } | undefined;
 				applicationStatus = appRow?.status ?? null;
 			}
@@ -172,6 +179,7 @@ export function registerDetailRoute(app: JobsApp): void {
 				state,
 				application_status: asApplicationStatus(applicationStatus),
 				state_updated_at: stateUpdatedAt,
+				tracking,
 			};
 
 			return c.json({ success: true as const, data: { job } }, 200);

@@ -71,7 +71,7 @@ interface EventRow {
 	created_at: string;
 }
 
-interface TrackingRow {
+export interface TrackingRow {
 	notes: string | null;
 	priority: number | null;
 	follow_up_at: string | null;
@@ -80,7 +80,7 @@ interface TrackingRow {
 }
 
 const EVENT_COLS = 'id, job_id, kind, from_state, to_state, note, occurred_at, created_at';
-const TRACKING_COLS = 'notes, priority, follow_up_at, contact_name, contact_email';
+export const TRACKING_COLS = 'notes, priority, follow_up_at, contact_name, contact_email';
 
 /** A stored state that this code no longer writes reads as null, not as a bogus enum. */
 function stateOrNull(v: string | null): JobStateValue | null {
@@ -101,7 +101,7 @@ function asPriority(p: number | null): 1 | 2 | 3 | null {
 	return p === 1 || p === 2 || p === 3 ? p : null;
 }
 
-function toTracking(r: TrackingRow) {
+export function toTracking(r: TrackingRow) {
 	return {
 		notes: r.notes,
 		priority: asPriority(r.priority),
