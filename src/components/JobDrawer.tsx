@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import {
   getJob,
   setJobState,
@@ -19,7 +19,12 @@ import { invalidateResource } from '../api/resource'
 import { useResource } from '../api/useResource'
 import { prepareApplicationPacket } from '../api/applyQueue'
 import { VoteControl } from './VoteControl'
-import { ApplicationTracking } from './ApplicationTracking'
+
+// Only a posting the person tracks shows it, so it loads with the first one
+// (and keeps the feed's boot weight down — see App.tsx).
+const ApplicationTracking = lazy(() =>
+  import('./ApplicationTracking').then(m => ({ default: m.ApplicationTracking }))
+)
 
 interface Props {
   auth: Auth
@@ -503,14 +508,16 @@ export function JobDrawer({
             </section>
 
             {currentState && currentState !== 'new' && (
-              <ApplicationTracking
-                key={jobId}
-                auth={auth}
-                jobId={jobId}
-                state={currentState}
-                tracking={job.tracking}
-                onChanged={() => onTrackingChange?.()}
-              />
+              <Suspense fallback={<p className="jp-muted">Loading tracking…</p>}>
+                <ApplicationTracking
+                  key={jobId}
+                  auth={auth}
+                  jobId={jobId}
+                  state={currentState}
+                  tracking={job.tracking}
+                  onChanged={() => onTrackingChange?.()}
+                />
+              </Suspense>
             )}
 
             <section className="jp-drawer__section">

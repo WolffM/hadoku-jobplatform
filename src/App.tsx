@@ -1,4 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import React, {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject
+} from 'react'
 import {
   HashRouter,
   Link,
@@ -18,15 +27,33 @@ import { ProfileSidebar } from './components/ProfileSidebar'
 import { ProfileEditorModal } from './components/ProfileEditorModal'
 import { JobsList } from './components/JobsList'
 import { JobDrawer } from './components/JobDrawer'
-import { ApplicationsList } from './components/ApplicationsList'
-import { PacketsList } from './components/PacketsList'
-import { PacketDetail } from './components/PacketDetail'
-import { PipelineBoard } from './components/PipelineBoard'
 import type { Auth } from './api/auth'
 import { invalidateResource } from './api/resource'
 import type { FeedbackReason, JobStateRead, VoteValue } from './api/jobs'
 import type { JobProfile } from './api/profiles'
 import type { JobPlatformProps } from './entry'
+
+/**
+ * Every view but the feed loads on first visit. hadoku_site holds this app to
+ * a boot-weight budget (entry + static imports, gzipped; its
+ * scripts/perf/bundle-budgets.json), and the feed is what a visitor lands on.
+ * Lazy chunks sit beside index.js in dist/ and the site's bundle copier
+ * follows them from the entry.
+ */
+const ApplicationsList = lazy(() =>
+  import('./components/ApplicationsList').then(m => ({ default: m.ApplicationsList }))
+)
+const PacketsList = lazy(() =>
+  import('./components/PacketsList').then(m => ({ default: m.PacketsList }))
+)
+const PacketDetail = lazy(() =>
+  import('./components/PacketDetail').then(m => ({ default: m.PacketDetail }))
+)
+const PipelineBoard = lazy(() =>
+  import('./components/PipelineBoard').then(m => ({ default: m.PipelineBoard }))
+)
+
+const viewFallback = <p className="jp-muted">Loading…</p>
 
 type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
 
@@ -94,20 +121,25 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
           <AppHeader title={props.appName ?? __HADOKU_APP_NAME__} />
           <TopNav />
 
-          <Routes>
-            <Route element={<Dashboard auth={auth} />}>
-              <Route index element={null} />
-              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} base="/" />} />
-            </Route>
-            <Route path="pipeline" element={<PipelinePage auth={auth} />}>
-              <Route index element={null} />
-              <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} base="/pipeline" />} />
-            </Route>
-            <Route path="applications" element={<ApplicationsPage auth={auth} />} />
-            <Route path="packets" element={<PacketsPage auth={auth} />} />
-            <Route path="packets/:jobId/:slug" element={<PacketDetailRoute auth={auth} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={viewFallback}>
+            <Routes>
+              <Route element={<Dashboard auth={auth} />}>
+                <Route index element={null} />
+                <Route path="jobs/:jobId" element={<JobDrawerRoute auth={auth} base="/" />} />
+              </Route>
+              <Route path="pipeline" element={<PipelinePage auth={auth} />}>
+                <Route index element={null} />
+                <Route
+                  path="jobs/:jobId"
+                  element={<JobDrawerRoute auth={auth} base="/pipeline" />}
+                />
+              </Route>
+              <Route path="applications" element={<ApplicationsPage auth={auth} />} />
+              <Route path="packets" element={<PacketsPage auth={auth} />} />
+              <Route path="packets/:jobId/:slug" element={<PacketDetailRoute auth={auth} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </HashRouter>
     </main>
