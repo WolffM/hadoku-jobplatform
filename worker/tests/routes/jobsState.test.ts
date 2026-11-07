@@ -7,6 +7,7 @@
  */
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { TIER_RANK } from '@wolffm/worker-utils';
 import { BASE, createHarness, type Harness } from '../helpers/harness.ts';
 import { seedJob } from '../helpers/seed.ts';
 
@@ -65,37 +66,23 @@ describe('PUT /jobs/{id}/state — auth', () => {
 		assert.equal(res.status, 403);
 	});
 
-	it('403s a public-tier caller even with a valid edge secret', async () => {
-		const res = await h.fetch(`${BASE}/jobs/state-1/state`, {
-			method: 'PUT',
-			tier: 'public',
-			body: JSON.stringify({ state: 'saved' }),
-		});
-		assert.equal(res.status, 403);
-	});
-
-	it('403s a member-tier caller — member ranks below the friend floor', async () => {
-		const res = await h.fetch(`${BASE}/jobs/state-1/state`, {
-			method: 'PUT',
-			tier: 'member',
-			body: JSON.stringify({ state: 'saved' }),
-		});
-		assert.equal(res.status, 403);
-	});
-
-	it('admits tiers above friend, since tiers rank', async () => {
-		// THIS TEST DID NOT TEST TIERS. `put()` hardcoded `tier: 'friend'` and the
-		// loop varied only the userId, so all three iterations sent the same
+	it('ranks every tier against the friend floor — admits it and above, refuses below', async () => {
+		// THIS TEST USED TO NOT TEST TIERS. `put()` hardcoded `tier: 'friend'` and
+		// a loop varied only the userId, so every iteration sent the same
 		// friend-tier request and the assertion could never have failed for the
-		// reason its name gives. check:tier-fleet flagged the list for omitting
-		// `wife`; the omission was the visible end of a test that was vacuous.
+		// reason its name gave. check:tier-fleet flagged the list for omitting
+		// `wife` first, then for omitting `member` — both omissions were the
+		// visible end of a test that was never exercising the tier it named.
 		//
-		// `wife` belongs in the list on its own merits: it ranks between service
-		// and admin, so a gate admitting service must admit it, and it is the
-		// newest tier and therefore the one a regression would most plausibly drop.
-		for (const tier of ['friend', 'service', 'wife', 'admin']) {
+		// Looping over the platform's own TIER_RANK rather than a hand-typed tier
+		// list closes that class of bug for good: every tier the ladder knows is
+		// asserted against the floor by its own rank, `member` included (rank 1,
+		// below friend's rank 2, refused same as public), and a tier added to the
+		// ladder later needs no edit here.
+		for (const tier of Object.keys(TIER_RANK)) {
+			const wantAdmit = TIER_RANK[tier as keyof typeof TIER_RANK] >= TIER_RANK.friend;
 			const { status } = await put('state-1', { state: 'saved' }, `ranked-${tier}`, tier);
-			assert.equal(status, 200, `${tier} should outrank the friend gate`);
+			assert.equal(status, wantAdmit ? 200 : 403, tier);
 		}
 	});
 });
