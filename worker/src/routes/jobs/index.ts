@@ -24,6 +24,7 @@ import { registerFillRoutes } from './fill.js';
 import { registerPipelineRoutes } from './pipeline.js';
 import { registerBlockedRoutes } from './blocked.js';
 import { registerInsightsRoute } from './insights.js';
+import { registerLocationsRoute } from './locations.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -42,6 +43,7 @@ registerVerificationRoutes(app);
 registerFillRoutes(app);
 registerBlockedRoutes(app);
 registerInsightsRoute(app);
+registerLocationsRoute(app);
 registerAnswerRoutes(app);
 registerOwnerRoutes(app);
 
