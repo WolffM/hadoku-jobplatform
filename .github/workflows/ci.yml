@@ -150,40 +150,21 @@ jobs:
             echo "→ nothing lintable touched."
           fi
 
-      # setup-node BEFORE corepack: `corepack enable` symlinks its shims next
-      # to the active node, and without setup-node that is the host's /usr/bin,
-      # which the runner user cannot write.
-      - name: Registry token from the vault
-        uses: WolffM/hadoku-actions/vault-fetch@v1
+      # setup-pnpm pins pnpm_config_store_dir for the whole job, so pnpm 11's
+      # pre-run reinstall never fetches under setup-node's placeholder
+      # NODE_AUTH_TOKEN (ERR_PNPM_FETCH_401, hadoku-actions#5).
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
         if: steps.scope.outputs.run == 'true'
         with:
-          keys: HADOKU_NPM_READ_TOKEN
-        env:
-          HADOKU_VAULT_KEY: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
-          VAULT_FALLBACK_HADOKU_NPM_READ_TOKEN: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
-
-      - uses: actions/setup-node@v6
-        if: steps.scope.outputs.run == 'true'
-        with:
-          node-version: '22'
-          registry-url: https://npm.pkg.github.com
-          scope: '@wolffm'
-        env:
-          NODE_AUTH_TOKEN: ${{ env.HADOKU_NPM_READ_TOKEN }}
-
-      # corepack, not pnpm/action-setup — the self-installer intermittently
-      # dies on this runner with `ENOENT ... uv_cwd`.
-      - name: Enable pnpm
-        if: steps.scope.outputs.run == 'true'
-        run: |
-          corepack enable
-          corepack prepare pnpm@11.5.0 --activate
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
       - name: Install
         if: steps.scope.outputs.run == 'true'
         run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
         env:
-          NODE_AUTH_TOKEN: ${{ env.HADOKU_NPM_READ_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: ESLint
         if: steps.scope.outputs.run == 'true'
