@@ -842,3 +842,27 @@ export const PipelineItemSchema = z
 export const PipelineResponseSchema = S(z.object({ items: z.array(PipelineItemSchema) })).openapi(
 	'PipelineResponse'
 );
+
+// ============================================================================
+// Blocked companies — a per-person feed filter (routes/jobs/blocked.ts)
+// ============================================================================
+
+export const BlockedCompanySchema = z
+	.object({ company: z.string(), company_key: z.string(), created_at: z.string() })
+	.openapi('BlockedCompany');
+
+export const BlockedCompaniesResponseSchema = S(
+	z.object({ companies: z.array(BlockedCompanySchema) })
+).openapi('BlockedCompaniesResponse');
+
+export const BlockCompanySchema = z
+	.object({ company: z.string().trim().min(1).max(200) })
+	.openapi('BlockCompany');
+
+export const BlockedCompanyResponseSchema = S(z.object({ company: BlockedCompanySchema })).openapi(
+	'BlockedCompanyResponse'
+);
+
+export const UnblockCompanyResponseSchema = S(
+	z.object({ company_key: z.string(), deleted: z.boolean() })
+).openapi('UnblockCompanyResponse');

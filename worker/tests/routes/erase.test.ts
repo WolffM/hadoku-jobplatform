@@ -89,6 +89,11 @@ async function seedPerson(userId: string): Promise<void> {
 	await seedJobState(h.db, { job_id: jobA, user_id: userId, state: 'applied' });
 	await seedJobState(h.db, { job_id: jobB, user_id: userId, state: 'dismissed' });
 	await run(
+		"INSERT INTO blocked_companies (user_id, company_key, company, created_at) VALUES (?, 'globex', 'Globex', ?)",
+		userId,
+		now
+	);
+	await run(
 		`INSERT INTO job_events (job_id, user_id, kind, from_state, to_state, note, occurred_at, created_at)
 		 VALUES (?, ?, 'state', NULL, 'applied', NULL, ?, ?)`,
 		jobA,
@@ -164,6 +169,7 @@ const SEEDED: Record<string, number> = {
 	applicant_profiles: 1,
 	mail_reconcile_state: 1,
 	mail_unmatched: 1,
+	blocked_companies: 1,
 	owner_name_cache: 1,
 };
 

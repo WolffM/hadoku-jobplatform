@@ -434,6 +434,17 @@ export function registerFeedRoute(app: JobsApp): void {
 				// slice, so it wins: hiding queued rows there would answer a
 				// different question than the one asked.
 				if (hideQueued && !stateFilter) wheres.push('ap.id IS NULL');
+				// Blocked employers are gone from the feed — but not from an explicit
+				// state= slice: a posting saved before its company was blocked is
+				// still the person's, and asking for 'saved' should find it. One PK
+				// seek per candidate row.
+				if (!stateFilter) {
+					wheres.push(
+						`NOT EXISTS (SELECT 1 FROM blocked_companies b
+						  WHERE b.user_id = ? AND b.company_key = LOWER(TRIM(j.company)))`
+					);
+					whereBinds.push(userId);
+				}
 			}
 
 			const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
