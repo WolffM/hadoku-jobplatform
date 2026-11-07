@@ -85,6 +85,35 @@ describe('POST /applications/:id/owner', () => {
 		assert.equal(state?.variant_slug, 'packet-abc');
 	});
 
+	it('takes the tracking with it — contact, priority, follow-up, notes', async () => {
+		// The copy names its columns, so a column added to job_states and not to
+		// that list would arrive NULL for the recipient without any error.
+		await seedApplication('a4');
+		await h.db
+			.prepare(
+				`UPDATE job_states SET priority = 1, follow_up_at = '2026-11-20',
+				   contact_name = 'Pat Recruiter', contact_email = 'pat@acme.test', notes = 'warm intro'
+				 WHERE job_id = ? AND user_id = ?`
+			)
+			.bind('job-a4', OWNER)
+			.run();
+		await reassign('a4', { name: 'Hadoku' });
+		const state = await h.db
+			.prepare(
+				`SELECT priority, follow_up_at, contact_name, contact_email, notes
+				 FROM job_states WHERE job_id = ? AND user_id = ?`
+			)
+			.bind('job-a4', 'user-hadoku')
+			.first();
+		assert.deepEqual(state, {
+			priority: 1,
+			follow_up_at: '2026-11-20',
+			contact_name: 'Pat Recruiter',
+			contact_email: 'pat@acme.test',
+			notes: 'warm intro',
+		});
+	});
+
 	it("leaves the previous owner's standing answers alone", async () => {
 		// Handing someone a job must not hand them the previous owner's
 		// demographic answers. This is a refusal, not an omission.

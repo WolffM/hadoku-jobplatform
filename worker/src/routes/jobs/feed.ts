@@ -1,6 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import type { AppEnv } from '../../types.js';
 import {
+	asJobStateRead,
+	JOB_STATES,
 	JobsResponseSchema,
 	ErrorResponseSchema,
 	IdentityErrorResponseSchema,
@@ -206,10 +208,13 @@ export function registerFeedRoute(app: JobsApp): void {
 						.string()
 						.optional()
 						.openapi({ description: 'Filter/score by profile. Omit to list all jobs unscored.' }),
-					state: z.enum(['interested', 'dismissed', 'saved', 'applied', 'new']).optional().openapi({
-						description:
-							'Filter to a single triage state for the authed user. Requires admin/friend auth. "new" filters to jobs without any state row.',
-					}),
+					state: z
+						.enum(['new', ...JOB_STATES])
+						.optional()
+						.openapi({
+							description:
+								'Filter to a single triage state for the authed user. Requires admin/friend auth. "new" filters to jobs without any state row.',
+						}),
 					hide_dismissed: z.enum(['true', 'false']).optional().openapi({
 						description:
 							'If true, exclude state=dismissed for the authed user. No effect when unauthed (no per-user join).',
@@ -661,7 +666,7 @@ export function registerFeedRoute(app: JobsApp): void {
 									r.row_vote
 								),
 								score_breakdown: breakdown,
-								state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+								state: userId ? asJobStateRead(r.row_state) : null,
 								application_status: asApplicationStatus(r.row_application),
 								vote: (r.row_vote as 1 | -1 | null) ?? null,
 								vote_reasons: r.row_vote_reasons ? String(r.row_vote_reasons).split(',') : [],
@@ -790,7 +795,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				role_level: asRoleLevel(r.role_level),
 				score: 0,
 				score_breakdown: ZERO_BREAKDOWN,
-				state: userId ? ((r.row_state as 'new' | null) ?? 'new') : null,
+				state: userId ? asJobStateRead(r.row_state) : null,
 				application_status: asApplicationStatus(r.row_application),
 			}));
 

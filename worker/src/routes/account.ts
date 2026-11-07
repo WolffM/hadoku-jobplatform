@@ -35,6 +35,8 @@
  *   profile_tombstones   Their "I deleted the Default profile" markers.
  *   job_states           Their triage of each posting (and the packet slug
  *                        they sent with an application).
+ *   job_events           Their application timeline: state changes, and the
+ *                        notes, interviews and contacts they logged.
  *   job_feedback         Their up/down votes, one per (user, job).
  *   applications         Their apply queue. The runner writes these ON THEIR
  *                        BEHALF (ownerName), which is why the data lives here
@@ -81,6 +83,7 @@ export const ERASED_TABLES: readonly { table: string; sql: string }[] = [
 	{ table: 'profiles', sql: 'DELETE FROM profiles WHERE user_id = ?1' },
 	{ table: 'profile_tombstones', sql: 'DELETE FROM profile_tombstones WHERE user_id = ?1' },
 	{ table: 'job_states', sql: 'DELETE FROM job_states WHERE user_id = ?1' },
+	{ table: 'job_events', sql: 'DELETE FROM job_events WHERE user_id = ?1' },
 	{ table: 'job_feedback', sql: 'DELETE FROM job_feedback WHERE user_id = ?1' },
 	{ table: 'applications', sql: 'DELETE FROM applications WHERE user_id = ?1' },
 	{ table: 'application_answers', sql: 'DELETE FROM application_answers WHERE user_id = ?1' },

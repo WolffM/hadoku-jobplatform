@@ -22,7 +22,7 @@ Monorepo with two pnpm workspace packages:
 | **V2 — Triage State**          | Shipped  | Per-user per-job lifecycle (`interested / dismissed / saved / applied / ...`) |
 | **V3 — Tailored Applications** | Shipped  | Resume + cover letter via service binding to resume-api                       |
 | **V4 — Auto Apply**            | Deferred | Automated apply (LinkedIn Easy Apply first, then Greenhouse/Lever/Ashby)      |
-| **V5 — Tracking & Follow-ups** | Deferred | Timeline per application, Kanban view, follow-up dates                        |
+| **V5 — Tracking & Follow-ups** | API live | Timeline per application, Kanban view, follow-up dates                        |
 | **V6 — Alerts & Digest**       | Deferred | Daily email / push when new jobs score above per-profile threshold            |
 
 ## Worker API
@@ -38,7 +38,12 @@ admin too.
 | GET    | /jobs/:id                          | open   | Job detail + score breakdown                                                                                   |
 | GET    | /jobs/preflight                    | open   | "Does this connect to something real?" — registered before /jobs/:id on purpose                                |
 | PUT    | /jobs/:id/state                    | friend | Set the caller's triage state for one job                                                                      |
-| DELETE | /jobs/:id/state                    | friend | Clear it                                                                                                       |
+| DELETE | /jobs/:id/state                    | friend | Clear it, and that posting's V5 timeline                                                                       |
+| GET    | /pipeline                          | friend | V5: every posting the caller has a state for, with tracking and timeline facts †                               |
+| PATCH  | /jobs/:id/tracking                 | friend | V5: notes, priority, follow-up date, contact; 409 without a state †                                            |
+| GET    | /jobs/:id/events                   | friend | V5: the posting's timeline (state changes + person-logged events) †                                            |
+| POST   | /jobs/:id/events                   | friend | V5: log a note / interview / contact / follow-up †                                                             |
+| DELETE | /jobs/:id/events/:eventId          | friend | V5: remove a person-logged event; state rows are permanent †                                                   |
 | POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity                            |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                              |
 | POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)                                       |
