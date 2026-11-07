@@ -49,6 +49,7 @@
  *   applicant_profiles   Their contact facts, education and work history.
  *   mail_reconcile_state Reconciliation of their mailbox: cursor and counts.
  *   mail_unmatched       Subjects and senders of their ATS mail.
+ *   blocked_companies    The employers they hid from their feed.
  *   owner_name_cache     A STORED NAME: a cached display-name → userId
  *                        resolution. It must go, or the name keeps resolving
  *                        to an erased person for up to 15 minutes.
@@ -90,6 +91,7 @@ export const ERASED_TABLES: readonly { table: string; sql: string }[] = [
 	{ table: 'applicant_profiles', sql: 'DELETE FROM applicant_profiles WHERE user_id = ?1' },
 	{ table: 'mail_reconcile_state', sql: 'DELETE FROM mail_reconcile_state WHERE user_id = ?1' },
 	{ table: 'mail_unmatched', sql: 'DELETE FROM mail_unmatched WHERE user_id = ?1' },
+	{ table: 'blocked_companies', sql: 'DELETE FROM blocked_companies WHERE user_id = ?1' },
 	{ table: 'owner_name_cache', sql: 'DELETE FROM owner_name_cache WHERE user_id = ?1' },
 ];
 

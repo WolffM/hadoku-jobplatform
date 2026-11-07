@@ -44,6 +44,9 @@ admin too.
 | GET    | /jobs/:id/events                   | friend | V5: the posting's timeline (state changes + person-logged events) †                                            |
 | POST   | /jobs/:id/events                   | friend | V5: log a note / interview / contact / follow-up †                                                             |
 | DELETE | /jobs/:id/events/:eventId          | friend | V5: remove a person-logged event; state rows are permanent †                                                   |
+| GET    | /blocked-companies                 | friend | Employers the caller hid from their feed †                                                                     |
+| PUT    | /blocked-companies                 | friend | Block one (`{company}`), matched on LOWER(TRIM()); GET /jobs drops it unless `state=` is given †               |
+| DELETE | /blocked-companies?company=        | friend | Unblock it †                                                                                                   |
 | POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity                            |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                              |
 | POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …)                                       |
