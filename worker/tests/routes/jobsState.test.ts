@@ -74,6 +74,15 @@ describe('PUT /jobs/{id}/state — auth', () => {
 		assert.equal(res.status, 403);
 	});
 
+	it('403s a member-tier caller — member ranks below the friend floor', async () => {
+		const res = await h.fetch(`${BASE}/jobs/state-1/state`, {
+			method: 'PUT',
+			tier: 'member',
+			body: JSON.stringify({ state: 'saved' }),
+		});
+		assert.equal(res.status, 403);
+	});
+
 	it('admits tiers above friend, since tiers rank', async () => {
 		// THIS TEST DID NOT TEST TIERS. `put()` hardcoded `tier: 'friend'` and the
 		// loop varied only the userId, so all three iterations sent the same
