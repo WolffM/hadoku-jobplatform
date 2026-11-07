@@ -866,3 +866,44 @@ export const BlockedCompanyResponseSchema = S(z.object({ company: BlockedCompany
 export const UnblockCompanyResponseSchema = S(
 	z.object({ company_key: z.string(), deleted: z.boolean() })
 ).openapi('UnblockCompanyResponse');
+
+// ============================================================================
+// Insights — the caller's search, summarised (routes/jobs/insights.ts)
+// ============================================================================
+
+export const InsightsSchema = z
+	.object({
+		/** Postings in each state right now. */
+		states: z.record(z.string(), z.number().int()),
+		/** Postings that have EVER reached each stage, from the timeline, the apply queue and the state. */
+		reached: z.object({
+			applied: z.number().int(),
+			responded: z.number().int(),
+			interviewed: z.number().int(),
+			offered: z.number().int(),
+		}),
+		/** Shares of `reached.applied`; null until something has been applied to. */
+		rates: z.object({
+			response: z.number().nullable(),
+			interview: z.number().nullable(),
+			offer: z.number().nullable(),
+		}),
+		/** Applications per ISO week (Monday, UTC), oldest first, the last 12 weeks, zeros included. */
+		weekly_applied: z.array(z.object({ week: z.string(), count: z.number().int() })),
+		/** What the applied-to postings are, by workplace type. */
+		workplace: z.array(z.object({ workplace_type: z.string(), count: z.number().int() })),
+		/** Most-asked skills across the pipeline's postings (dismissed excluded). */
+		skills: z.array(
+			z.object({
+				skill: z.string(),
+				postings: z.number().int(),
+				/** Named in the stack of any of the caller's scoring profiles. */
+				in_stack: z.boolean(),
+			})
+		),
+		/** How many postings the skill counts were taken over. */
+		skill_postings: z.number().int(),
+	})
+	.openapi('Insights');
+
+export const InsightsResponseSchema = S(InsightsSchema).openapi('InsightsResponse');
