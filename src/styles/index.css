@@ -27,6 +27,7 @@
 @import './job-list.css';
 @import './packets.css'; /* after job-list.css: rows reuse its state badge */
 @import './pipeline.css'; /* after job-list.css: column heads reuse its state badge */
+@import './me.css';
 @import './job-drawer.css';
 @import './vote.css';
 @import './companies-page.css';

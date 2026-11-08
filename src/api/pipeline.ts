@@ -4,10 +4,9 @@
  * exactly when it has a triage state, and the tracking fields and timeline
  * hang off that state.
  */
-import { authHeaders, type Auth } from './auth'
-import { JobsApiError, type ApplicationStatus, type JobStateWrite } from './jobs'
-
-const BASE_URL = '/jobplatform/api'
+import type { Auth } from './auth'
+import { call } from './http'
+import type { ApplicationStatus, JobStateWrite } from './jobs'
 
 export type Priority = 1 | 2 | 3
 
@@ -53,31 +52,6 @@ export interface JobEvent {
   note: string | null
   occurred_at: string
   created_at: string
-}
-
-interface Wrapped<T> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
-
-async function call<T>(
-  path: string,
-  auth: Auth | undefined,
-  init: RequestInit = {},
-  json = false
-): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: authHeaders(auth, json),
-    credentials: 'include'
-  })
-  const body = (await response.json()) as Wrapped<T>
-  if (!response.ok || !body.success || !body.data) {
-    throw new JobsApiError(body.message ?? body.error ?? `HTTP ${response.status}`, response.status)
-  }
-  return body.data
 }
 
 const jobPath = (id: string) => `/jobs/${encodeURIComponent(id)}`

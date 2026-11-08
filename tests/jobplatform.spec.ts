@@ -617,4 +617,120 @@ authedDescribe('triage state (V2)', () => {
       await clearState(request, target.id)
     }
   })
+
+  test('feed filters reach the API: workplace and near/radius', async ({ page }) => {
+    await gotoAuthed(page, '/')
+    await expect(page.locator('.jp-jobcard').first()).toBeVisible({ timeout: 30_000 })
+
+    // Workplace used to be sent nowhere: the select changed nothing.
+    const remote = page.waitForResponse(
+      r => r.url().includes('/jobplatform/api/jobs?') && r.url().includes('workplace=remote')
+    )
+    await page.getByLabel('Workplace').selectOption('remote')
+    expect((await remote).ok()).toBe(true)
+    await page.getByLabel('Workplace').selectOption('')
+
+    // Near: suggestions come from /locations; picking one filters the feed.
+    const near = page.getByTestId('near-filter').locator('input[type="search"]')
+    const suggested = page.waitForResponse(r => r.url().includes('/jobplatform/api/locations?q='))
+    await near.fill('Seatt')
+    expect((await suggested).ok()).toBe(true)
+    const filtered = page.waitForResponse(
+      r => r.url().includes('near=seattle-wa') && r.url().includes('radius_miles=25')
+    )
+    await near.fill('Seattle, WA')
+    expect((await filtered).ok()).toBe(true)
+    await expect(page.getByTestId('near-filter')).toContainText('Near Seattle, WA')
+
+    const noRemote = page.waitForResponse(r => r.url().includes('include_remote=false'))
+    await page.getByTestId('near-filter').getByLabel('Include remote').uncheck()
+    expect((await noRemote).ok()).toBe(true)
+    await page.getByRole('button', { name: /Stop filtering near/ }).click()
+    await expect(page.getByTestId('near-filter')).not.toContainText('Near Seattle')
+  })
+
+  test('hide a company from the drawer, then show it again from Profile', async ({
+    page,
+    request
+  }) => {
+    await signIn(request)
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=5')
+    const target = ((await list.json()) as { data: { jobs: { id: string; company: string }[] } })
+      .data.jobs[0]
+    const unblock = () =>
+      request.delete(
+        `http://localhost:5173/jobplatform/api/blocked-companies?company=${encodeURIComponent(target.company)}`
+      )
+    try {
+      await gotoAuthed(page, `/jobs/${target.id}`)
+      const drawer = page.getByRole('dialog')
+      const blocked = page.waitForResponse(
+        r => r.url().endsWith('/blocked-companies') && r.request().method() === 'PUT'
+      )
+      await drawer.getByTestId('block-company').click()
+      expect((await blocked).ok()).toBe(true)
+      await expect(drawer.getByTestId('company-blocked')).toBeVisible()
+
+      const feed = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=100')
+      const companies = (
+        (await feed.json()) as { data: { jobs: { company: string }[] } }
+      ).data.jobs.map(j => j.company.trim().toLowerCase())
+      expect(companies).not.toContain(target.company.trim().toLowerCase())
+
+      await page.keyboard.press('Escape')
+      await page.getByRole('link', { name: 'Profile' }).click()
+      const section = page.getByTestId('blocked-companies')
+      const row = section.getByRole('listitem').filter({ hasText: target.company })
+      await expect(row).toBeVisible({ timeout: 10_000 })
+      const shown = page.waitForResponse(
+        r => r.url().includes('/blocked-companies?company=') && r.request().method() === 'DELETE'
+      )
+      await row.getByRole('button', { name: 'Show again' }).click()
+      expect((await shown).ok()).toBe(true)
+      await expect(row).toHaveCount(0)
+    } finally {
+      await unblock()
+    }
+  })
+
+  /**
+   * The applicant profile has no DELETE, so this saves the same fixture every
+   * run — the e2e account always ends holding exactly this document.
+   */
+  test('profile saves, and the drawer palette copies from it', async ({ page, request }) => {
+    await gotoAuthed(page, '/profile')
+    const form = page.getByTestId('applicant-profile-form')
+    await expect(form).toBeVisible({ timeout: 10_000 })
+    await form.getByTestId('me-name').fill('E2E Test Account')
+    await form.getByTestId('me-email').fill('e2e@hadoku.invalid')
+    await form.getByTestId('me-headline').fill('Fixture profile for the jobplatform e2e suite')
+    const saved = page.waitForResponse(
+      r => r.url().endsWith('/applicant-profile') && r.request().method() === 'PUT'
+    )
+    await form.getByTestId('me-save').click()
+    expect((await saved).ok()).toBe(true)
+    await expect(form).toContainText('Saved ✓')
+
+    await signIn(request)
+    const read = await request.get('http://localhost:5173/jobplatform/api/applicant-profile')
+    const profile = ((await read.json()) as { data: { profile: Record<string, unknown> } }).data
+      .profile
+    expect(profile.headline).toBe('Fixture profile for the jobplatform e2e suite')
+
+    const list = await request.get('http://localhost:5173/jobplatform/api/jobs?limit=1')
+    const job = ((await list.json()) as { data: { jobs: { id: string }[] } }).data.jobs[0]
+    await page.goto(`/#/jobs/${job.id}`)
+    const palette = page.getByRole('dialog').getByTestId('clipboard-palette')
+    await expect(palette).toBeVisible({ timeout: 10_000 })
+    await expect(palette.getByRole('button', { name: 'Email' })).toBeVisible()
+    await expect(palette.getByRole('button', { name: 'Headline' })).toBeVisible()
+  })
+
+  test('insights and its tab render for a signed-in caller', async ({ page }) => {
+    await gotoAuthed(page, '/insights')
+    await expect(page.getByTestId('insights').or(page.getByTestId('insights-empty'))).toBeVisible({
+      timeout: 10_000
+    })
+    await expect(page.getByRole('link', { name: 'Insights' })).toHaveClass(/active/)
+  })
 })

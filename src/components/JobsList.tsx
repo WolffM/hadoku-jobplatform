@@ -1,3 +1,4 @@
+import { NearFilter, readNear, type NearValue } from './NearFilter'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   listJobs,
@@ -69,6 +70,7 @@ export function JobsList({
   const [stateFilter, setStateFilter] = useState<'' | JobStateRead>('')
   const [hideDismissed, setHideDismissed] = useState(true)
   const [workplace, setWorkplace] = useState<'' | 'remote' | 'hybrid' | 'onsite'>('')
+  const [near, setNear] = useState<NearValue | null>(readNear)
 
   const limit = 25
 
@@ -88,12 +90,15 @@ export function JobsList({
       limit,
       sort: effectiveSort,
       workplace: workplace || undefined,
+      near: near?.place.key,
+      radius_miles: near?.radius,
+      include_remote: near?.includeRemote,
       // A posting handed to the runner belongs under Applications and Packets
       // from that point on. Leaving it in the feed offered an Apply button that
       // would queue it a second time.
       hide_queued: true
     }),
-    [profileId, stateFilter, page, limit, effectiveSort, workplace]
+    [profileId, stateFilter, page, limit, effectiveSort, workplace, near]
   )
 
   // refreshKey is in the cache key rather than a refetch trigger: bumping it
@@ -119,7 +124,7 @@ export function JobsList({
   // Reset to page 1 whenever filters change
   useEffect(() => {
     setPage(1)
-  }, [profileId, effectiveSort, stateFilter, workplace])
+  }, [profileId, effectiveSort, stateFilter, workplace, near])
 
   // Triage the drawer applied this session, laid over the fetched rows. It has
   // to happen before the view filters so that dismissing a job from the drawer
@@ -230,6 +235,7 @@ export function JobsList({
             <option value="onsite">Onsite</option>
           </select>
         </label>
+        <NearFilter auth={auth} value={near} onChange={setNear} />
         {seemsAuthed && (
           <label className="jp-jobs__filter">
             State

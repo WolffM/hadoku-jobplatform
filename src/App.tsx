@@ -53,6 +53,13 @@ const PipelineBoard = lazy(() =>
   import('./components/PipelineBoard').then(m => ({ default: m.PipelineBoard }))
 )
 
+const InsightsPage = lazy(() =>
+  import('./components/InsightsPage').then(m => ({ default: m.InsightsPage }))
+)
+const ProfilePage = lazy(() =>
+  import('./components/ProfilePage').then(m => ({ default: m.ProfilePage }))
+)
+
 const viewFallback = <p className="jp-muted">Loading…</p>
 
 type EditorState = { mode: 'new' } | { mode: 'edit'; profile: JobProfile }
@@ -63,6 +70,8 @@ interface DashboardOutletCtx {
   onJobVoted?: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
   /** Tracking or timeline edited in the drawer. Only the pipeline board listens. */
   onTrackingChanged?: () => void
+  /** An employer was hidden from the drawer. Only the feed listens. */
+  onCompanyBlocked?: () => void
 }
 
 /**
@@ -136,6 +145,22 @@ function AppInner(props: JobPlatformProps & { containerRef: RefObject<HTMLElemen
               </Route>
               <Route path="applications" element={<ApplicationsPage auth={auth} />} />
               <Route path="packets" element={<PacketsPage auth={auth} />} />
+              <Route
+                path="insights"
+                element={
+                  <section className="jp-main">
+                    <InsightsPage auth={auth} />
+                  </section>
+                }
+              />
+              <Route
+                path="profile"
+                element={
+                  <section className="jp-main">
+                    <ProfilePage auth={auth} />
+                  </section>
+                }
+              />
               <Route path="packets/:jobId/:slug" element={<PacketDetailRoute auth={auth} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
@@ -161,7 +186,11 @@ function TopNav() {
       ? 'applications'
       : pathname.startsWith('/pipeline')
         ? 'pipeline'
-        : 'feed'
+        : pathname.startsWith('/insights')
+          ? 'insights'
+          : pathname.startsWith('/profile')
+            ? 'profile'
+            : 'feed'
   return (
     <nav className="job-platform__nav">
       <Link to="/" className={section === 'feed' ? 'active' : undefined}>
@@ -175,6 +204,12 @@ function TopNav() {
       </Link>
       <Link to="/packets" className={section === 'packets' ? 'active' : undefined}>
         Packets
+      </Link>
+      <Link to="/insights" className={section === 'insights' ? 'active' : undefined}>
+        Insights
+      </Link>
+      <Link to="/profile" className={section === 'profile' ? 'active' : undefined}>
+        Profile
       </Link>
     </nav>
   )
@@ -360,8 +395,8 @@ function Dashboard({ auth }: { auth: Auth }) {
   const [profilesReload, setProfilesReload] = useState(0)
 
   const ctx: DashboardOutletCtx = useMemo(
-    () => ({ onJobStateChanged, onJobVoted }),
-    [onJobStateChanged, onJobVoted]
+    () => ({ onJobStateChanged, onJobVoted, onCompanyBlocked: onFeedInvalidated }),
+    [onJobStateChanged, onJobVoted, onFeedInvalidated]
   )
 
   return (
@@ -441,6 +476,7 @@ function JobDrawerRoute({ auth, base }: { auth: Auth; base: '/' | '/pipeline' })
       onStateChange={(id, state) => ctx.onJobStateChanged(id, state)}
       onVoteChange={ctx.onJobVoted}
       onTrackingChange={ctx.onTrackingChanged}
+      onCompanyBlocked={ctx.onCompanyBlocked}
     />
   )
 }

@@ -16,6 +16,7 @@ import {
 } from '../api/jobs'
 import type { Auth } from '../api/auth'
 import { invalidateResource } from '../api/resource'
+import { blockCompany } from '../api/me'
 import { useResource } from '../api/useResource'
 import { prepareApplicationPacket } from '../api/applyQueue'
 import { VoteControl } from './VoteControl'
@@ -24,6 +25,10 @@ import { VoteControl } from './VoteControl'
 // (and keeps the feed's boot weight down — see App.tsx).
 const ApplicationTracking = lazy(() =>
   import('./ApplicationTracking').then(m => ({ default: m.ApplicationTracking }))
+)
+
+const ClipboardPalette = lazy(() =>
+  import('./ClipboardPalette').then(m => ({ default: m.ClipboardPalette }))
 )
 
 interface Props {
@@ -38,6 +43,8 @@ interface Props {
   onVoteChange?: (jobId: string, vote: VoteValue | null, reasons: FeedbackReason[]) => void
   /** Tracking or the timeline changed — the pipeline board re-reads. */
   onTrackingChange?: () => void
+  /** The person hid this posting's employer; the feed drops it. */
+  onCompanyBlocked?: (company: string) => void
 }
 
 // Track and companies are hard filters, not score factors, so they never appear
@@ -173,7 +180,8 @@ export function JobDrawer({
   onClose,
   onStateChange,
   onVoteChange,
-  onTrackingChange
+  onTrackingChange,
+  onCompanyBlocked
 }: Props) {
   const [actionError, setActionError] = useState<string | null>(null)
   // Optimistic local state so the buttons update without a full refetch.
@@ -199,6 +207,8 @@ export function JobDrawer({
   const [queueError, setQueueError] = useState<string | null>(null)
   const [linkError, setLinkError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [blocking, setBlocking] = useState(false)
+  const [blocked, setBlocked] = useState(false)
 
   // The posting is cached, so reopening a job you already looked at paints
   // immediately instead of spending a round trip on a row that has not moved.
@@ -235,6 +245,7 @@ export function JobDrawer({
     setQueueError(null)
     setLinkError(null)
     setCopied(false)
+    setBlocked(false)
   }, [jobId, profileId, initialVote])
 
   // Triage is optimistic locally, seeded from whatever the posting reports.
@@ -375,6 +386,22 @@ export function JobDrawer({
     }
   }
 
+  const handleBlockCompany = async () => {
+    if (!job || blocking) return
+    setBlocking(true)
+    setActionError(null)
+    try {
+      await blockCompany(job.company, auth)
+      setBlocked(true)
+      invalidateResource('blocked-companies')
+      onCompanyBlocked?.(job.company)
+    } catch (err) {
+      setActionError(err instanceof JobsApiError ? err.message : 'Failed to hide the company')
+    } finally {
+      setBlocking(false)
+    }
+  }
+
   const handleCopyLink = () => {
     if (!packetLink) return
     void navigator.clipboard?.writeText(packetLink).then(
@@ -505,6 +532,25 @@ export function JobDrawer({
                   })}
                 </div>
               ))}
+              {stateButtonsEnabled && (
+                <p className="jp-drawer__block">
+                  {blocked ? (
+                    <span data-testid="company-blocked">
+                      {job.company} is hidden from your feed. Undo it on the Profile tab.
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="jp-drawer__link"
+                      onClick={() => void handleBlockCompany()}
+                      disabled={blocking}
+                      data-testid="block-company"
+                    >
+                      {blocking ? 'Hiding…' : `Hide every ${job.company} posting from my feed`}
+                    </button>
+                  )}
+                </p>
+              )}
             </section>
 
             {currentState && currentState !== 'new' && (
@@ -523,6 +569,11 @@ export function JobDrawer({
             <section className="jp-drawer__section">
               <h3>Apply</h3>
               <ApplyTierChip tier={job.apply_tier} verified={job.apply_verified} />
+              {stateButtonsEnabled && (
+                <Suspense fallback={null}>
+                  <ClipboardPalette auth={auth} />
+                </Suspense>
+              )}
               <div className="jp-drawer__actions">
                 <a
                   className="jp-drawer__cta jp-drawer__cta--primary"

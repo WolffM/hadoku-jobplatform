@@ -127,6 +127,11 @@ export interface ListJobsOptions {
   /** View filter only — never a profile criterion. Jobs with no listed salary survive it. */
   min_salary?: number
   workplace?: 'remote' | 'hybrid' | 'onsite'
+  /** A place key from GET /locations; the feed keeps postings within `radius_miles` of it. */
+  near?: string
+  radius_miles?: number
+  /** With `near`: whether remote postings stay in. The server defaults to yes. */
+  include_remote?: boolean
 }
 
 export type JobSort = 'score' | 'date' | 'salary' | 'comp' | 'interest' | 'relevance'
@@ -167,6 +172,12 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   if (opts.sort) params.set('sort', opts.sort)
   if (opts.min_score !== undefined) params.set('min_score', String(opts.min_score))
   if (opts.min_salary !== undefined) params.set('min_salary', String(opts.min_salary))
+  if (opts.workplace) params.set('workplace', opts.workplace)
+  if (opts.near) {
+    params.set('near', opts.near)
+    if (opts.radius_miles) params.set('radius_miles', String(opts.radius_miles))
+    if (opts.include_remote === false) params.set('include_remote', 'false')
+  }
 
   const url = `${BASE_URL}/jobs${params.toString() ? `?${params}` : ''}`
   const response = await fetch(url, {

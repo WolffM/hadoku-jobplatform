@@ -1,0 +1,475 @@
+/* ============================================================================
+   The person's own views: Profile, Insights, and the pieces they feed into the
+   feed and drawer (the near filter, hide-company, the clipboard palette).
+   ============================================================================ */
+
+/* A text-weight action that is still a button. */
+.jp-drawer__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--hdk-text-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.jp-drawer__link:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.jp-drawer__block {
+  margin: var(--hdk-space-md) 0 0;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ---- Feed: near filter -------------------------------------------------- */
+
+.jp-near {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hdk-space-lg);
+}
+
+.jp-near__input {
+  width: 11em;
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: var(--font-weight-normal);
+}
+
+.jp-near__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hdk-space-sm);
+  padding: var(--hdk-space-xs) var(--hdk-space-sm) var(--hdk-space-xs) var(--hdk-space-md);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-primary-bg);
+  color: var(--color-on-primary-bg);
+  font-size: var(--hdk-text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.jp-near__clear {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: var(--hdk-text-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ---- Drawer: clipboard palette ------------------------------------------ */
+
+.jp-palette {
+  margin: 0 0 var(--hdk-space-md);
+}
+
+.jp-palette__label {
+  display: block;
+  margin-bottom: var(--hdk-space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.jp-palette__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-palette__chip {
+  padding: var(--hdk-space-xs) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--hdk-text-xs);
+  cursor: pointer;
+}
+
+.jp-palette__chip:hover {
+  background-color: var(--color-bg-hover);
+}
+
+.jp-palette__chip--copied {
+  background-color: var(--color-success-bg);
+  color: var(--color-on-success-bg);
+  border-color: var(--color-success);
+}
+
+.jp-palette__empty {
+  font-size: var(--hdk-text-sm);
+}
+
+/* ---- Profile tab --------------------------------------------------------- */
+
+.jp-me {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xl);
+  max-width: 880px;
+}
+
+.jp-me__section {
+  padding: var(--hdk-space-xl);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.jp-me__section h2 {
+  margin: 0 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-lg);
+}
+
+.jp-me__subhead {
+  margin: var(--hdk-space-xl) 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-md);
+}
+
+.jp-me__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--hdk-space-md) var(--hdk-space-lg);
+}
+
+.jp-me__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-me__field--wide {
+  grid-column: 1 / -1;
+}
+
+.jp-me input,
+.jp-me select,
+.jp-me textarea {
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--hdk-text-sm);
+  min-width: 0;
+}
+
+.jp-me__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--hdk-space-sm);
+  margin: 0 0 var(--hdk-space-sm);
+  padding: var(--hdk-space-sm);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius-sm);
+}
+
+.jp-me__row > input {
+  flex: 1 1 9em;
+}
+
+.jp-me__when {
+  display: inline-flex;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-me__when input {
+  width: 5em;
+}
+
+.jp-me__present {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+  padding: 0 var(--hdk-space-md);
+}
+
+.jp-me__check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hdk-space-xs);
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text-secondary);
+}
+
+.jp-me__remove {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.jp-me__remove:hover {
+  color: var(--color-text);
+}
+
+.jp-me__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  margin-top: var(--hdk-space-xl);
+}
+
+.jp-me__block-add {
+  display: flex;
+  gap: var(--hdk-space-sm);
+  margin: var(--hdk-space-md) 0;
+}
+
+.jp-me__blocked {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jp-me__blocked li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--hdk-space-sm) 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+@media (max-width: 720px) {
+  .jp-me__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Insights tab -------------------------------------------------------- */
+
+.jp-ins {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hdk-space-lg);
+  align-items: start;
+}
+
+.jp-ins__stats {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--hdk-space-lg);
+}
+
+.jp-ins__stat,
+.jp-ins__panel {
+  padding: var(--hdk-space-lg) var(--hdk-space-xl);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--hdk-radius);
+  background-color: var(--color-bg-card);
+  color: var(--color-text);
+}
+
+.jp-ins__stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-xs);
+}
+
+.jp-ins__stat-label {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-ins__stat-value {
+  font-size: calc(var(--hdk-text-lg) * 1.6);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-ins__stat-detail {
+  color: var(--color-text-secondary);
+  font-size: var(--hdk-text-xs);
+}
+
+.jp-ins__panel h3 {
+  margin: 0 0 var(--hdk-space-md);
+  font-size: var(--hdk-text-md);
+}
+
+.jp-ins__panel--wide {
+  grid-column: 1 / -1;
+}
+
+/* Horizontal bars: name, track, value. Value text stays in text ink. */
+.jp-ins__bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-ins__bar-row {
+  display: grid;
+  grid-template-columns: minmax(7em, 11em) 1fr 3em;
+  align-items: center;
+  gap: var(--hdk-space-md);
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-ins__bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-ins__bar-note {
+  color: var(--color-text-secondary);
+}
+
+.jp-ins__bar-track {
+  height: 12px;
+}
+
+.jp-ins__bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: 0 4px 4px 0;
+  background-color: var(--color-neutral);
+}
+
+/* The single-series default is the primary hue; in the skills chart the
+   unmarked bars drop to neutral so "in your stack" is the one that reads. */
+.jp-ins__bars:not(:has(.jp-ins__bar--marked)) .jp-ins__bar,
+.jp-ins__bar--marked {
+  background-color: var(--color-primary);
+}
+
+.jp-ins__bar-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.jp-ins__legend {
+  display: flex;
+  gap: var(--hdk-space-lg);
+  margin-bottom: var(--hdk-space-md);
+  font-size: var(--hdk-text-xs);
+  color: var(--color-text-secondary);
+}
+
+.jp-ins__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: var(--hdk-space-xs);
+  border-radius: 2px;
+  background-color: var(--color-neutral);
+  vertical-align: middle;
+}
+
+.jp-ins__swatch--marked {
+  background-color: var(--color-primary);
+}
+
+/* Weekly columns. */
+.jp-ins__cols {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  align-items: end;
+  height: 140px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.jp-ins__col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  outline: none;
+}
+
+.jp-ins__col-bar {
+  display: block;
+  width: 60%;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+  background-color: var(--color-primary);
+}
+
+.jp-ins__col-value {
+  font-size: var(--hdk-text-xs);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-ins__col-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--hdk-space-xs) var(--hdk-space-sm);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--hdk-shadow-md);
+  color: var(--color-text);
+  font-size: var(--hdk-text-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2;
+}
+
+.jp-ins__col:hover .jp-ins__col-tip,
+.jp-ins__col:focus-visible .jp-ins__col-tip {
+  opacity: 1;
+}
+
+.jp-ins__col:hover .jp-ins__col-bar,
+.jp-ins__col:focus-visible .jp-ins__col-bar {
+  background-color: var(--color-primary-dark);
+}
+
+.jp-ins__axis {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  margin-top: var(--hdk-space-xs);
+  font-size: var(--hdk-text-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.jp-ins__weekly figcaption {
+  margin-top: var(--hdk-space-sm);
+  font-size: var(--hdk-text-sm);
+}
+
+@media (max-width: 720px) {
+  .jp-ins,
+  .jp-ins__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jp-ins__panel {
+    grid-column: 1 / -1;
+  }
+}
