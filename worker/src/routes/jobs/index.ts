@@ -25,6 +25,7 @@ import { registerPipelineRoutes } from './pipeline.js';
 import { registerBlockedRoutes } from './blocked.js';
 import { registerInsightsRoute } from './insights.js';
 import { registerLocationsRoute } from './locations.js';
+import { registerImportRoute } from './importUrl.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -44,6 +45,7 @@ registerFillRoutes(app);
 registerBlockedRoutes(app);
 registerInsightsRoute(app);
 registerLocationsRoute(app);
+registerImportRoute(app);
 registerAnswerRoutes(app);
 registerOwnerRoutes(app);
 

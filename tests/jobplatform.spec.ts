@@ -726,6 +726,51 @@ authedDescribe('triage state (V2)', () => {
     await expect(palette.getByRole('button', { name: 'Headline' })).toBeVisible()
   })
 
+  /**
+   * Step 4 end to end, through the production scraper: a live Greenhouse
+   * posting, pasted in the Pipeline tab, lands in the corpus under its
+   * nightly id and in the pipeline. The posting stays in the corpus (it is a
+   * real, listed job); the e2e account's state for it is cleared.
+   */
+  test('import a posting by URL from the Pipeline tab', async ({ page, request }) => {
+    test.setTimeout(90_000)
+    const board = await request.get('https://boards-api.greenhouse.io/v1/boards/anthropic/jobs')
+    const first = ((await board.json()) as { jobs: { id: number; absolute_url: string }[] }).jobs[0]
+    const jobId = `greenhouse_${first.id}`
+    await signIn(request)
+    await clearState(request, jobId)
+    try {
+      await gotoAuthed(page, '/pipeline')
+      const box = page.getByTestId('import-posting')
+      await expect(box).toBeVisible({ timeout: 15_000 })
+      await box.getByLabel('Posting URL').fill(first.absolute_url)
+      const imported = page.waitForResponse(
+        r => r.url().includes('/jobplatform/api/jobs/import') && r.request().method() === 'POST'
+      )
+      await box.getByRole('button', { name: 'Add' }).click()
+      const res = await imported
+      expect(res.status()).toBe(200)
+      const body = (await res.json()) as {
+        data: { job: { id: string }; state: string; already_tracked: boolean }
+      }
+      expect(body.data.job.id).toBe(jobId)
+      expect(body.data.state).toBe('saved')
+      await expect(box.getByTestId('import-result')).toContainText('Added as saved')
+
+      const card = page.locator(`[data-testid="pipe-card"][data-job-id="${jobId}"]`)
+      await expect(page.getByTestId('pipe-col-saved').locator(card)).toBeVisible({
+        timeout: 15_000
+      })
+
+      // A LinkedIn URL is refused with the scraper's own explanation.
+      await box.getByLabel('Posting URL').fill('https://www.linkedin.com/jobs/view/4000000000')
+      await box.getByRole('button', { name: 'Add' }).click()
+      await expect(box.locator('.jp-error')).toContainText("employer's own site")
+    } finally {
+      await clearState(request, jobId)
+    }
+  })
+
   test('insights and its tab render for a signed-in caller', async ({ page }) => {
     await gotoAuthed(page, '/insights')
     await expect(page.getByTestId('insights').or(page.getByTestId('insights-empty'))).toBeVisible({

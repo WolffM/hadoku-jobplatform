@@ -48,6 +48,7 @@ admin too.
 | GET    | /blocked-companies                 | friend | Employers the caller hid from their feed †                                                                                            |
 | PUT    | /blocked-companies                 | friend | Block one (`{company}`), matched on LOWER(TRIM()); GET /jobs drops it unless `state=` is given †                                      |
 | DELETE | /blocked-companies?company=        | friend | Unblock it †                                                                                                                          |
+| POST   | /jobs/import                       | friend | Import a posting from its URL (scraper `/extract`) into the corpus via ingest's own write, then the caller's pipeline †               |
 | GET    | /insights                          | friend | Funnel, response/interview/offer rates, weekly pace, workplace mix, skill demand vs stack †                                           |
 | POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity                                                   |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                                                     |

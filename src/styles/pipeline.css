@@ -300,3 +300,31 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Add a posting by URL ------------------------------------------------ */
+
+.jp-import {
+  margin-bottom: var(--hdk-space-lg);
+}
+
+.jp-import__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hdk-space-sm);
+}
+
+.jp-import__state {
+  padding: var(--hdk-space-sm) var(--hdk-space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--hdk-radius-sm);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--hdk-text-sm);
+}
+
+.jp-import__done {
+  margin: var(--hdk-space-sm) 0 0;
+  font-size: var(--hdk-text-sm);
+  color: var(--color-text);
+}

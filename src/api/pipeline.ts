@@ -5,7 +5,7 @@
  * hang off that state.
  */
 import type { Auth } from './auth'
-import { call } from './http'
+import { call, jsonBody } from './http'
 import type { ApplicationStatus, JobStateWrite } from './jobs'
 
 export type Priority = 1 | 2 | 3
@@ -103,4 +103,26 @@ export async function deleteJobEvent(id: string, eventId: number, auth?: Auth): 
   await call<{ deleted: boolean }>(`${jobPath(id)}/events/${eventId}`, auth, {
     method: 'DELETE'
   })
+}
+
+export interface ImportedPosting {
+  job: { id: string; title: string; company: string; location: string; url: string }
+  /** New to the corpus (false: someone, or the nightly scrape, already had it). */
+  created: boolean
+  state: JobStateWrite
+  /** The caller already tracked it, so its state was left as it was. */
+  already_tracked: boolean
+}
+
+/**
+ * POST /jobs/import — read a posting from its URL (the scraper does the
+ * reading) and add it to the pipeline. The server's error messages are
+ * written for the person ("LinkedIn postings can't be imported…").
+ */
+export async function importPosting(
+  url: string,
+  state: Exclude<JobStateWrite, 'dismissed'>,
+  auth?: Auth
+): Promise<ImportedPosting> {
+  return call<ImportedPosting>('/jobs/import', auth, jsonBody('POST', { url, state }), true)
 }

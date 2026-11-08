@@ -174,3 +174,54 @@ export async function triggerSearch(env: AppEnv): Promise<void> {
 		);
 	}
 }
+
+/** One posting read from its URL by the scraper, in the ingest-webhook shape. */
+export interface ExtractedPosting {
+	job: unknown;
+	ats: string | null;
+	board_slug: string | null;
+}
+
+/** The message out of either error shape the scraper answers with. */
+function scraperMessage(body: string): string | null {
+	try {
+		const parsed = JSON.parse(body) as { detail?: unknown; error?: { message?: unknown } };
+		if (typeof parsed.detail === 'string') return parsed.detail;
+		if (typeof parsed.error?.message === 'string') return parsed.error.message;
+	} catch {
+		// Not JSON (a proxy's HTML error page); the caller falls back to the status.
+	}
+	return null;
+}
+
+/**
+ * Read one job posting from a URL a person pasted (scraper
+ * `POST /api/v1/jobboards/extract`). Writes nothing on either side.
+ *
+ * Throws ScraperClientError carrying the scraper's status and its own words —
+ * "LinkedIn postings can't be imported…", "That posting no longer exists" —
+ * which are written for the person and passed through to them.
+ */
+export async function extractPosting(
+	env: AppEnv,
+	url: string,
+	greenhouseSlug?: string
+): Promise<ExtractedPosting> {
+	const response = await scraperFetch(env, '/api/v1/jobboards/extract', {
+		method: 'POST',
+		body: JSON.stringify(greenhouseSlug ? { url, greenhouse_slug: greenhouseSlug } : { url }),
+	});
+	const text = await response.text();
+	if (!response.ok) {
+		throw new ScraperClientError(
+			scraperMessage(text) ?? `scraper /extract returned ${response.status}`,
+			response.status,
+			text
+		);
+	}
+	const json = JSON.parse(text) as { success: boolean; data?: ExtractedPosting };
+	if (!json.success || !json.data) {
+		throw new ScraperClientError('scraper /extract reported failure', 502, text);
+	}
+	return json.data;
+}

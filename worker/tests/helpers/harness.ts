@@ -291,6 +291,8 @@ export interface HarnessOptions {
 	mailFeedUrl?: string;
 	/** `null` leaves MAILFEED_OWNER_USER_ID unset, the misconfiguration mail routes must refuse on. */
 	mailboxOwner?: null;
+	/** Point the scraper client at a loopback stand-in (tests/helpers/scraper.ts). */
+	scraperUrl?: string;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -317,7 +319,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// does, leaving this unset would mean every profile write in these tests
 		// POSTs to production. The call is fire-and-forget and its failure is
 		// logged, so a refused connection is the honest local answer.
-		SCRAPER_BASE_URL: 'http://127.0.0.1:1',
+		SCRAPER_BASE_URL: options.scraperUrl ?? 'http://127.0.0.1:1',
 		// Stand-in for the edge-router service binding. Name resolution is the
 		// one thing it is asked for, so the fake answers exactly that and
 		// nothing else — including the failure shapes, which carry different

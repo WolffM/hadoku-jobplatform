@@ -4,6 +4,7 @@ import { getPipeline, type PipelineItem } from '../api/pipeline'
 import type { Auth } from '../api/auth'
 import { invalidateResource } from '../api/resource'
 import { useResource } from '../api/useResource'
+import { ImportPosting } from './ImportPosting'
 
 interface Props {
   auth: Auth
@@ -257,16 +258,32 @@ export function PipelineBoard({ auth, onSelect, reloadKey }: Props) {
       </p>
     )
 
+  const importBox = (
+    <ImportPosting
+      auth={auth}
+      onOpen={onSelect}
+      onImported={() => {
+        invalidateResource('pipeline')
+        invalidateResource('jobs:')
+        reload()
+      }}
+    />
+  )
+
   if ((data ?? []).length === 0)
     return (
-      <p className="jp-muted">
-        Nothing in your pipeline yet. Mark a posting interested, save it or apply from the feed, and
-        it lands here.
-      </p>
+      <div className="jp-pipe">
+        {importBox}
+        <p className="jp-muted">
+          Nothing in your pipeline yet. Mark a posting interested, save it or apply from the feed,
+          or add one by URL above, and it lands here.
+        </p>
+      </div>
     )
 
   return (
     <div className="jp-pipe">
+      {importBox}
       <div className="jp-pipe__toolbar">
         <input
           type="search"
