@@ -15,6 +15,12 @@ import { loadScorableProfile } from './profileScore.js';
 import { criteriaHash, jobsHead, markRankBuilt, writeRanks, type RankableJob } from './rank.js';
 
 type DB = AppEnv['JOB_PLATFORM_DB'];
+
+/**
+ * The `source_site` of a posting a person typed in by hand (POST /jobs/import's
+ * `manual`). Nothing verified it, so the feed shows it only to people tracking it.
+ */
+export const MANUAL_SOURCE = 'manual';
 export type IngestJob = z.infer<typeof IngestJobSchema>;
 
 /** Normalize workplace_type values from scraper to our canonical set. */

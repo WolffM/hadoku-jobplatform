@@ -114,15 +114,33 @@ export interface ImportedPosting {
   already_tracked: boolean
 }
 
+/** A posting typed in by hand, for a page nothing can be read from. */
+export interface ManualPosting {
+  title: string
+  company: string
+  location?: string
+  /** Plain text; the server stores it escaped, never as markup. */
+  description?: string
+}
+
 /**
  * POST /jobs/import — read a posting from its URL (the scraper does the
  * reading) and add it to the pipeline. The server's error messages are
  * written for the person ("LinkedIn postings can't be imported…").
+ *
+ * With `manual`, nothing is read: what the person typed is stored instead,
+ * and the feed shows it only to people tracking it.
  */
 export async function importPosting(
   url: string,
   state: Exclude<JobStateWrite, 'dismissed'>,
-  auth?: Auth
+  auth?: Auth,
+  manual?: ManualPosting
 ): Promise<ImportedPosting> {
-  return call<ImportedPosting>('/jobs/import', auth, jsonBody('POST', { url, state }), true)
+  return call<ImportedPosting>(
+    '/jobs/import',
+    auth,
+    jsonBody('POST', manual ? { url, state, manual } : { url, state }),
+    true
+  )
 }

@@ -9,6 +9,7 @@ import { startScraper, type ExtractAnswer } from '../helpers/scraper.ts';
 import { seedJob, seedJobState, seedProfile } from '../helpers/seed.ts';
 
 const ALICE = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const BOB = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
 
 function posting(over: Record<string, unknown> = {}): Record<string, unknown> {
 	return {
@@ -265,5 +266,88 @@ describe('POST /jobs/import', () => {
 
 	it('refuses a friend naming an owner', async () => {
 		assert.equal((await importUrl({ url: PASTED }, '?ownerName=Hadoku')).status, 403);
+	});
+});
+
+describe('POST /jobs/import with manual', () => {
+	// A careers page with nothing machine-readable on it: the scraper is never
+	// asked, so it has no answer for this URL at all.
+	const WALLED = 'https://careers.walled.example/roles/42';
+	const manual = {
+		title: 'Staff Engineer, Payments',
+		company: 'Walled Co',
+		location: 'Seattle, WA',
+		description: 'Recruiter says <b>remote OK</b> & equity.\n\nSecond round:\nsystem design',
+	};
+
+	interface Feed {
+		data: { jobs: { id: string }[] };
+	}
+	const feedIds = async (opts: { userId?: string; qs?: string } = {}) =>
+		(
+			await h.json<Feed>(`${BASE}/jobs${opts.qs ?? ''}`, {
+				...(opts.userId ? { tier: 'friend', userId: opts.userId } : {}),
+			})
+		).body.data.jobs.map((j) => j.id);
+
+	it('stores what was typed without asking the scraper, and adds it to the pipeline', async () => {
+		const res = await importUrl({ url: WALLED, state: 'applied', manual });
+		assert.equal(res.status, 200);
+		assert.equal(scraper.calls.length, 0);
+		assert.equal(res.body.data.created, true);
+		assert.equal(res.body.data.state, 'applied');
+		assert.match(res.body.data.job.id, /^manual_[0-9a-f]{16}$/);
+
+		const row = await h.db
+			.prepare(
+				'SELECT source_site, title, company, location, url, description, role_level, geo_keys FROM jobs WHERE id = ?'
+			)
+			.bind(res.body.data.job.id)
+			.first<Record<string, unknown>>();
+		assert.deepEqual(row, {
+			source_site: 'manual',
+			title: 'Staff Engineer, Payments',
+			company: 'Walled Co',
+			location: 'Seattle, WA',
+			url: WALLED,
+			// Their words, escaped: no markup of theirs survives as markup.
+			description:
+				'<p>Recruiter says &lt;b&gt;remote OK&lt;/b&gt; &amp; equity.</p><p>Second round:<br>system design</p>',
+			role_level: 'staff',
+			geo_keys: '|seattle-wa|',
+		});
+		assert.deepEqual(await timeline(res.body.data.job.id), [
+			{ kind: 'state', from_state: null, to_state: 'applied' },
+		]);
+	});
+
+	it('lands on one row when the same URL is typed in twice', async () => {
+		const first = await importUrl({ url: WALLED, manual });
+		const again = await importUrl({ url: WALLED, manual: { ...manual, title: 'Typo fixed' } });
+		assert.equal(again.body.data.job.id, first.body.data.job.id);
+		assert.equal(again.body.data.created, false);
+		assert.equal(again.body.data.already_tracked, true);
+		const n = await h.db.prepare('SELECT COUNT(*) AS n FROM jobs').first<{ n: number }>();
+		assert.equal(n?.n, 1);
+	});
+
+	it('is in the feed of the person tracking it, and no one else’s', async () => {
+		await seedJob(h.db, { id: 'scraped', title: 'Engineer' });
+		const res = await importUrl({ url: WALLED, state: 'interested', manual });
+		const id = res.body.data.job.id;
+
+		assert.ok((await feedIds({ userId: ALICE })).includes(id));
+		assert.ok((await feedIds({ userId: ALICE, qs: '?state=interested' })).includes(id));
+		assert.deepEqual(await feedIds({ userId: BOB }), ['scraped']);
+		assert.deepEqual(await feedIds(), ['scraped']);
+	});
+
+	it('400s a manual entry with no title or company', async () => {
+		assert.equal(
+			(await importUrl({ url: WALLED, manual: { ...manual, title: '  ' } })).status,
+			400
+		);
+		assert.equal((await importUrl({ url: WALLED, manual: { title: 'x' } })).status, 400);
+		assert.equal(scraper.calls.length, 0);
 	});
 });

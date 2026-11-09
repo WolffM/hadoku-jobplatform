@@ -23,6 +23,7 @@ import {
 } from './shared.js';
 import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
 import { placesWithin, resolvePlace } from '../../geo.js';
+import { MANUAL_SOURCE } from '../../ingestWrite.js';
 
 /** The most places one near= filter will test; see the filter's comment. */
 const MAX_NEARBY = 80;
@@ -503,6 +504,16 @@ export function registerFeedRoute(app: JobsApp): void {
 					);
 					whereBinds.push(userId);
 				}
+			}
+
+			// A posting someone typed in by hand (POST /jobs/import's `manual`) is
+			// theirs, not the corpus's: nothing verified it, so it reaches a feed
+			// only through a state row — the person who added it, or anyone they
+			// handed it to. Unauthed, there is no such row.
+			if (userId) {
+				wheres.push(`(j.source_site IS NOT '${MANUAL_SOURCE}' OR js.state IS NOT NULL)`);
+			} else {
+				wheres.push(`j.source_site IS NOT '${MANUAL_SOURCE}'`);
 			}
 
 			const whereClause = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';

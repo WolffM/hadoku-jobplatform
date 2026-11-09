@@ -15,6 +15,14 @@
  * timeline row PUT /state would have written. A posting the caller already
  * tracks keeps its state: importing an application you have sent must never
  * move it back to saved.
+ *
+ * `manual` is the fallback for a page nothing can be read from (no JSON-LD, a
+ * login wall, a posting its board has already taken down): the person types
+ * the title and company themselves and nothing is scraped. What they typed is
+ * unverified, so it is stored as `source_site = 'manual'` and the feed shows it
+ * to no one but a person tracking it (feed.ts) — the corpus is shared, and one
+ * person's notes must not become everyone's listing. Its description is their
+ * text, escaped, never HTML.
  */
 import { createRoute, z } from '@hono/zod-openapi';
 import {
@@ -24,7 +32,7 @@ import {
 	JobStateSchema,
 } from '../../schemas.js';
 import { extractPosting, ScraperClientError } from '../../clients/scraper.js';
-import { insertJobStatement, rankNewJobs } from '../../ingestWrite.js';
+import { insertJobStatement, MANUAL_SOURCE, rankNewJobs } from '../../ingestWrite.js';
 import {
 	effectiveUserId,
 	gateAuthed,
@@ -41,6 +49,15 @@ const ImportJobSchema = z
 		url: z.string().trim().url().max(2000),
 		/** Where it lands in the pipeline when it is new to the caller. */
 		state: JobStateSchema.exclude(['dismissed']).default('saved'),
+		/** Typed by the person: store this instead of reading the page. */
+		manual: z
+			.object({
+				title: z.string().trim().min(1).max(300),
+				company: z.string().trim().min(1).max(200),
+				location: z.string().trim().max(200).default(''),
+				description: z.string().trim().max(20000).default(''),
+			})
+			.optional(),
 	})
 	.openapi('ImportJob');
 
@@ -82,6 +99,29 @@ interface JobRow {
 }
 
 const JOB_COLS = 'id, title, company, location, url';
+
+const escapeHtml = (text: string) =>
+	text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/**
+ * Typed notes as the drawer's HTML: escaped, a paragraph per blank-line block,
+ * <br> for a single newline. Always wrapped in <p>, so the drawer reads it as
+ * HTML rather than collapsing an entity-escaped plain string.
+ */
+export function manualDescriptionHtml(text: string): string {
+	if (!text) return '';
+	return text
+		.split(/\n\s*\n/)
+		.map((para) => `<p>${escapeHtml(para.trim()).replace(/\n/g, '<br>')}</p>`)
+		.join('');
+}
+
+/** Stable per URL, so typing the same posting twice lands on one row. */
+async function manualId(url: string): Promise<string> {
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(url));
+	const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+	return `manual_${hex.slice(0, 16)}`;
+}
 
 /**
  * The board behind an employer-hosted Greenhouse page (`?gh_jid=`), from the
@@ -151,7 +191,7 @@ export function registerImportRoute(app: JobsApp): void {
 			},
 		}),
 		async (c) => {
-			const { url, state } = c.req.valid('json');
+			const { url, state, manual } = c.req.valid('json');
 			const { ownerName } = c.req.valid('query');
 			const who = await effectiveUserId(c, ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
@@ -163,6 +203,43 @@ export function registerImportRoute(app: JobsApp): void {
 				.bind(url)
 				.first<JobRow>();
 			let created = false;
+
+			if (!row && manual) {
+				const now = new Date().toISOString();
+				const id = await manualId(url);
+				const [res] = await db.batch([
+					insertJobStatement(
+						db,
+						{
+							id,
+							url,
+							source_site: MANUAL_SOURCE,
+							title: manual.title,
+							company: manual.company,
+							location: manual.location,
+							job_type: 'unknown',
+							workplace_type: 'unknown',
+							salary: null,
+							description: manualDescriptionHtml(manual.description),
+							posted_date: null,
+							application_url: url,
+							department: null,
+							scraper_used: null,
+							raw: {},
+						},
+						{ source: MANUAL_SOURCE, now }
+					),
+				]);
+				created = (res.meta?.changes ?? 0) > 0;
+				row = await db
+					.prepare(`SELECT ${JOB_COLS} FROM jobs WHERE id = ?`)
+					.bind(id)
+					.first<JobRow>();
+				if (!row) throw new Error(`import: manual ${id} neither inserted nor found`);
+				// A new row past the ranking's head marks every ranking stale, so
+				// it is ranked like any other (the feed still keeps it to its owner).
+				if (created) await rankNewJobs(db);
+			}
 
 			if (!row) {
 				let extracted;
