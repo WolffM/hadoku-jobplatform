@@ -46,7 +46,9 @@ export const DEFAULT_PROFILE_COMPANIES: DefaultCompany[] = [
 	{ ats: 'greenhouse', slug: 'waymo', display_name: 'Waymo' },
 	{ ats: 'greenhouse', slug: 'scaleai', display_name: 'Scale AI' },
 	{ ats: 'ashby', slug: 'openai', display_name: 'OpenAI' },
-	{ ats: 'lever', slug: 'anyscale', display_name: 'Anyscale' },
-	{ ats: 'lever', slug: 'mistral', display_name: 'Mistral' },
-	{ ats: 'lever', slug: 'plaid', display_name: 'Plaid' },
+	// Anyscale and Plaid left Lever for Ashby, and Mistral left all three
+	// ATS; the old Lever slugs 404ed and seeded every new profile with dead
+	// boards (found 2026-11-09, still seeded on 2026-11-02).
+	{ ats: 'ashby', slug: 'anyscale', display_name: 'Anyscale' },
+	{ ats: 'ashby', slug: 'plaid', display_name: 'Plaid' },
 ];
