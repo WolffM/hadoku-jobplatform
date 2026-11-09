@@ -22,7 +22,7 @@ import type { RoleLevel } from '../roleClassify.js';
 import { triggerSearch } from '../clients/scraper.js';
 import { NoIdentityError, resolveUserId } from '../userId.js';
 import { logger } from '../logger.js';
-import { clearRank, scheduleRankBuild } from '../rank.js';
+import { clearRank, criteriaHash, scheduleRankBuild } from '../rank.js';
 import { runAfterResponse, type HasExecutionCtx } from '../background.js';
 
 interface RouteContext {
@@ -155,6 +155,12 @@ interface ProfileFields {
 	track: ProfileTrack;
 	levels: RoleLevel[];
 	remote_pref: 'remote' | 'hybrid' | 'onsite' | 'any';
+	// View defaults (migration 0034): never scored, never in the criteria hash.
+	location: string | null;
+	radius_miles: number;
+	min_salary: number | null;
+	include_undisclosed_salary: boolean;
+	us_only: boolean;
 }
 
 // ── default-profile materialization ─────────────────────────────────────────
@@ -286,8 +292,9 @@ app.openapi(
 
 		await db
 			.prepare(
-				`INSERT INTO profiles (id, user_id, name, keywords, target_companies, track, levels, remote_pref, created_at)
-				 VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?)`
+				`INSERT INTO profiles (id, user_id, name, keywords, target_companies, track, levels, remote_pref,
+				                       location, radius_miles, min_salary, include_undisclosed_salary, us_only, created_at)
+				 VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				id,
@@ -297,6 +304,11 @@ app.openapi(
 				body.track,
 				JSON.stringify(body.levels),
 				body.remote_pref,
+				body.location,
+				body.radius_miles,
+				body.min_salary,
+				body.include_undisclosed_salary ? 1 : 0,
+				body.us_only ? 1 : 0,
 				now
 			)
 			.run();
@@ -351,9 +363,12 @@ app.openapi(
 
 		const base = extractFields(existing);
 		const merged = mergeFields(base, body);
+		const criteriaBefore = criteriaHash(await loadScorableProfile(db, id));
 		await db
 			.prepare(
-				`UPDATE profiles SET name=?, keywords=?, track=?, levels=?, remote_pref=? WHERE id=? AND user_id=?`
+				`UPDATE profiles SET name=?, keywords=?, track=?, levels=?, remote_pref=?,
+				   location=?, radius_miles=?, min_salary=?, include_undisclosed_salary=?, us_only=?
+				 WHERE id=? AND user_id=?`
 			)
 			.bind(
 				merged.name,
@@ -361,6 +376,11 @@ app.openapi(
 				merged.track,
 				JSON.stringify(merged.levels),
 				merged.remote_pref,
+				merged.location,
+				merged.radius_miles,
+				merged.min_salary,
+				merged.include_undisclosed_salary ? 1 : 0,
+				merged.us_only ? 1 : 0,
 				id,
 				userId
 			)
@@ -378,7 +398,11 @@ app.openapi(
 		// it behind the response rather than leaving the next viewer to pay for a
 		// live pass. Editing a profile is a deliberate act by someone plainly
 		// using it, so unlike the feed's lazy build there is nothing to wait for.
-		scheduleRankBuild(c, db, id, await loadScorableProfile(db, id));
+		// Only when something scored changed: the view defaults (location,
+		// radius, min_salary, …) are outside the criteria hash, and a rebuild
+		// reads the whole corpus for nothing.
+		const scorable = await loadScorableProfile(db, id);
+		if (criteriaHash(scorable) !== criteriaBefore) scheduleRankBuild(c, db, id, scorable);
 
 		const profile = {
 			id,
@@ -662,6 +686,11 @@ function extractFields(r: Record<string, unknown>): ProfileFields {
 		track: r.track as ProfileTrack,
 		levels: JSON.parse(r.levels as string) as RoleLevel[],
 		remote_pref: r.remote_pref as ProfileFields['remote_pref'],
+		location: (r.location as string | null) ?? null,
+		radius_miles: Number(r.radius_miles ?? 25),
+		min_salary: r.min_salary === null || r.min_salary === undefined ? null : Number(r.min_salary),
+		include_undisclosed_salary: Number(r.include_undisclosed_salary ?? 1) === 1,
+		us_only: Number(r.us_only ?? 0) === 1,
 	};
 }
 
@@ -672,6 +701,11 @@ function mergeFields(base: ProfileFields, body: Partial<ProfileFields>): Profile
 		track: body.track ?? base.track,
 		levels: body.levels ?? base.levels,
 		remote_pref: body.remote_pref ?? base.remote_pref,
+		location: body.location !== undefined ? body.location : base.location,
+		radius_miles: body.radius_miles ?? base.radius_miles,
+		min_salary: body.min_salary !== undefined ? body.min_salary : base.min_salary,
+		include_undisclosed_salary: body.include_undisclosed_salary ?? base.include_undisclosed_salary,
+		us_only: body.us_only ?? base.us_only,
 	};
 }
 

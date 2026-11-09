@@ -27,6 +27,20 @@ export const HealthResponseSchema = z
 export const ProfileTrackSchema = z.enum(['ic', 'manager', 'either']).openapi('ProfileTrack');
 export const RoleLevelSchema = z.enum([...IC_LEVELS, ...MANAGER_LEVELS]).openapi('RoleLevel');
 
+/**
+ * View defaults a UI passes to GET /jobs (migration 0034). Not scoring
+ * criteria: rank.ts's criteriaHash leaves them out, so they never touch the
+ * precomputed ranking.
+ */
+const ProfileViewDefaultsShape = {
+	/** near= centre: a place key from GET /locations or free text, stored as given. */
+	location: z.string().trim().max(100).nullable(),
+	radius_miles: z.number().int().min(1).max(500),
+	min_salary: z.number().int().min(0).max(10_000_000).nullable(),
+	include_undisclosed_salary: z.boolean(),
+	us_only: z.boolean(),
+};
+
 export const ProfileSchema = z
 	.object({
 		id: z.string(),
@@ -35,6 +49,7 @@ export const ProfileSchema = z
 		track: ProfileTrackSchema,
 		levels: z.array(RoleLevelSchema),
 		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
+		...ProfileViewDefaultsShape,
 		created_at: z.string(),
 		// True for the shared default profile (id 'default') — whether the caller
 		// is seeing the code seed or their own edited copy. Regular profiles omit
@@ -43,17 +58,42 @@ export const ProfileSchema = z
 	})
 	.openapi('Profile');
 
+/** A profile's writable fields, with no defaults (see UpdateProfileSchema). */
+const ProfileWritableShape = {
+	name: z.string().min(1),
+	keywords: z.array(z.string()),
+	track: ProfileTrackSchema,
+	levels: z.array(RoleLevelSchema),
+	remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']),
+	...ProfileViewDefaultsShape,
+};
+
 export const CreateProfileSchema = z
 	.object({
-		name: z.string().min(1),
-		keywords: z.array(z.string()).default([]),
-		track: ProfileTrackSchema.default('either'),
-		levels: z.array(RoleLevelSchema).default([]),
-		remote_pref: z.enum(['remote', 'hybrid', 'onsite', 'any']).default('any'),
+		...ProfileWritableShape,
+		keywords: ProfileWritableShape.keywords.default([]),
+		track: ProfileWritableShape.track.default('either'),
+		levels: ProfileWritableShape.levels.default([]),
+		remote_pref: ProfileWritableShape.remote_pref.default('any'),
+		location: ProfileWritableShape.location.default(null),
+		radius_miles: ProfileWritableShape.radius_miles.default(25),
+		min_salary: ProfileWritableShape.min_salary.default(null),
+		include_undisclosed_salary: ProfileWritableShape.include_undisclosed_salary.default(true),
+		us_only: ProfileWritableShape.us_only.default(false),
 	})
 	.openapi('CreateProfile');
 
-export const UpdateProfileSchema = CreateProfileSchema.partial().openapi('UpdateProfile');
+/**
+ * Every field optional and NOT defaulted: an omitted field keeps its stored
+ * value. Built from the default-free shape on purpose — under zod 4,
+ * `CreateProfileSchema.partial()` still applies each field's `.default()`, so a
+ * PUT naming only `radius_miles` used to reset keywords to [], track to
+ * 'either', levels to [] and remote_pref to 'any'.
+ */
+export const UpdateProfileSchema = z
+	.object(ProfileWritableShape)
+	.partial()
+	.openapi('UpdateProfile');
 
 export const ProfilesResponseSchema = S(z.object({ profiles: z.array(ProfileSchema) })).openapi(
 	'ProfilesResponse'
