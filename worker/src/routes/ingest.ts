@@ -165,19 +165,46 @@ app.openapi(ingestRoute, async (c) => {
 	// (ats, slug) index entry of every row on every scrape — 3 rows per posting
 	// to change, on all but a handful, nothing.
 	const seen = jobs.filter((_, i) => !inserted[i]);
-	const seenUrls = seen.map((j) => j.url);
-	const seenStmts = [];
-	const strippedStmts = [];
-	for (let i = 0; i < seenUrls.length; i += 90) {
-		const chunk = seenUrls.slice(i, i + 90);
+
+	// What is stored for the postings the insert skipped. Matched on url OR id:
+	// a board can move a posting's URL while its id stays (Ashby recasing
+	// jobs.ashbyhq.com/adaptive/… to /Adaptive/…, a board moving to its own
+	// careers domain). The insert is then ignored on the id, and a bump keyed
+	// on url alone matched nothing, so a listed posting looked delisted for
+	// good: its description was stripped and the cull would have deleted it.
+	// 388 live postings were stuck that way on 2026-11-09.
+	//
+	// 45 per chunk keeps url + id binds at 90, under D1's 100.
+	const SEEN_CHUNK = 45;
+	const storedReads = [];
+	for (let i = 0; i < seen.length; i += SEEN_CHUNK) {
+		const chunk = seen.slice(i, i + SEEN_CHUNK);
 		const inList = chunk.map(() => '?').join(',');
-		seenStmts.push(
-			db.prepare(`UPDATE jobs SET last_seen_at = ? WHERE url IN (${inList})`).bind(now, ...chunk)
-		);
-		strippedStmts.push(
+		storedReads.push(
 			db
-				.prepare(`SELECT url FROM jobs WHERE url IN (${inList}) AND description = ''`)
-				.bind(...chunk)
+				.prepare(
+					`SELECT id, url, description = '' AS blank FROM jobs
+					 WHERE url IN (${inList}) OR id IN (${inList})`
+				)
+				.bind(...chunk.map((j) => j.url), ...chunk.map((j) => j.id))
+		);
+	}
+	startTime(c, 'seen');
+	const stored = storedReads.length
+		? (await db.batch<{ id: string; url: string; blank: number }>(storedReads)).flatMap(
+				(r) => r.results
+			)
+		: [];
+	const byUrl = new Map(stored.map((r) => [r.url, r]));
+	const byId = new Map(stored.map((r) => [r.id, r]));
+
+	const writes = [];
+	const sameUrl = seen.filter((j) => byUrl.has(j.url)).map((j) => j.url);
+	for (let i = 0; i < sameUrl.length; i += 90) {
+		const chunk = sameUrl.slice(i, i + 90);
+		const inList = chunk.map(() => '?').join(',');
+		writes.push(
+			db.prepare(`UPDATE jobs SET last_seen_at = ? WHERE url IN (${inList})`).bind(now, ...chunk)
 		);
 		if (board_slug) {
 			// Correct the slug on rows written before the scraper sent an
@@ -185,7 +212,7 @@ app.openapi(ingestRoute, async (c) => {
 			// their next scrape instead of needing a backfill. Only ever narrows
 			// to the truth: this runs solely when the scraper told us which board
 			// it fetched — and only on the rows where that differs.
-			seenStmts.push(
+			writes.push(
 				db
 					.prepare(
 						`UPDATE jobs SET slug = ?, slug_source = 'scraped'
@@ -196,29 +223,33 @@ app.openapi(ingestRoute, async (c) => {
 			);
 		}
 	}
-	startTime(c, 'seen');
-	if (seenStmts.length) await db.batch(seenStmts);
-	endTime(c, 'seen');
-
+	// The drifted: known by id under an older URL. Bump them by id, and adopt
+	// the board's current URL so the next scrape matches the cheap way. OR
+	// IGNORE because another row could already hold that URL; the bump stands
+	// either way.
+	for (const j of seen) {
+		const row = byId.get(j.id);
+		if (!row || row.url === j.url) continue;
+		writes.push(db.prepare('UPDATE jobs SET last_seen_at = ? WHERE id = ?').bind(now, row.id));
+		writes.push(db.prepare('UPDATE OR IGNORE jobs SET url = ? WHERE id = ?').bind(j.url, row.id));
+	}
 	// A posting back on its board after its description was stripped gets it
-	// back. Found by a read rather than folded into the bump, so the rows that
-	// never lost theirs — nearly all of them — cost no extra write.
-	startTime(c, 'restore');
-	if (strippedStmts.length) {
-		const found = await db.batch<{ url: string }>(strippedStmts);
-		const stripped = new Set(found.flatMap((r) => r.results.map((row) => row.url)));
-		const restores = seen
-			.filter((j) => stripped.has(j.url) && j.description !== '')
-			.map((j) =>
+	// back. Found by the read above, so the rows that never lost theirs —
+	// nearly all of them — cost no extra write.
+	for (const j of seen) {
+		const row = byUrl.get(j.url) ?? byId.get(j.id);
+		if (row?.blank && j.description !== '') {
+			writes.push(
 				db
-					.prepare(`UPDATE jobs SET description = ? WHERE url = ? AND description = ''`)
-					.bind(j.description, j.url)
+					.prepare(`UPDATE jobs SET description = ? WHERE id = ? AND description = ''`)
+					.bind(j.description, row.id)
 			);
-		for (let i = 0; i < restores.length; i += INGEST_BATCH_CHUNK) {
-			await db.batch(restores.slice(i, i + INGEST_BATCH_CHUNK));
 		}
 	}
-	endTime(c, 'restore');
+	for (let i = 0; i < writes.length; i += INGEST_BATCH_CHUNK) {
+		await db.batch(writes.slice(i, i + INGEST_BATCH_CHUNK));
+	}
+	endTime(c, 'seen');
 
 	// Keep every profile's precomputed ranking covering the newest postings.
 	//

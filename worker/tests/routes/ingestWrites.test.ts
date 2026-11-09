@@ -173,3 +173,61 @@ describe('ingest liveness — only what changed', () => {
 		);
 	});
 });
+
+/**
+ * A board moves a posting's URL and keeps its id (Ashby recasing
+ * jobs.ashbyhq.com/adaptive/… to /Adaptive/…). The insert is ignored on the
+ * id; liveness keyed on url alone then never matched again, so the posting
+ * looked delisted while listed — stripped, and headed for the cull. 388 live
+ * postings were stuck that way in production on 2026-11-09.
+ */
+describe('ingest liveness — a posting whose URL moved', () => {
+	const stored = 'https://jobs.ashbyhq.com/adaptive/1111';
+	const moved = 'https://jobs.ashbyhq.com/Adaptive/1111';
+	const row = () =>
+		h.db
+			.prepare('SELECT url, last_seen_at, description FROM jobs WHERE id = ?')
+			.bind('ashby_1111')
+			.first<{ url: string; last_seen_at: string; description: string }>();
+
+	beforeEach(async () => {
+		await seedJob(h.db, {
+			id: 'ashby_1111',
+			url: stored,
+			description: '',
+			last_seen_at: '2026-10-19T07:00:00.000Z',
+		});
+	});
+
+	it('is bumped by id, adopts the current URL and gets its description back', async () => {
+		const res = await ingest([{ ...job('ashby_1111'), url: moved, description: 'Build it.' }]);
+		assert.deepEqual(res, { accepted: 0, skipped: 1, batch_number: 1, is_final: false });
+		const after = await row();
+		assert.equal(after?.url, moved);
+		assert.ok(after && after.last_seen_at > '2026-11-01', `last_seen_at ${after?.last_seen_at}`);
+		assert.equal(after?.description, 'Build it.');
+		const n = await h.db
+			.prepare("SELECT COUNT(*) AS n FROM jobs WHERE id LIKE 'ashby_%'")
+			.first<{ n: number }>();
+		assert.equal(n?.n, 1);
+	});
+
+	it('next time, matches on the URL the cheap way', async () => {
+		await ingest([{ ...job('ashby_1111'), url: moved }]);
+		await h.db
+			.prepare(`UPDATE jobs SET last_seen_at = '2026-01-01T00:00:00.000Z' WHERE id = ?`)
+			.bind('ashby_1111')
+			.run();
+		await ingest([{ ...job('ashby_1111'), url: moved }]);
+		assert.ok(((await row())?.last_seen_at ?? '') > '2026-11-01');
+	});
+
+	it('still bumps when another row already holds the new URL', async () => {
+		await seedJob(h.db, { id: 'other', url: moved });
+		await ingest([{ ...job('ashby_1111'), url: moved }]);
+		const after = await row();
+		assert.equal(after?.url, stored, 'the UNIQUE url is not taken from the other row');
+		// The other row matched by url and was bumped; this one by id.
+		assert.ok(after && after.last_seen_at > '2026-11-01');
+	});
+});
