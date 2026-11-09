@@ -25,6 +25,9 @@ import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
 import { placesWithin, resolvePlace } from '../../geo.js';
 import { MANUAL_SOURCE } from '../../ingestWrite.js';
 
+/** GET /jobs q=: words beyond this are ignored (each costs three LIKEs per row). */
+const MAX_SEARCH_WORDS = 6;
+
 /** The most places one near= filter will test; see the filter's comment. */
 const MAX_NEARBY = 80;
 
@@ -297,6 +300,35 @@ export function registerFeedRoute(app: JobsApp): void {
 								'View filter: drop jobs whose salary_max is below this. Jobs with no listed ' +
 								'salary are kept — most postings omit it, and hiding them would hide the corpus.',
 						}),
+					q: z
+						.string()
+						.trim()
+						.max(100)
+						.optional()
+						.openapi({
+							description:
+								'Keyword search over title, company and location, case-insensitive. Words ' +
+								'are AND-ed (each must appear in one of the three); at most 6 are used.',
+						}),
+					source: z
+						.string()
+						.trim()
+						.toLowerCase()
+						.regex(/^[a-z0-9.-]{1,40}$/)
+						.optional()
+						.openapi({
+							description:
+								"Only postings from one source: an ATS ('greenhouse', 'ashby', 'lever') or a " +
+								"site ('remoteok'), matched against the posting's ats and source_site.",
+						}),
+					track: z
+						.enum(['ic', 'manager'])
+						.optional()
+						.openapi({
+							description:
+								'Hard filter on the classified role track, for a caller without a profile ' +
+								"(a profile's own track applies too).",
+						}),
 				}),
 			},
 			responses: {
@@ -347,6 +379,9 @@ export function registerFeedRoute(app: JobsApp): void {
 				near,
 				radius_miles,
 				include_remote,
+				q,
+				source,
+				track,
 			} = c.req.valid('query');
 			const hideDismissed = hideDismissedRaw === 'true';
 			const hideQueued = hideQueuedRaw === 'true';
@@ -475,6 +510,30 @@ export function registerFeedRoute(app: JobsApp): void {
 				if (include_remote === 'true') terms.unshift("j.workplace_type = 'remote'");
 				wheres.push(`(${terms.join(' OR ')})`);
 				whereBinds.push(...nearby.map((p) => `%|${p.key}|%`));
+			}
+
+			// Keyword search: each word must appear in the title, company or
+			// location. LIKE is case-insensitive for ASCII in SQLite; % and _ in
+			// the person's words are escaped so they match literally.
+			if (q) {
+				const words = q.split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_WORDS);
+				for (const word of words) {
+					const pattern = `%${word.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+					wheres.push(
+						"(j.title LIKE ? ESCAPE '\\' OR j.company LIKE ? ESCAPE '\\' OR j.location LIKE ? ESCAPE '\\')"
+					);
+					whereBinds.push(pattern, pattern, pattern);
+				}
+			}
+
+			if (source) {
+				wheres.push('(j.ats = ? OR j.source_site LIKE ?)');
+				whereBinds.push(source, `${source}%`);
+			}
+
+			if (track) {
+				wheres.push('j.role_track = ?');
+				whereBinds.push(track);
 			}
 
 			// State / hide_dismissed clauses reference the LEFT JOIN above, which
