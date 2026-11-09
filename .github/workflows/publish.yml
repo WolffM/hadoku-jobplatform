@@ -34,7 +34,85 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # JobPulse (jobpulse/README.md): the UI hadoku.me serves at /jobpulse/, whose
+  # source is another person's repo. It is built HERE, on a GitHub-hosted
+  # runner with no secrets and a read-only token, so that code never runs on
+  # the self-hosted runner where this repo's site token and service key live.
+  # `publish` below only downloads the built files and publishes them.
+  # Hosted on purpose: hadoku_site's repo-policy-manifest allowHosted entry for
+  # this file names this job as well as `npmjs`.
+  jobpulse-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      built: ${{ steps.scope.outputs.build }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Did the pinned JobPulse commit change?
+        id: scope
+        env:
+          BEFORE: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ] || [ -z "$BEFORE" ] \
+            || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null \
+            || ! git diff --quiet "$BEFORE" HEAD -- jobpulse/; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "jobpulse/ unchanged: nothing to build."
+          fi
+
+      - name: Check out JobPulse at the pinned commit
+        if: steps.scope.outputs.build == 'true'
+        run: |
+          repo=$(node -p "require('./jobpulse/source.json').repo")
+          ref=$(node -p "require('./jobpulse/source.json').ref")
+          case "$ref" in
+            *[!0-9a-f]*|"") echo "::error::jobpulse/source.json ref must be a full commit sha, got '$ref'"; exit 1 ;;
+          esac
+          [ ${#ref} -eq 40 ] || { echo "::error::ref is not a 40-character sha"; exit 1; }
+          git init -q "$RUNNER_TEMP/jobpulse"
+          cd "$RUNNER_TEMP/jobpulse"
+          git fetch -q --depth 1 "$repo" "$ref"
+          git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$ref"
+          echo "Building $repo at $ref"
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.build == 'true'
+        with:
+          node-version: 22
+
+      - name: Build (npm ci --ignore-scripts, npm run build:lib)
+        if: steps.scope.outputs.build == 'true'
+        working-directory: ${{ runner.temp }}/jobpulse/frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run build:lib
+          test -f dist-lib/index.js && test -f dist-lib/style.css
+
+      - uses: actions/upload-artifact@v4
+        if: steps.scope.outputs.build == 'true'
+        with:
+          name: jobpulse-dist
+          path: ${{ runner.temp }}/jobpulse/frontend/dist-lib
+          if-no-files-found: error
+          retention-days: 7
+
   publish:
+    # After jobpulse-build, but never blocked by it: a broken JobPulse build must
+    # not hold back this repo's own UI and worker. Its failure fails this job at
+    # the END (see "JobPulse build failed"), after everything else shipped.
+    needs: jobpulse-build
+    if: ${{ !cancelled() }}
     runs-on: ${{ fromJSON(vars.CI_RUNNER) }}
     steps:
       - name: Mark the start, so the reported duration is real
@@ -145,7 +223,7 @@ jobs:
           BASE: ${{ steps.range.outputs.base }}
           PUBLISH_ALL: ${{ steps.range.outputs.publish_all }}
         run: |
-          if [ "$PUBLISH_ALL" = "true" ] || git diff --name-only "$BASE" HEAD | grep -qv '^worker/'; then
+          if [ "$PUBLISH_ALL" = "true" ] || git diff --name-only "$BASE" HEAD | grep -qvE '^(worker|jobpulse)/'; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -203,9 +281,35 @@ jobs:
       # write to hadoku_site. A refused or unanswered notify FAILS this job:
       # the old curl only warned, and a dropped dispatch means a release that
       # never reaches the site.
+      # JobPulse: the files jobpulse-build made, published as @wolffm/jobpulse.
+      # Nothing from the other repo runs here; this only packs dist/.
+      - name: Fetch the JobPulse build
+        if: needs.jobpulse-build.result == 'success' && needs.jobpulse-build.outputs.built == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: jobpulse-dist
+          path: jobpulse/dist
+
+      - name: Version the JobPulse package
+        id: jobpulse_version
+        if: needs.jobpulse-build.result == 'success' && needs.jobpulse-build.outputs.built == 'true'
+        uses: WolffM/hadoku-actions/next-version@v1
+        with:
+          package-dir: jobpulse
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Publish the JobPulse package
+        id: jobpulse_publish
+        if: needs.jobpulse-build.result == 'success' && needs.jobpulse-build.outputs.built == 'true' && steps.jobpulse_version.outputs.published != 'true'
+        working-directory: jobpulse
+        run: npm publish --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Which packages were published
         id: published
-        if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true'
+        if: steps.ui_changed.outputs.changed == 'true' || steps.worker_changed.outputs.changed == 'true' || steps.jobpulse_publish.outcome == 'success'
         run: |
           # Announce EXACTLY what was published, never what merely exists.
           #
@@ -231,6 +335,19 @@ jobs:
           if [ -n "$WORKER_PACKAGE_NAME" ] && [ "${{ steps.worker_changed.outputs.changed }}" = "true" ]; then
             [ -n "$PACKAGES" ] && PACKAGES="$PACKAGES, "
             PACKAGES="$PACKAGES\"$WORKER_PACKAGE_NAME\""
+          fi
+          # @wolffm/jobpulse is announced only once hadoku_site has taken it on
+          # (repo variable JOBPULSE_ANNOUNCE, set at its go-live). Before that,
+          # Update Packages' per-package fallback would `pnpm add` it into
+          # hadoku_site: registering an app before it is live, which its own
+          # child-app checklist forbids.
+          if [ "${{ steps.jobpulse_publish.outcome }}" = "success" ]; then
+            if [ "${{ vars.JOBPULSE_ANNOUNCE }}" = "true" ]; then
+              [ -n "$PACKAGES" ] && PACKAGES="$PACKAGES, "
+              PACKAGES="$PACKAGES\"@wolffm/jobpulse\""
+            else
+              echo "@wolffm/jobpulse published dark (JOBPULSE_ANNOUNCE is not 'true'): not announced."
+            fi
           fi
           if [ -z "$PACKAGES" ]; then
             echo "Nothing was published — no dispatch."
@@ -274,6 +391,12 @@ jobs:
       # these repos. `always()` so RECOVERIES report too -- without the success
       # side the alert state stays broken and the next real failure arrives as a
       # suppressed reminder rather than a new alert.
+      - name: JobPulse build failed
+        if: needs.jobpulse-build.result == 'failure'
+        run: |
+          echo "::error::jobpulse-build failed: @wolffm/jobpulse was not published (this repo's own packages were). See that job's log."
+          exit 1
+
       - name: Report the outcome so a silent failure can't hide
         if: always()
         uses: WolffM/hadoku-actions/report-job@v1

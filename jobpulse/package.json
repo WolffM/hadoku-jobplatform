@@ -1,0 +1,29 @@
+{
+  "name": "@wolffm/jobpulse",
+  "version": "0.1.0",
+  "description": "JobPulse, the job-search UI hadoku.me serves at /jobpulse/. Built by publish.yml from jjk564/job-dashboard at the commit in source.json.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WolffM/hadoku-jobplatform.git",
+    "directory": "jobpulse"
+  },
+  "files": [
+    "dist",
+    "source.json"
+  ],
+  "exports": {
+    ".": "./dist/index.js",
+    "./style.css": "./dist/style.css"
+  },
+  "peerDependencies": {
+    "@wolffm/logger": ">=1.4.3",
+    "@wolffm/task-ui-components": ">=4.23.3",
+    "@wolffm/themes": ">=5.13.16",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}
