@@ -6,7 +6,9 @@
  * (2026-10-03/04). So the owner fills and submits from their own Chrome with an
  * extension, and these routes give it the same material the runner had:
  *
- *   GET/PUT /applicant-profile    name, contact, links, education, work history
+ *   GET/PUT /applicant-profile    name, contact, links, education, work history, and
+ *                                 work_authorization / desired_salary / notice_period /
+ *                                 master_resume_text (PROFILE_TEXT_LIMITS)
  *   GET /jobs/:id/fill-packet     that, plus what this application was filled
  *                                 with — the answers the owner APPROVED — and
  *                                 the tailored résumé to attach
@@ -30,6 +32,29 @@ function validProfile(p: unknown): p is Record<string, unknown> {
 	if (typeof p !== 'object' || p === null || Array.isArray(p)) return false;
 	const o = p as Record<string, unknown>;
 	return typeof o.name === 'string' && !!o.name.trim() && typeof o.email === 'string';
+}
+
+/**
+ * Free-text facts a form asks for that are not contact details: optional
+ * strings, each capped so one field cannot fill the row. JobPulse's profile
+ * carried these; master_resume_text is the whole résumé as plain text.
+ */
+export const PROFILE_TEXT_LIMITS: Readonly<Record<string, number>> = {
+	work_authorization: 200,
+	desired_salary: 100,
+	notice_period: 100,
+	master_resume_text: 50_000,
+};
+
+/** Why a profile cannot be stored, or null when it can (PUT only; reads stay lenient). */
+function profileProblem(p: Record<string, unknown>): string | null {
+	for (const [key, max] of Object.entries(PROFILE_TEXT_LIMITS)) {
+		const v = p[key];
+		if (v === undefined || v === null) continue;
+		if (typeof v !== 'string') return `${key} must be a string`;
+		if (v.length > max) return `${key} is longer than ${max} characters`;
+	}
+	return null;
 }
 
 async function loadProfile(db: D1Database, userId: string) {
@@ -73,6 +98,8 @@ export function registerFillRoutes(app: JobsApp) {
 		if (!validProfile(b.profile)) {
 			return c.json(badRequest('profile must be an object with a name and an email'), 400);
 		}
+		const problem = profileProblem(b.profile);
+		if (problem) return c.json(badRequest(problem), 400);
 		const who = await effectiveUserId(c, typeof b.ownerName === 'string' ? b.ownerName : undefined);
 		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 		const now = new Date().toISOString();
