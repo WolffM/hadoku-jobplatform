@@ -28,7 +28,8 @@ export default [
       // are already linted by worker/eslint.config.js.
       'worker/tests/**',
       '**/vite.config.ts',
-      '**/playwright.config.ts'
+      '**/playwright.config.ts',
+      'playwright.unit.config.ts'
     ]
   },
 

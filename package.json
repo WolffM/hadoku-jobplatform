@@ -39,7 +39,8 @@
     "test:e2e:headed": "node scripts/free-port.mjs 5173 && dev-vault -- playwright test --headed",
     "prepare": "git config core.hooksPath .husky 2>/dev/null || true",
     "build:extension": "node extension/build.mjs",
-    "test:extension": "node extension/build.mjs && playwright test -c extension/playwright.config.ts"
+    "test:extension": "node extension/build.mjs && playwright test -c extension/playwright.config.ts",
+    "test:unit": "playwright test -c playwright.unit.config.ts"
   },
   "peerDependencies": {
     "@wolffm/logger": ">=1.3.2",

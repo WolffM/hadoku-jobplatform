@@ -20,6 +20,7 @@ import { blockCompany } from '../api/me'
 import { useResource } from '../api/useResource'
 import { prepareApplicationPacket } from '../api/applyQueue'
 import { VoteControl } from './VoteControl'
+import { safeHtml } from './safeHtml'
 
 // Only a posting the person tracks shows it, so it loads with the first one
 // (and keeps the feed's boot weight down — see App.tsx).
@@ -79,6 +80,8 @@ const STATE_ACTIONS: { state: JobStateWrite; label: string; verb: string }[][] =
 // plain text with \n linebreaks. dangerouslySetInnerHTML on plain text collapses
 // \n so everything renders as one paragraph — hence the split. Exported because
 // the packets split view renders the posting the same way.
+// The HTML half goes through safeHtml: a description is outside content (a
+// board, or any page someone imported), and it renders on hadoku.me.
 export function Description({ text }: { text: string }) {
   if (!text) {
     return (
@@ -89,7 +92,12 @@ export function Description({ text }: { text: string }) {
   }
   const isHtml = /<(p|br|div|li|ul|ol|h[1-6])\b/i.test(text)
   if (isHtml) {
-    return <div className="jp-drawer__description" dangerouslySetInnerHTML={{ __html: text }} />
+    return (
+      <div
+        className="jp-drawer__description"
+        dangerouslySetInnerHTML={{ __html: safeHtml(text) }}
+      />
+    )
   }
   return <div className="jp-drawer__description jp-drawer__description--plain">{text}</div>
 }
