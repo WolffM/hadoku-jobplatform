@@ -33,6 +33,7 @@ import {
 } from '../../schemas.js';
 import { extractPosting, ScraperClientError } from '../../clients/scraper.js';
 import { insertJobStatement, MANUAL_SOURCE, rankNewJobs } from '../../ingestWrite.js';
+import { isTestBoardPosting } from '../../testBoards.js';
 import {
 	effectiveUserId,
 	gateAuthed,
@@ -267,6 +268,12 @@ export function registerImportRoute(app: JobsApp): void {
 							`The scraper returned a posting this API cannot store: ${job.error.message}`
 						),
 						502
+					);
+				}
+				if (isTestBoardPosting(job.data.url, { ats: extracted.ats, slug: extracted.board_slug })) {
+					return c.json(
+						failure(422, "That board holds LinkedIn's ATS test postings, not real jobs."),
+						422
 					);
 				}
 				const now = new Date().toISOString();

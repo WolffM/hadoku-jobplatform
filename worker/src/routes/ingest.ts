@@ -10,6 +10,7 @@ import {
 } from '../schemas.js';
 import { mailboxOwnerRefusal, reconcileMail, reconcileView } from '../reconcileMail.js';
 import { effectiveUserId, isEffectiveUserError, ownerNameQuery } from './jobs/shared.js';
+import { isTestBoardPosting } from '../testBoards.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { geoKeys } from '../geo.js';
@@ -130,7 +131,12 @@ const ingestRoute = createRoute({
 const INGEST_BATCH_CHUNK = 100;
 
 app.openapi(ingestRoute, async (c) => {
-	const { jobs, batch_number, is_final, source, board_slug } = c.req.valid('json');
+	const { jobs: received, batch_number, is_final, source, board_slug } = c.req.valid('json');
+	// Test boards (testBoards.ts) never enter the corpus; they count as skipped.
+	const jobs = received.filter(
+		(job) =>
+			!isTestBoardPosting(job.url, board_slug ? { ats: source, slug: board_slug } : undefined)
+	);
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
 
@@ -151,7 +157,7 @@ app.openapi(ingestRoute, async (c) => {
 	}
 	endTime(c, 'insert');
 	const accepted = inserted.filter(Boolean).length;
-	const skipped = jobs.length - accepted;
+	const skipped = received.length - accepted;
 
 	// Liveness: every URL in this payload was just seen on its source — bump
 	// last_seen_at for the skipped (already-known) rows too. A board posting
