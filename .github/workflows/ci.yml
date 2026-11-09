@@ -182,13 +182,82 @@ jobs:
       - name: Pre-commit hook stands down in CI
         run: ./scripts/check-husky-ci-guard.sh
 
+  # The worker's integration suite (real D1 through Miniflare/workerd, every
+  # migration applied) and the browser units (pnpm test:unit, a real Chromium,
+  # no server or credential). Neither ran in CI before 2026-11-09, so a pull
+  # request from a fork landed with only typecheck and lint behind it.
+  #
+  # Same runner selection as typecheck/lint, for the same reason: an
+  # unauthorized fork PR executes its own package.json scripts, so it lands on
+  # a GitHub-hosted runner, never a claw. NOT a required check (branch
+  # protection requires lint + typecheck by name); it reports through `report`.
+  test:
+    name: test
+    runs-on: ${{ fromJSON((github.event_name == 'pull_request' && !contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association) && '["ubuntu-latest"]') || vars.CI_RUNNER) }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Does this diff need testing?
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed="$(git diff --name-only \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}")"
+          echo "changed files:"; echo "$changed" | sed 's/^/  /'
+          if echo "$changed" | grep -qE '(^src/|^worker/|^tests/unit/|^scripts/|package\.json|pnpm-lock\.yaml|tsconfig|playwright\.unit\.config\.ts|\.github/workflows/ci\.yml)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "→ nothing testable touched."
+          fi
+
+      - uses: WolffM/hadoku-actions/setup-pnpm@v1
+        id: pnpm
+        if: steps.scope.outputs.run == 'true'
+        with:
+          npm-token: ${{ secrets.HADOKU_NPM_READ_TOKEN }}
+          vault-key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
+
+      - name: Install
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm --config.store-dir=${{ runner.tool_cache }}/pnpm-store install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
+
+      - name: Worker tests (real D1 via Miniflare)
+        if: steps.scope.outputs.run == 'true'
+        working-directory: worker
+        run: pnpm test
+
+      # A hosted runner gets Chromium's system libraries too (it has sudo); a
+      # claw already has them and has no passwordless sudo, so it gets only the
+      # browser.
+      - name: Install Chromium for the browser units
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "github-hosted" ]; then
+            pnpm exec playwright install --with-deps chromium
+          else
+            pnpm exec playwright install chromium
+          fi
+
+      - name: Browser units (pnpm test:unit)
+        if: steps.scope.outputs.run == 'true'
+        run: pnpm test:unit
+
   # ONE report per RUN, not one per job — and this is a correctness constraint,
   # not tidiness.
   #
   # `POST /health/api/jobs` upserts the execution row on run_id ALONE
   # (monitoring-api migration 0007: `CREATE UNIQUE INDEX idx_jobs_run_id ON
   # job_executions(run_id)`, and `ON CONFLICT(run_id) DO UPDATE` in
-  # job-store.ts). typecheck and lint are two jobs in ONE workflow file, so they
+  # job-store.ts). typecheck, lint and test are jobs in ONE workflow file, so they
   # share this run's id: a report step in each would upsert the SAME row, and
   # whichever finished last would overwrite the other's verdict. A green lint
   # would erase a red typecheck — the exact silence the reporting exists to end.
@@ -218,7 +287,7 @@ jobs:
   # no access to the secret, so there it warns and skips as intended.
   report:
     name: report
-    needs: [typecheck, lint]
+    needs: [typecheck, lint, test]
     # `always()` so RECOVERIES report too -- without the success side the alert
     # state stays broken and the next real failure arrives as a suppressed
     # reminder rather than a new alert.
@@ -241,5 +310,5 @@ jobs:
                 || 'success' }}
           error-message: >-
             jobplatform CI failed (typecheck=${{ needs.typecheck.result }},
-            lint=${{ needs.lint.result }}) —
+            lint=${{ needs.lint.result }}, test=${{ needs.test.result }}) —
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
