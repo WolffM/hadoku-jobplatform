@@ -1,5 +1,5 @@
 {
   "//": "The JobPulse UI hadoku.me serves at /jobpulse/: this repo's publish.yml builds @wolffm/jobpulse from exactly this commit. Changing ref IS the deploy; reverting it is the rollback. Read the diff between the old and new ref before changing it: the build runs that code.",
   "repo": "https://github.com/jjk564/job-dashboard.git",
-  "ref": "91cff26a84b435414bfe019f77c51e7b6f157707"
+  "ref": "6b86ce9aaf8d1b20cf163886fff9084d56e0da5f"
 }
