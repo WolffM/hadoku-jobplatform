@@ -16,6 +16,7 @@
  * All five accept `ownerName` like the rest of the per-user routes, through
  * `effectiveUserId` — never silently ignored (see AGENTS.md).
  */
+import { publicUrl } from '../../ingestWrite.js';
 import { closedFlags } from '../../freshness.js';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
@@ -236,7 +237,7 @@ export function registerPipelineRoutes(app: JobsApp): void {
 						workplace_type: r.workplace_type,
 						salary_min: r.salary_min,
 						salary_max: r.salary_max,
-						url: r.url,
+						url: publicUrl(r.url),
 						posted_date: r.posted_date,
 						state,
 						updated_at: r.updated_at,

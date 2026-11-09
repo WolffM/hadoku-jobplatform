@@ -129,7 +129,8 @@ export const JobSummarySchema = z
 		salary_min: z.number().nullable(),
 		salary_max: z.number().nullable(),
 		source_site: z.string(),
-		url: z.string(),
+		/** null for a posting typed in by hand with no link. */
+		url: z.string().nullable(),
 		/**
 		 * Where the form actually lives, when the posting names somewhere other
 		 * than `url`. The feed carries it so a card's Apply lands on the same
@@ -832,7 +833,8 @@ export const PipelineItemSchema = z
 		workplace_type: z.string(),
 		salary_min: z.number().nullable(),
 		salary_max: z.number().nullable(),
-		url: z.string(),
+		/** null for a posting typed in by hand with no link. */
+		url: z.string().nullable(),
 		posted_date: z.string().nullable(),
 		state: JobStateSchema,
 		updated_at: z.string(),

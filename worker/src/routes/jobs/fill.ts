@@ -16,6 +16,7 @@
  * Replaying the approved answers is the point: the extension enters what the
  * owner already reviewed, not a fresh guess.
  */
+import { publicUrl } from '../../ingestWrite.js';
 import type { D1Database } from '@cloudflare/workers-types';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 import { parseEvidence } from './applications.js';
@@ -162,7 +163,7 @@ export function registerFillRoutes(app: JobsApp) {
 			{
 				success: true as const,
 				data: {
-					job,
+					job: { ...job, url: publicUrl(job.url) },
 					application: app_ ? { id: app_.id, status: app_.status, variant_slug: slug } : null,
 					profile: profile?.profile ?? null,
 					// What the approved fill entered, keyed by the runner's normalised

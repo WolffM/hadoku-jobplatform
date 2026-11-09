@@ -1,3 +1,4 @@
+import { publicUrl } from '../../ingestWrite.js';
 import { boardNewest, isDelisted, type BoardPosting } from '../../freshness.js';
 import type { D1Database } from '@cloudflare/workers-types';
 import { formUrl } from '../../formUrl.js';
@@ -218,6 +219,10 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					description: 'Job not found',
 					content: { 'application/json': { schema: ErrorResponseSchema } },
 				},
+				422: {
+					description: 'The posting was typed in by hand with no link',
+					content: { 'application/json': { schema: ErrorResponseSchema } },
+				},
 				409: {
 					description:
 						'The posting looks taken down (retry with force), the row is approved (retry with force) or already submitted, or the owner name has never signed in',
@@ -243,13 +248,24 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			const db = c.env.JOB_PLATFORM_DB;
 
 			const job = await db
-				.prepare('SELECT id FROM jobs WHERE id = ?')
+				.prepare('SELECT id, url FROM jobs WHERE id = ?')
 				.bind(id)
-				.first<{ id: string }>();
+				.first<{ id: string; url: string }>();
 			if (!job) {
 				return c.json(
 					{ success: false as const, error: 'Not found', message: `Job '${id}' not found` },
 					404
+				);
+			}
+			// A posting typed in by hand with no link has no form to open.
+			if (publicUrl(job.url) === null) {
+				return c.json(
+					{
+						success: false as const,
+						error: 'Unprocessable',
+						message: 'This posting has no link, so the runner has no form to fill.',
+					},
+					422
 				);
 			}
 

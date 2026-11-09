@@ -56,7 +56,8 @@ export interface JobSummary {
   salary_min: number | null
   salary_max: number | null
   source_site: string
-  url: string
+  /** null for a posting typed in by hand with no link. */
+  url: string | null
   /**
    * Where the form actually lives, when the posting names somewhere other than
    * `url`. The card's Apply uses `application_url ?? url` — the same expression

@@ -27,7 +27,7 @@ export interface PipelineItem {
   workplace_type: string
   salary_min: number | null
   salary_max: number | null
-  url: string
+  url: string | null
   posted_date: string | null
   state: JobStateWrite
   updated_at: string

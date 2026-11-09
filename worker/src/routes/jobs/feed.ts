@@ -23,7 +23,7 @@ import {
 } from './shared.js';
 import { rankIsCurrent, scheduleRankBuild } from '../../rank.js';
 import { placesWithin, resolvePlace } from '../../geo.js';
-import { MANUAL_SOURCE } from '../../ingestWrite.js';
+import { MANUAL_SOURCE, publicUrl } from '../../ingestWrite.js';
 
 /** GET /jobs q=: words beyond this are ignored (each costs three LIKEs per row). */
 const MAX_SEARCH_WORDS = 6;
@@ -784,7 +784,7 @@ export function registerFeedRoute(app: JobsApp): void {
 								salary_min: h?.salary_min ?? null,
 								salary_max: r.salary_max,
 								source_site: h?.source_site ?? '',
-								url: h?.url ?? '',
+								url: publicUrl(h?.url ?? ''),
 								application_url: h?.application_url ?? null,
 								posted_date: r.posted_date,
 								scraped_at: r.scraped_at,
@@ -924,7 +924,7 @@ export function registerFeedRoute(app: JobsApp): void {
 				salary_min: r.salary_min,
 				salary_max: r.salary_max,
 				source_site: r.source_site,
-				url: r.url,
+				url: publicUrl(r.url),
 				application_url: r.application_url,
 				posted_date: r.posted_date,
 				scraped_at: r.scraped_at,

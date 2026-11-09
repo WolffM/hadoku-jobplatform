@@ -88,7 +88,7 @@ after(async () => {
 
 interface Imported {
 	data: {
-		job: { id: string; title: string; company: string; url: string };
+		job: { id: string; title: string; company: string; url: string | null };
 		created: boolean;
 		state: string;
 		already_tracked: boolean;
@@ -349,5 +349,86 @@ describe('POST /jobs/import with manual', () => {
 		);
 		assert.equal((await importUrl({ url: WALLED, manual: { title: 'x' } })).status, 400);
 		assert.equal(scraper.calls.length, 0);
+	});
+});
+
+describe('POST /jobs/import with manual and no URL', () => {
+	const manual = {
+		title: 'Senior Engineer (referral)',
+		company: 'Quiet Co',
+		location: 'Seattle, WA',
+		description: 'From a recruiter call.',
+		salary_min: 170000,
+		salary_max: 210000,
+		workplace_type: 'hybrid',
+	};
+
+	it('stores it with no link anywhere a UI would render one', async () => {
+		const res = await importUrl({ manual, state: 'interested' });
+		assert.equal(res.status, 200, JSON.stringify(res.body));
+		const id = res.body.data.job.id;
+		assert.match(id, /^manual_[0-9a-f]{16}$/);
+		assert.equal(res.body.data.job.url, null);
+		assert.equal(scraper.calls.length, 0);
+
+		const row = await h.db
+			.prepare(
+				'SELECT url, application_url, salary_min, salary_max, workplace_type, source_site FROM jobs WHERE id = ?'
+			)
+			.bind(id)
+			.first<Record<string, unknown>>();
+		assert.deepEqual(row, {
+			url: `hadoku:manual/${id}`,
+			application_url: null,
+			salary_min: 170000,
+			salary_max: 210000,
+			workplace_type: 'hybrid',
+			source_site: 'manual',
+		});
+
+		const as = { tier: 'friend' as const, userId: ALICE };
+		const detail = await h.json<{ data: { job: { url: string | null } } }>(
+			`${BASE}/jobs/${id}`,
+			as
+		);
+		assert.equal(detail.body.data.job.url, null);
+		const pipe = await h.json<{ data: { items: { job_id: string; url: string | null }[] } }>(
+			`${BASE}/pipeline`,
+			as
+		);
+		assert.equal(pipe.body.data.items.find((i) => i.job_id === id)?.url, null);
+		const feed = await h.json<{ data: { jobs: { id: string; url: string | null }[] } }>(
+			`${BASE}/jobs?state=interested`,
+			as
+		);
+		assert.equal(feed.body.data.jobs.find((j) => j.id === id)?.url, null);
+		const packet = await h.json<{ data: { job: { url: string | null } } }>(
+			`${BASE}/jobs/${id}/fill-packet`,
+			as
+		);
+		assert.equal(packet.body.data.job.url, null);
+	});
+
+	it('makes each URL-less entry its own posting', async () => {
+		const a = await importUrl({ manual });
+		const b = await importUrl({ manual });
+		assert.notEqual(a.body.data.job.id, b.body.data.job.id);
+		assert.equal(b.body.data.created, true);
+	});
+
+	it('refuses to queue it for the runner: there is no form', async () => {
+		const id = (await importUrl({ manual })).body.data.job.id;
+		const res = await h.json<{ message: string }>(`${BASE}/jobs/${id}/apply`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: ALICE,
+			body: JSON.stringify({}),
+		});
+		assert.equal(res.status, 422);
+		assert.match(res.body.message, /no link/);
+	});
+
+	it('400s an import with neither a URL nor a manual entry', async () => {
+		assert.equal((await importUrl({ state: 'saved' })).status, 400);
 	});
 });

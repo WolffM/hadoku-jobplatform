@@ -21,6 +21,18 @@ type DB = AppEnv['JOB_PLATFORM_DB'];
  * `manual`). Nothing verified it, so the feed shows it only to people tracking it.
  */
 export const MANUAL_SOURCE = 'manual';
+
+/**
+ * What jobs.url (NOT NULL UNIQUE) holds for a posting typed in by hand with no
+ * link: an internal key, never a URL. publicUrl() turns it into null in every
+ * response, so no UI renders it as a link.
+ */
+export const NO_URL_PREFIX = 'hadoku:manual/';
+
+/** jobs.url as an API returns it: null for a hand-typed posting with no link. */
+export function publicUrl(url: string): string | null {
+	return url.startsWith(NO_URL_PREFIX) ? null : url;
+}
 export type IngestJob = z.infer<typeof IngestJobSchema>;
 
 /** Normalize workplace_type values from scraper to our canonical set. */

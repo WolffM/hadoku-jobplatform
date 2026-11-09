@@ -32,7 +32,13 @@ import {
 	JobStateSchema,
 } from '../../schemas.js';
 import { extractPosting, ScraperClientError } from '../../clients/scraper.js';
-import { insertJobStatement, MANUAL_SOURCE, rankNewJobs } from '../../ingestWrite.js';
+import {
+	insertJobStatement,
+	MANUAL_SOURCE,
+	NO_URL_PREFIX,
+	publicUrl,
+	rankNewJobs,
+} from '../../ingestWrite.js';
 import { isTestBoardPosting } from '../../testBoards.js';
 import {
 	effectiveUserId,
@@ -47,7 +53,8 @@ type DB = AppEnv['JOB_PLATFORM_DB'];
 
 const ImportJobSchema = z
 	.object({
-		url: z.string().trim().url().max(2000),
+		/** Required, except for a `manual` posting that has no link. */
+		url: z.string().trim().url().max(2000).optional(),
 		/** Where it lands in the pipeline when it is new to the caller. */
 		state: JobStateSchema.exclude(['dismissed']).default('saved'),
 		/** Typed by the person: store this instead of reading the page. */
@@ -57,8 +64,15 @@ const ImportJobSchema = z
 				company: z.string().trim().min(1).max(200),
 				location: z.string().trim().max(200).default(''),
 				description: z.string().trim().max(20000).default(''),
+				salary_min: z.number().int().min(0).max(10_000_000).nullable().optional(),
+				salary_max: z.number().int().min(0).max(10_000_000).nullable().optional(),
+				workplace_type: z.enum(['remote', 'hybrid', 'onsite', 'unknown']).default('unknown'),
 			})
 			.optional(),
+	})
+	.refine((b) => b.url !== undefined || b.manual !== undefined, {
+		message: 'url is required unless the posting is typed in by hand (manual)',
+		path: ['url'],
 	})
 	.openapi('ImportJob');
 
@@ -71,7 +85,8 @@ const ImportedSchema = z
 				title: z.string(),
 				company: z.string(),
 				location: z.string(),
-				url: z.string(),
+				/** null for a posting typed in by hand with no link. */
+				url: z.string().nullable(),
 			}),
 			/** The posting was new to the corpus (false: it was already there). */
 			created: z.boolean(),
@@ -117,8 +132,12 @@ export function manualDescriptionHtml(text: string): string {
 		.join('');
 }
 
-/** Stable per URL, so typing the same posting twice lands on one row. */
-async function manualId(url: string): Promise<string> {
+/**
+ * Stable per URL, so typing the same posting twice lands on one row. With no
+ * URL there is nothing to be the same by: each one is new.
+ */
+async function manualId(url: string | undefined): Promise<string> {
+	if (url === undefined) return `manual_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(url));
 	const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 	return `manual_${hex.slice(0, 16)}`;
@@ -199,31 +218,44 @@ export function registerImportRoute(app: JobsApp): void {
 			const db = c.env.JOB_PLATFORM_DB;
 
 			// Already in the corpus under exactly this URL: no scrape needed.
-			let row = await db
-				.prepare(`SELECT ${JOB_COLS} FROM jobs WHERE url = ?`)
-				.bind(url)
-				.first<JobRow>();
+			let row =
+				url === undefined
+					? null
+					: await db
+							.prepare(`SELECT ${JOB_COLS} FROM jobs WHERE url = ?`)
+							.bind(url)
+							.first<JobRow>();
 			let created = false;
 
 			if (!row && manual) {
 				const now = new Date().toISOString();
 				const id = await manualId(url);
+				const salaryGiven =
+					(manual.salary_min ?? null) !== null || (manual.salary_max ?? null) !== null;
 				const [res] = await db.batch([
 					insertJobStatement(
 						db,
 						{
 							id,
-							url,
+							url: url ?? `${NO_URL_PREFIX}${id}`,
 							source_site: MANUAL_SOURCE,
 							title: manual.title,
 							company: manual.company,
 							location: manual.location,
 							job_type: 'unknown',
-							workplace_type: 'unknown',
-							salary: null,
+							workplace_type: manual.workplace_type,
+							salary: salaryGiven
+								? {
+										min: manual.salary_min ?? null,
+										max: manual.salary_max ?? null,
+										currency: null,
+										period: null,
+										text: null,
+									}
+								: null,
 							description: manualDescriptionHtml(manual.description),
 							posted_date: null,
-							application_url: url,
+							application_url: url ?? null,
 							department: null,
 							scraper_used: null,
 							raw: {},
@@ -243,6 +275,8 @@ export function registerImportRoute(app: JobsApp): void {
 			}
 
 			if (!row) {
+				// The schema admits a missing url only with `manual`, handled above.
+				if (url === undefined) throw new Error('import: no url and no manual entry');
 				let extracted;
 				try {
 					extracted = await extractPosting(c.env, url, await greenhouseSlugFor(db, url));
@@ -307,7 +341,7 @@ export function registerImportRoute(app: JobsApp): void {
 					{
 						success: true as const,
 						data: {
-							job: row,
+							job: { ...row, url: publicUrl(row.url) },
 							created,
 							state: kept.success ? kept.data : state,
 							already_tracked: true,
@@ -336,7 +370,15 @@ export function registerImportRoute(app: JobsApp): void {
 					.bind(row.id, who.userId, state, now),
 			]);
 			return c.json(
-				{ success: true as const, data: { job: row, created, state, already_tracked: false } },
+				{
+					success: true as const,
+					data: {
+						job: { ...row, url: publicUrl(row.url) },
+						created,
+						state,
+						already_tracked: false,
+					},
+				},
 				200
 			);
 		}

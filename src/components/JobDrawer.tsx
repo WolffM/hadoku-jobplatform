@@ -583,14 +583,16 @@ export function JobDrawer({
                 </Suspense>
               )}
               <div className="jp-drawer__actions">
-                <a
-                  className="jp-drawer__cta jp-drawer__cta--primary"
-                  href={job.application_url ?? job.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Apply on {job.source_site}
-                </a>
+                {(job.application_url ?? job.url) && (
+                  <a
+                    className="jp-drawer__cta jp-drawer__cta--primary"
+                    href={job.application_url ?? job.url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Apply on {job.source_site}
+                  </a>
+                )}
                 <button
                   type="button"
                   className="jp-drawer__cta"

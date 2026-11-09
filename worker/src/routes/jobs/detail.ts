@@ -1,3 +1,4 @@
+import { publicUrl } from '../../ingestWrite.js';
 import { closedFlags } from '../../freshness.js';
 import { createRoute, z } from '@hono/zod-openapi';
 import {
@@ -157,7 +158,7 @@ export function registerDetailRoute(app: JobsApp): void {
 				salary_min: row.salary_min as number | null,
 				salary_max: row.salary_max as number | null,
 				source_site: row.source_site as string,
-				url: row.url as string,
+				url: publicUrl(row.url as string),
 				posted_date: row.posted_date as string | null,
 				scraped_at: row.scraped_at as string,
 				ats: (row.ats as string | null) ?? null,
