@@ -16,6 +16,7 @@
  * All five accept `ownerName` like the rest of the per-user routes, through
  * `effectiveUserId` — never silently ignored (see AGENTS.md).
  */
+import { closedFlags } from '../../freshness.js';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { D1Database } from '@cloudflare/workers-types';
 import {
@@ -182,6 +183,7 @@ export function registerPipelineRoutes(app: JobsApp): void {
 			const rows = await c.env.JOB_PLATFORM_DB.prepare(
 				`SELECT js.job_id, j.title, j.company, j.location, j.workplace_type,
 				        j.salary_min, j.salary_max, j.url, j.posted_date,
+				        j.ats, j.slug, j.last_seen_at,
 				        js.state, js.updated_at, js.variant_slug,
 				        js.notes, js.priority, js.follow_up_at, js.contact_name, js.contact_email,
 				        ap.status AS application_status,
@@ -214,9 +216,13 @@ export function registerPipelineRoutes(app: JobsApp): void {
 						application_status: string | null;
 						applied_at: string | null;
 						last_event_at: string | null;
+						ats: string | null;
+						slug: string | null;
+						last_seen_at: string | null;
 					}
 				>();
-			const items = rows.results.flatMap((r) => {
+			const closed = await closedFlags(c.env.JOB_PLATFORM_DB, rows.results);
+			const items = rows.results.flatMap((r, i) => {
 				const state = stateOrNull(r.state);
 				// A state this code does not know is not a pipeline column; leaving
 				// it out beats inventing one for it.
@@ -238,6 +244,8 @@ export function registerPipelineRoutes(app: JobsApp): void {
 						variant_slug: r.variant_slug,
 						application_status: asApplicationStatus(r.application_status),
 						applied_at: r.applied_at,
+						last_seen_at: r.last_seen_at,
+						closed: closed[i],
 						last_event_at: r.last_event_at,
 					},
 				];

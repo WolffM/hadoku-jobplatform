@@ -1,3 +1,4 @@
+import { closedFlags } from '../../freshness.js';
 import { createRoute, z } from '@hono/zod-openapi';
 import {
 	asJobStateRead,
@@ -180,6 +181,16 @@ export function registerDetailRoute(app: JobsApp): void {
 				application_status: asApplicationStatus(applicationStatus),
 				state_updated_at: stateUpdatedAt,
 				tracking,
+				last_seen_at: (row.last_seen_at as string | null) ?? null,
+				closed: (
+					await closedFlags(db, [
+						{
+							ats: (row.ats as string | null) ?? null,
+							slug: (row.slug as string | null) ?? null,
+							last_seen_at: (row.last_seen_at as string | null) ?? null,
+						},
+					])
+				)[0],
 			};
 
 			return c.json({ success: true as const, data: { job } }, 200);

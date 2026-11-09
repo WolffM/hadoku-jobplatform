@@ -211,6 +211,10 @@ export const JobDetailSchema = JobSummarySchema.extend({
 	state_updated_at: z.string().nullable(),
 	/** V5 tracking; null when the caller has no state for this posting (or is anonymous). */
 	tracking: TrackingSchema.nullable(),
+	/** When a scrape last saw it on its board (null: never, or not a board posting). */
+	last_seen_at: z.string().nullable(),
+	/** Taken down: it has fallen behind its own board's scrapes (freshness.ts). */
+	closed: z.boolean(),
 }).openapi('JobDetail');
 
 // PUT /jobs/:id/state — body
@@ -840,6 +844,10 @@ export const PipelineItemSchema = z
 		applied_at: z.string().nullable(),
 		/** Newest timeline row, of any kind. */
 		last_event_at: z.string().nullable(),
+		/** When a scrape last saw it on its board (null: never, or not a board posting). */
+		last_seen_at: z.string().nullable(),
+		/** Taken down: it has fallen behind its own board's scrapes (freshness.ts). */
+		closed: z.boolean(),
 	})
 	.openapi('PipelineItem');
 
