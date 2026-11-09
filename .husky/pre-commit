@@ -45,7 +45,7 @@ fi
 if [ ! -e node_modules ]; then
   echo "📦 No node_modules — installing this checkout's own"
   if ! CI=true pnpm install --frozen-lockfile; then
-    echo "❌ pnpm install failed. A private @wolffm package needs NODE_AUTH_TOKEN; install, then commit again."
+    echo "❌ pnpm install failed; install, then commit again."
     exit 1
   fi
 fi

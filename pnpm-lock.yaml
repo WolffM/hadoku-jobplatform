@@ -8,12 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@wolffm/logger':
-        specifier: ^1.4.3
-        version: 1.4.3
-      '@wolffm/prefs-client':
-        specifier: ^1.1.23
-        version: 1.1.23(react@19.2.4)(zod@4.3.6)
       react-router-dom:
         specifier: ^7.14.1
         version: 7.14.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -46,17 +40,20 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(vite@7.3.1(@types/node@26.1.1)(yaml@2.8.3))
       '@wolffm/catalogue':
-        specifier: ^1.0.11
-        version: 1.0.11
+        specifier: npm:@hadoku/catalogue@^1.0.11
+        version: '@hadoku/catalogue@1.0.11'
       '@wolffm/dev-vault':
-        specifier: ^1.5.6
-        version: 1.5.6
+        specifier: npm:@hadoku/dev-vault@^1.5.6
+        version: '@hadoku/dev-vault@1.5.6'
+      '@wolffm/logger':
+        specifier: npm:@hadoku/logger@^1.4.3
+        version: '@hadoku/logger@1.4.3'
       '@wolffm/task-ui-components':
-        specifier: ^4.23.27
-        version: 4.23.27(@wolffm/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: npm:@hadoku/task-ui-components@^4.23.27
+        version: '@hadoku/task-ui-components@4.23.27(@hadoku/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
       '@wolffm/themes':
-        specifier: ^5.13.42
-        version: 5.13.42(react@19.2.4)
+        specifier: npm:@hadoku/themes@^5.13.42
+        version: '@hadoku/themes@5.13.42(react@19.2.4)'
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -118,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.7.17
-        version: 1.7.17(hono@4.12.9)(zod@4.6.7)
+        specifier: npm:@hadoku/worker-utils@^1.7.17
+        version: '@hadoku/worker-utils@1.7.17(hono@4.12.9)(zod@4.6.7)'
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -674,6 +671,50 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@hadoku/catalogue@1.0.11':
+    resolution: {integrity: sha512-8Ss3ZC+G1H2NSYiHuPP9cW7lDkhCinRvKmrQ87kvwwKZApvUnPeVssTSCFmtuuN+douGNNa1Bthx8HHpaLCkcA==}
+    engines: {node: '>=18'}
+
+  '@hadoku/dev-vault@1.5.6':
+    resolution: {integrity: sha512-5880C+3F6/l7iml0BHGriPgvKcx1+ro0R9XaPFsOiHRxfhPc79qAYPhzrJRDy1GpOMcff8u4JDPtRAXozK+krA==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  '@hadoku/logger@1.4.3':
+    resolution: {integrity: sha512-DnWcV9rwxjOT6NbBnbGHmhNt9of00zZW1BO5XcwiWMbYA6WQmp+ExSx2ldhnSMIk5OnFNMMw9WpVYvGWiCfOBA==}
+    engines: {node: '>=18'}
+
+  '@hadoku/prefs-client@1.1.23':
+    resolution: {integrity: sha512-hy33/47uXZH2mYi+LI6Q4dzryENh09SLdl+qhX5Sqz7Rz2lx7PtT+SJwdh7nyDL+PeldFn8Qh8DHKLdaZHflxw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      zod: ^4.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+
+  '@hadoku/task-ui-components@4.23.27':
+    resolution: {integrity: sha512-6e+BvWoz8YFthdo6KnErG4l9LzGHywZ+36ZFtT/7MtCtwUazUSUXFFh8Wloa68dZT+H8fOJIjAGYrVHAKd4SwA==}
+    peerDependencies:
+      '@wolffm/themes': '*'
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+
+  '@hadoku/themes@5.13.42':
+    resolution: {integrity: sha512-ZipZrD38keAI+UR/bqZ4QZZPtBh5ssQAM2U4JPCeEB0jG1KtTPSXdnBkZQ/ner82OhWULdBMz3qXJrs5KFI3+w==}
+    hasBin: true
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      react:
+        optional: true
+
+  '@hadoku/worker-utils@1.7.17':
+    resolution: {integrity: sha512-JANcKHE3BHR7E9wCh5oGMpXjsa/uA1Xu3f1aBqxlkDwROcroZoJpcYQS8sBEKzzfrxCeQEDgpUYoEIkgfXNpQg==}
+    peerDependencies:
+      hono: ^4.11.4
 
   '@hono/zod-openapi@1.2.3':
     resolution: {integrity: sha512-zAviC3ApRAYGUiGWZiW/mrK/UBqkTi9BKQxn1IvwYyp2kS+k1tlnwut59DfEInpcsq1347zAYOqYI+obMy4vzQ==}
@@ -1261,44 +1302,6 @@ packages:
 
   '@vue/shared@3.5.30':
     resolution: {integrity: sha512-YXgQ7JjaO18NeK2K9VTbDHaFy62WrObMa6XERNfNOkAhD1F1oDSf3ZJ7K6GqabZ0BvSDHajp8qfS5Sa2I9n8uQ==}
-
-  '@wolffm/catalogue@1.0.11':
-    resolution: {integrity: sha512-KVTwSm9ritt5OUAUjukHbAH80LnzzoMqoeAsXLJ5EYbQoTvCDRxqhVnOEMc3uQLoZ3rtIeWP6YAui+M1a1cROQ==, tarball: https://npm.pkg.github.com/download/@wolffm/catalogue/1.0.11/dfcf666e4d6c844d78b24cf92bf4f4d2dda46610}
-    engines: {node: '>=18'}
-
-  '@wolffm/dev-vault@1.5.6':
-    resolution: {integrity: sha512-xql6TRvhuq0U4KLfGTxOvwm1/ICS2cydHaE4Geb64JMygNb2EldeCI1uQSkuNWOmRUpDlSI9sDKOPvrxm2F4FA==, tarball: https://npm.pkg.github.com/download/@wolffm/dev-vault/1.5.6/e56b13636d0bcd4d7363ad99663ad08840ec6da3}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@wolffm/logger@1.4.3':
-    resolution: {integrity: sha512-Slc+zFMo1PODZ0+YuhmbdISNl/UPnB7//M+VMTN8ZbR1YMMDKnkFMR2I8gvt7invaYMno5N0iOW3iJkeCC5lUw==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.4.3/b567775fac1a91f83fe006c9be7fa778fe76e073}
-    engines: {node: '>=18'}
-
-  '@wolffm/prefs-client@1.1.23':
-    resolution: {integrity: sha512-Ag/MfhzYD+NLXNMmIl85EcmD/t3jlL4iyCUbS51Fov3NgvAFeL+dqVlrH5zOtEwNlg5bI8JpCr5f2u03uaQ6xQ==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.1.23/cd126e7d5ef9ba1538a8b6cd015aaa4add5dc860}
-    engines: {node: '>=18'}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-      zod: ^4.0.0
-
-  '@wolffm/task-ui-components@4.23.27':
-    resolution: {integrity: sha512-qsIxq8U8zjpq5H3V6khyCS7s7V5YrOLgz/6UwYDAZmWS/LzTanJJticqJKnhF6ogH9je8oe/vHVPU7w4BrRDjg==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.23.27/b2ca1b96fd33b8fcf1e313dd7f6235d541c9a600}
-    peerDependencies:
-      '@wolffm/themes': '*'
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
-
-  '@wolffm/themes@5.13.42':
-    resolution: {integrity: sha512-VL2rYgPhfPaqP3PCb1lUAYCaTwZIUoEUlrO8kxstIRi0YxXaNkpys/9WAsHg6dapybq+bKh/I1EHEhWYh84a0A==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.13.42/b56f9a874cbd511e31e6fb371046094d2e2e1fad}
-    hasBin: true
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-
-  '@wolffm/worker-utils@1.7.17':
-    resolution: {integrity: sha512-F3kZlAM9snhDfFj+ajmaXn+7UKbApEXzKUND+UCHh046/RuE5PD/oD+EmwoTcZSO08lXmmJnF9/iBtCyYQXUpg==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.7.17/e44751c48da313d1afa03c0089fab5cf84fc2ccb}
-    peerDependencies:
-      hono: ^4.11.4
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -3237,6 +3240,39 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@hadoku/catalogue@1.0.11': {}
+
+  '@hadoku/dev-vault@1.5.6': {}
+
+  '@hadoku/logger@1.4.3': {}
+
+  '@hadoku/prefs-client@1.1.23(react@19.2.4)(zod@4.6.7)':
+    dependencies:
+      zod: 4.6.7
+    optionalDependencies:
+      react: 19.2.4
+
+  '@hadoku/task-ui-components@4.23.27(@hadoku/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@wolffm/themes': '@hadoku/themes@5.13.42(react@19.2.4)'
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+
+  '@hadoku/themes@5.13.42(react@19.2.4)':
+    dependencies:
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.1.23(react@19.2.4)(zod@4.6.7)'
+      zod: 4.6.7
+    optionalDependencies:
+      react: 19.2.4
+
+  '@hadoku/worker-utils@1.7.17(hono@4.12.9)(zod@4.6.7)':
+    dependencies:
+      '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
+      '@wolffm/logger': '@hadoku/logger@1.4.3'
+      hono: 4.12.9
+    transitivePeerDependencies:
+      - zod
+
   '@hono/zod-openapi@1.2.3(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@asteasolutions/zod-to-openapi': 8.5.0(zod@4.6.7)
@@ -3792,37 +3828,6 @@ snapshots:
       typescript: 5.9.3
 
   '@vue/shared@3.5.30': {}
-
-  '@wolffm/catalogue@1.0.11': {}
-
-  '@wolffm/dev-vault@1.5.6': {}
-
-  '@wolffm/logger@1.4.3': {}
-
-  '@wolffm/prefs-client@1.1.23(react@19.2.4)(zod@4.3.6)':
-    dependencies:
-      react: 19.2.4
-      zod: 4.3.6
-
-  '@wolffm/task-ui-components@4.23.27(@wolffm/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@wolffm/themes': 5.13.42(react@19.2.4)
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
-  '@wolffm/themes@5.13.42(react@19.2.4)':
-    dependencies:
-      '@wolffm/prefs-client': 1.1.23(react@19.2.4)(zod@4.3.6)
-      react: 19.2.4
-      zod: 4.3.6
-
-  '@wolffm/worker-utils@1.7.17(hono@4.12.9)(zod@4.6.7)':
-    dependencies:
-      '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
-      '@wolffm/logger': 1.4.3
-      hono: 4.12.9
-    transitivePeerDependencies:
-      - zod
 
   acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:

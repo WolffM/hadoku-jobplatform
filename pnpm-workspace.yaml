@@ -13,6 +13,9 @@ allowBuilds:
 # releases are near-always caught within hours (Shai-Hulud ~12h, debug/chalk ~2.5h), so we
 # let the ecosystem find them first. @wolffm/* is EXEMPT (verified): it is the cross-ecosystem
 # deploy path and must install immediately — gating it would stall the whole package sync.
+# @hadoku/* is the same packages from npmjs (the @wolffm/* devDependencies are aliases of
+# them), and pnpm judges an alias by its real name, so it needs the same exemption.
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - '@wolffm/*'
+  - '@hadoku/*'

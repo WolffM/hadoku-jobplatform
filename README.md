@@ -147,8 +147,11 @@ the edge degrades to `public` rather than being trusted.
 
 ## Getting access
 
-Installing, the dev server and the signed-in e2e suite need your own credential.
-Getting one is the same for every hadoku repo, so the steps live on one page:
+A fresh clone installs, builds and passes every check with no credential and no
+`.npmrc`: the `@wolffm/*` dev dependencies are npm aliases of their public npmjs copies
+(`npm:@hadoku/<name>`). The dev server and the signed-in e2e suite talk to the real
+hadoku.me API, so those need your own credential. Getting one is the same for every
+hadoku repo, so the steps live on one page:
 **[hadoku.me/docs/contributing/#jobplatform](https://hadoku.me/docs/contributing/#jobplatform)**.
 The identity to ask for is `jobplatform-service-key`. Once you have it, `pnpm dev` and
 `pnpm test:e2e` work as they are: they run through dev-vault (a dev dependency).
@@ -157,12 +160,11 @@ The identity to ask for is `jobplatform-service-key`. Once you have it, `pnpm de
 
 ## Development
 
-Requires `pnpm`, and a credential for installing and for the dev server (see
-[Getting access](#getting-access)). Without one a clone builds and tests but does not
-fully run.
+Requires Node 22+ and `pnpm`. Installing and every check need nothing else; the dev
+server needs a credential (see [Getting access](#getting-access)).
 
 ```bash
-pnpm install      # outside the fleet: npx @hadoku/dev-vault -- pnpm install
+pnpm install
 
 pnpm dev          # dev server on :5173
 pnpm build        # build both packages
