@@ -92,6 +92,7 @@ export const ERASED_TABLES: readonly { table: string; sql: string }[] = [
 	{ table: 'mail_reconcile_state', sql: 'DELETE FROM mail_reconcile_state WHERE user_id = ?1' },
 	{ table: 'mail_unmatched', sql: 'DELETE FROM mail_unmatched WHERE user_id = ?1' },
 	{ table: 'blocked_companies', sql: 'DELETE FROM blocked_companies WHERE user_id = ?1' },
+	{ table: 'user_skills', sql: 'DELETE FROM user_skills WHERE user_id = ?1' },
 	{ table: 'owner_name_cache', sql: 'DELETE FROM owner_name_cache WHERE user_id = ?1' },
 ];
 

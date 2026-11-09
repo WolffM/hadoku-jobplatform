@@ -911,3 +911,48 @@ export const InsightsSchema = z
 	.openapi('Insights');
 
 export const InsightsResponseSchema = S(InsightsSchema).openapi('InsightsResponse');
+
+// ============================================================================
+// Skills (a person's own list) and a posting's match against it
+// ============================================================================
+
+export const SkillProficiencySchema = z.enum(['beginner', 'intermediate', 'expert']);
+
+export const SkillSchema = z
+	.object({
+		id: z.number().int(),
+		name: z.string(),
+		category: z.string().nullable(),
+		proficiency: SkillProficiencySchema,
+		created_at: z.string(),
+	})
+	.openapi('Skill');
+
+export const AddSkillSchema = z
+	.object({
+		name: z.string().trim().min(1).max(80),
+		category: z.string().trim().max(80).optional(),
+		proficiency: SkillProficiencySchema.default('intermediate'),
+	})
+	.openapi('AddSkill');
+
+export const SkillsResponseSchema = S(z.object({ skills: z.array(SkillSchema) })).openapi(
+	'SkillsResponse'
+);
+export const SkillResponseSchema = S(z.object({ skill: SkillSchema })).openapi('SkillResponse');
+
+export const JobMatchResponseSchema = S(
+	z.object({
+		/** Skills the posting names that the caller has (canonical names). */
+		matched: z.array(z.string()),
+		/** Skills the posting names that the caller lacks. */
+		missing: z.array(z.string()),
+		/** Every skill the posting names, in vocabulary order. */
+		detected: z.array(z.string()),
+		/** matched / detected, 0–100 (0 when the posting names none). */
+		score: z.number().int(),
+		summary: z.string(),
+		/** What the caller's side came from: their skills list, their profiles' stack, or nothing. */
+		against: z.enum(['skills', 'profile_stack', 'none']),
+	})
+).openapi('JobMatchResponse');

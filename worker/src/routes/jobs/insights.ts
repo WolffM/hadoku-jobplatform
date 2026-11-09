@@ -19,7 +19,7 @@
  */
 import { createRoute } from '@hono/zod-openapi';
 import { IdentityErrorResponseSchema, InsightsResponseSchema } from '../../schemas.js';
-import { canonicalSkill, extractSkills } from '../../skills.js';
+import { canonicalSkill, extractSkills, parseStringList as parseList } from '../../skills.js';
 import {
 	effectiveUserId,
 	gateAuthed,
@@ -40,17 +40,6 @@ export function weekOf(iso: string): string {
 	const sinceMonday = (d.getUTCDay() + 6) % 7;
 	d.setUTCDate(d.getUTCDate() - sinceMonday);
 	return d.toISOString().slice(0, 10);
-}
-
-function parseList(raw: string): string[] {
-	try {
-		const v: unknown = JSON.parse(raw);
-		return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-	} catch {
-		// A malformed stack column is an empty stack — the same default
-		// migration 0011 gives every profile.
-		return [];
-	}
 }
 
 const ERRORS = {

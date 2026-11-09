@@ -94,6 +94,11 @@ async function seedPerson(userId: string): Promise<void> {
 		now
 	);
 	await run(
+		"INSERT INTO user_skills (user_id, name, name_key, proficiency, created_at) VALUES (?, 'Go', 'go', 'expert', ?)",
+		userId,
+		now
+	);
+	await run(
 		`INSERT INTO job_events (job_id, user_id, kind, from_state, to_state, note, occurred_at, created_at)
 		 VALUES (?, ?, 'state', NULL, 'applied', NULL, ?, ?)`,
 		jobA,
@@ -170,6 +175,7 @@ const SEEDED: Record<string, number> = {
 	mail_reconcile_state: 1,
 	mail_unmatched: 1,
 	blocked_companies: 1,
+	user_skills: 1,
 	owner_name_cache: 1,
 };
 

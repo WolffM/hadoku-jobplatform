@@ -151,3 +151,18 @@ export function canonicalSkill(term: string): string {
 	for (const { name, aliases } of SKILLS) if (aliases.includes(t)) return name;
 	return t;
 }
+
+/**
+ * A JSON list column (profiles.stack, profiles.keywords) as strings. Malformed
+ * is empty, the default migration 0011 gives every profile.
+ */
+export function parseStringList(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	try {
+		const v: unknown = JSON.parse(raw);
+		return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+	} catch {
+		// Not JSON: treated as no list, as above.
+		return [];
+	}
+}

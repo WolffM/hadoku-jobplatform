@@ -26,6 +26,7 @@ import { registerBlockedRoutes } from './blocked.js';
 import { registerInsightsRoute } from './insights.js';
 import { registerLocationsRoute } from './locations.js';
 import { registerImportRoute } from './importUrl.js';
+import { registerUserSkillRoutes } from './userSkills.js';
 
 const app = new OpenAPIHono<RouteContext>();
 
@@ -46,6 +47,7 @@ registerBlockedRoutes(app);
 registerInsightsRoute(app);
 registerLocationsRoute(app);
 registerImportRoute(app);
+registerUserSkillRoutes(app);
 registerAnswerRoutes(app);
 registerOwnerRoutes(app);
 
