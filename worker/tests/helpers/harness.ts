@@ -46,7 +46,7 @@ export const EDGE_SECRET = 'test-edge-secret';
  * literals (0009's json path arguments) must not split, hence the quote-aware
  * scan rather than `sql.split(';')`.
  */
-function splitStatements(sql: string): string[] {
+export function splitStatements(sql: string): string[] {
 	const stripped = sql.replace(/^\s*--.*$/gm, '');
 	const out: string[] = [];
 	let buf = '';
