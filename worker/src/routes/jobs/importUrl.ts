@@ -277,6 +277,16 @@ export function registerImportRoute(app: JobsApp): void {
 			if (!row) {
 				// The schema admits a missing url only with `manual`, handled above.
 				if (url === undefined) throw new Error('import: no url and no manual entry');
+				// Known test boards are refused on the pasted URL alone: no scrape is
+				// spent on them, and a test posting already taken down still gets
+				// this answer rather than a 404. The check after extraction covers
+				// a page whose board only the scraper can name.
+				if (isTestBoardPosting(url)) {
+					return c.json(
+						failure(422, "That board holds LinkedIn's ATS test postings, not real jobs."),
+						422
+					);
+				}
 				let extracted;
 				try {
 					extracted = await extractPosting(c.env, url, await greenhouseSlugFor(db, url));

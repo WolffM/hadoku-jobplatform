@@ -149,6 +149,18 @@ describe('POST /jobs/import', () => {
 		assert.match(res.body.message, /test postings/);
 		assert.deepEqual(await ids(), []);
 	});
+
+	it('refuses it on the pasted URL alone, without asking the scraper', async () => {
+		const before = scraper.calls.length;
+		const res = await h.json<{ message: string }>(`${BASE}/jobs/import`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+			body: JSON.stringify({ url: 'https://job-boards.greenhouse.io/linkedin/jobs/999' }),
+		});
+		assert.equal(res.status, 422);
+		assert.equal(scraper.calls.length, before);
+	});
 });
 
 describe('migration 0032', () => {
