@@ -8,7 +8,7 @@
  * than filtered after the fetch. Service tier alone is not enough — every
  * worker key in the fleet has that and they all get 403.
  *
- * See docs/RESPONSE-application-mail-access.md for the contract.
+ * See hadoku_site/docs/requests/hadoku-jobplatform/RESPONSE-application-mail-access.md for the contract.
  */
 
 import type { AppEnv } from '../types.js';
