@@ -40,8 +40,8 @@ importers:
         specifier: ^5.1.0
         version: 5.2.0(vite@7.3.1(@types/node@26.1.1)(yaml@2.8.3))
       '@wolffm/catalogue':
-        specifier: npm:@hadoku/catalogue@^1.0.12
-        version: '@hadoku/catalogue@1.0.12'
+        specifier: npm:@hadoku/catalogue@^1.0.13
+        version: '@hadoku/catalogue@1.0.13'
       '@wolffm/dev-vault':
         specifier: npm:@hadoku/dev-vault@^1.5.6
         version: '@hadoku/dev-vault@1.5.6'
@@ -672,8 +672,8 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@hadoku/catalogue@1.0.12':
-    resolution: {integrity: sha512-Ug2ejs+pWNxFtNivWVteiuRtZykd1I1qj3pS0M4/fM/8pF0O6OUv/gtvGJvl6qmfoICW/QULOs4S0ydj37ir1Q==}
+  '@hadoku/catalogue@1.0.13':
+    resolution: {integrity: sha512-X72XkqJ9ui4GQUU1C8wG75elfYyti4ErKSNhNXnrI5cPfTwjcud2hVfo2KmnvJoIHMQH/oMkzcD87GHEuCbvkA==}
     engines: {node: '>=18'}
 
   '@hadoku/dev-vault@1.5.6':
@@ -3234,7 +3234,7 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@hadoku/catalogue@1.0.12': {}
+  '@hadoku/catalogue@1.0.13': {}
 
   '@hadoku/dev-vault@1.5.6': {}
 
