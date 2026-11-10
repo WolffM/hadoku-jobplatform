@@ -115,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.7.18
-        version: 1.7.18(hono@4.12.9)(zod@4.6.7)
+        specifier: ^1.7.19
+        version: 1.7.19(hono@4.12.9)(zod@4.6.7)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -1272,8 +1272,8 @@ packages:
     resolution: {integrity: sha512-Slc+zFMo1PODZ0+YuhmbdISNl/UPnB7//M+VMTN8ZbR1YMMDKnkFMR2I8gvt7invaYMno5N0iOW3iJkeCC5lUw==, tarball: https://npm.pkg.github.com/download/@wolffm/logger/1.4.3/b567775fac1a91f83fe006c9be7fa778fe76e073}
     engines: {node: '>=18'}
 
-  '@wolffm/prefs-client@1.1.23':
-    resolution: {integrity: sha512-Ag/MfhzYD+NLXNMmIl85EcmD/t3jlL4iyCUbS51Fov3NgvAFeL+dqVlrH5zOtEwNlg5bI8JpCr5f2u03uaQ6xQ==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.1.23/cd126e7d5ef9ba1538a8b6cd015aaa4add5dc860}
+  '@wolffm/prefs-client@1.1.24':
+    resolution: {integrity: sha512-l3u2dUK3aR3jXfOC8CSvmWKLOMjwKe7Q8xEM+pMV4u1Ugex/zmWKRz1U/OLT798yT7JhwYscwQq3zm7DeW3SKg==, tarball: https://npm.pkg.github.com/download/@wolffm/prefs-client/1.1.24/435cd0b198065c3fd37538c0986c0dc3ec47b28c}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -1292,8 +1292,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/worker-utils@1.7.18':
-    resolution: {integrity: sha512-IrnPI5+QtCXrqQf69cD47xNXsu674AYewVv7Qnbo87TliZYqZZeOOZbWXHwfCy/+MJJTUzYVk1wTagH9FuPE0w==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.7.18/c453aa0127ed265849527cbe24bebb82f5f80e47}
+  '@wolffm/worker-utils@1.7.19':
+    resolution: {integrity: sha512-lOGSpKOskJeAKGNt3xep+mYUaMs+suQCoS07Y2KL/tfacgF8ieQp4G3XplADqK5GFEfXNOkXzIp2Ta4LCr7sbg==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.7.19/04e05597b9e1cb51edf18e1a81e49cce8eadcbbd}
     peerDependencies:
       hono: ^4.11.4
 
@@ -3796,7 +3796,7 @@ snapshots:
 
   '@wolffm/logger@1.4.3': {}
 
-  '@wolffm/prefs-client@1.1.23(react@19.2.4)(zod@4.3.6)':
+  '@wolffm/prefs-client@1.1.24(react@19.2.4)(zod@4.3.6)':
     dependencies:
       react: 19.2.4
       zod: 4.3.6
@@ -3809,11 +3809,11 @@ snapshots:
 
   '@wolffm/themes@5.13.43(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': 1.1.23(react@19.2.4)(zod@4.3.6)
+      '@wolffm/prefs-client': 1.1.24(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/worker-utils@1.7.18(hono@4.12.9)(zod@4.6.7)':
+  '@wolffm/worker-utils@1.7.19(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
       '@wolffm/logger': 1.4.3
