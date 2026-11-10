@@ -43,17 +43,17 @@ importers:
         specifier: npm:@hadoku/catalogue@^1.0.13
         version: '@hadoku/catalogue@1.0.13'
       '@wolffm/dev-vault':
-        specifier: npm:@hadoku/dev-vault@^1.5.6
-        version: '@hadoku/dev-vault@1.5.6'
+        specifier: npm:@hadoku/dev-vault@^1.5.7
+        version: '@hadoku/dev-vault@1.5.7'
       '@wolffm/logger':
         specifier: ^1.4.3
         version: 1.4.3
       '@wolffm/task-ui-components':
-        specifier: ^4.23.27
-        version: 4.23.27(@wolffm/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^4.23.28
+        version: 4.23.28(@wolffm/themes@5.13.43(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^5.13.42
-        version: 5.13.42(react@19.2.4)
+        specifier: ^5.13.43
+        version: 5.13.43(react@19.2.4)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -676,8 +676,8 @@ packages:
     resolution: {integrity: sha512-X72XkqJ9ui4GQUU1C8wG75elfYyti4ErKSNhNXnrI5cPfTwjcud2hVfo2KmnvJoIHMQH/oMkzcD87GHEuCbvkA==}
     engines: {node: '>=18'}
 
-  '@hadoku/dev-vault@1.5.6':
-    resolution: {integrity: sha512-5880C+3F6/l7iml0BHGriPgvKcx1+ro0R9XaPFsOiHRxfhPc79qAYPhzrJRDy1GpOMcff8u4JDPtRAXozK+krA==}
+  '@hadoku/dev-vault@1.5.7':
+    resolution: {integrity: sha512-+DGCOPBU7IODt//te21hH8wa/LhRM5vytzBpfmiceVZxZdMqugC5uhpiV68h8VEJxs3TjuOVDfWOCOGUunKgGg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -1279,15 +1279,15 @@ packages:
       react: ^18.0.0 || ^19.0.0
       zod: ^4.0.0
 
-  '@wolffm/task-ui-components@4.23.27':
-    resolution: {integrity: sha512-qsIxq8U8zjpq5H3V6khyCS7s7V5YrOLgz/6UwYDAZmWS/LzTanJJticqJKnhF6ogH9je8oe/vHVPU7w4BrRDjg==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.23.27/b2ca1b96fd33b8fcf1e313dd7f6235d541c9a600}
+  '@wolffm/task-ui-components@4.23.28':
+    resolution: {integrity: sha512-/2vNuI1CpKcOtYBB/2WHEzS7ZcEoyHgO0xrXokzoo0OO9yxGqT1NBrI4Q8WA6WYuxdeq7B+/uTj51wnMSi8vNA==, tarball: https://npm.pkg.github.com/download/@wolffm/task-ui-components/4.23.28/daaa4fefb09dcdf3f1a67177094556353721a0ea}
     peerDependencies:
       '@wolffm/themes': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@wolffm/themes@5.13.42':
-    resolution: {integrity: sha512-VL2rYgPhfPaqP3PCb1lUAYCaTwZIUoEUlrO8kxstIRi0YxXaNkpys/9WAsHg6dapybq+bKh/I1EHEhWYh84a0A==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.13.42/b56f9a874cbd511e31e6fb371046094d2e2e1fad}
+  '@wolffm/themes@5.13.43':
+    resolution: {integrity: sha512-AhhJJFHvCFTWOpEuH9Wp6NDA3NmQMuTAXiazQkZJrxXJu/c05P2D/UJjdvEkqt4ZwiYIRxYOtw7mWSPrzfG23w==, tarball: https://npm.pkg.github.com/download/@wolffm/themes/5.13.43/bbf92cf2c019ef82eecf230d27fa92b9ffc264f3}
     hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3236,7 +3236,7 @@ snapshots:
 
   '@hadoku/catalogue@1.0.13': {}
 
-  '@hadoku/dev-vault@1.5.6': {}
+  '@hadoku/dev-vault@1.5.7': {}
 
   '@hono/zod-openapi@1.2.3(hono@4.12.9)(zod@4.6.7)':
     dependencies:
@@ -3801,13 +3801,13 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/task-ui-components@4.23.27(@wolffm/themes@5.13.42(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@wolffm/task-ui-components@4.23.28(@wolffm/themes@5.13.43(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': 5.13.42(react@19.2.4)
+      '@wolffm/themes': 5.13.43(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@wolffm/themes@5.13.42(react@19.2.4)':
+  '@wolffm/themes@5.13.43(react@19.2.4)':
     dependencies:
       '@wolffm/prefs-client': 1.1.23(react@19.2.4)(zod@4.3.6)
       react: 19.2.4
