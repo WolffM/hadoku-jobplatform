@@ -20,7 +20,7 @@
 --                             the common case, not the edge case.
 --
 -- There is deliberately NO column for the code itself. See
--- docs/DECISION-mail-reconciler.md: a code mail sets state and its contents are
+-- hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md: a code mail sets state and its contents are
 -- never parsed, stored, logged or displayed. Adding a column here would be the
 -- first half of answering an anti-bot challenge on the owner's behalf.
 

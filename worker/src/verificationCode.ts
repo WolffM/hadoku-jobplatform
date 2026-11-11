@@ -4,7 +4,7 @@
  * Greenhouse holds an application until a code it emails is typed into the
  * form. The owner asked (2026-10-04) to read that code on the dashboard rather
  * than open an inbox — they own both the mail service and the dashboard — which
- * supersedes the "never displayed" line in docs/DECISION-mail-reconciler.md.
+ * supersedes the "never displayed" line in hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md.
  * What still holds, and is enforced in routes/jobs/verification.ts: this route
  * gives the code to a signed-in human only, never a service identity.
  *

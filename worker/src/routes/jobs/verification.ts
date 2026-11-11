@@ -13,7 +13,7 @@
  * - Never a service identity, and never `ownerName`. The runner holds a
  *   service key; keeping codes out of its reach is what keeps this a display
  *   for a human rather than a pipeline that answers the board's check itself.
- *   docs/DECISION-mail-reconciler.md §1 explains why that line matters.
+ *   hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md §1 explains why that line matters.
  *
  * Read live from the feed and never stored, like every other mail body.
  */

@@ -326,7 +326,7 @@ test('the reconciler is gated — public callers cannot read the mailbox', async
 });
 
 test('message bodies are never written to the database', async () => {
-	// docs/DECISION-mail-reconciler.md: a code mail sets state, its contents are
+	// hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md: a code mail sets state, its contents are
 	// never parsed, stored, logged or displayed. This is that promise, enforced.
 	const secret = 'CODE-85luhtcH-SECRET';
 	const feed = await startFeed({

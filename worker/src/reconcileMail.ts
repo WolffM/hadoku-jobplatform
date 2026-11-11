@@ -21,7 +21,7 @@
  * Verification codes are 4 of the 7 messages currently in scope and their
  * values are in bodies this code receives. A code mail sets state; its contents
  * are never parsed, stored, logged or displayed. See
- * docs/DECISION-mail-reconciler.md — the short version is that the dashboard is
+ * hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md — the short version is that the dashboard is
  * one click from a runner whose whole job is typing values into ATS forms, and
  * not holding the value is the version of that boundary which cannot rot.
  */
@@ -366,7 +366,7 @@ async function recordUnmatched(
 	duplicateOf: string | null
 ): Promise<void> {
 	// Subject and sender only. The body is never written down — see the module
-	// header and docs/DECISION-mail-reconciler.md.
+	// header and hadoku_site/docs/requests/hadoku-jobplatform/DECISION-mail-reconciler.md.
 	await db
 		.prepare(
 			`INSERT INTO mail_unmatched
