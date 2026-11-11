@@ -94,7 +94,7 @@ describe('POST /ingest', () => {
 		const res = await h.json<{ data: { accepted: number; skipped: number } }>(`${BASE}/ingest`, {
 			method: 'POST',
 			tier: 'service',
-			userId: 'scraper',
+			userId: 'cccccccc-5555-4555-8555-cccccccccccc', // the scraper's service identity
 			body: JSON.stringify({
 				jobs: [
 					posting('greenhouse_5786210', GH_TEST, 'Bug Bash Job [No Sensitive Questions] - 03/24'),
@@ -123,7 +123,7 @@ describe('POST /ingest', () => {
 		const res = await h.json<{ data: { accepted: number } }>(`${BASE}/ingest`, {
 			method: 'POST',
 			tier: 'service',
-			userId: 'scraper',
+			userId: 'cccccccc-5555-4555-8555-cccccccccccc', // the scraper's service identity
 			body: JSON.stringify({
 				jobs: [posting('lever_x', LEVER_TEST, 'Rug Maker')],
 				batch_number: 1,

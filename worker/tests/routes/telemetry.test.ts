@@ -40,7 +40,10 @@ describe('POST /telemetry', () => {
 				session: 'sess_abc12345',
 				events: [
 					click('Save'),
-					{ ...click('Dismiss'), props: { label: 'Dismiss', user_id: 'forged' } },
+					{
+						...click('Dismiss'),
+						props: { label: 'Dismiss', user_id: 'ffffffff-0000-4000-8000-ffffffffffff' },
+					},
 				],
 			}),
 		});
