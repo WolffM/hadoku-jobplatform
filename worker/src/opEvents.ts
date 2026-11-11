@@ -28,6 +28,7 @@ export function recordEvent(c: HasExecutionCtx, ev: ServiceEvent): void {
 const OWN_EVENT = [
 	/^\/ingest(\/cull|\/rebuild-rank|\/reconcile-mail)?$/,
 	/^\/telemetry$/,
+	/^\/companies\/(match|probe)$/,
 	/^\/jobs\/import$/,
 	/^\/jobs\/[^/]+\/(state|apply|resume|cover-letter|packet-link|application-extras)$/,
 	/^\/applications\/[^/]+\/(status|approve|owner)$/,

@@ -282,3 +282,73 @@ describe('operation events', () => {
 		assert.equal(rows().length, 0, JSON.stringify(rows()));
 	});
 });
+
+describe('company lookups', () => {
+	let h: Harness;
+	let server: import('node:http').Server;
+	before(async () => {
+		const { createServer } = await import('node:http');
+		server = createServer((req, res) => {
+			let raw = '';
+			req.on('data', (c: Buffer) => (raw += c.toString()));
+			req.on('end', () => {
+				res.writeHead(req.url?.endsWith('/match') ? 500 : 200, {
+					'Content-Type': 'application/json',
+				});
+				if (req.url?.endsWith('/match')) return res.end(JSON.stringify({ detail: 'boom' }));
+				const { slugs } = JSON.parse(raw) as { slugs: string[] };
+				res.end(
+					JSON.stringify({
+						success: true,
+						data: { results: slugs.map((slug) => ({ slug, hits: [], unreachable: ['lever'] })) },
+					})
+				);
+			});
+		});
+		await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+		const { port } = server.address() as import('node:net').AddressInfo;
+		h = await createHarness({ scraperUrl: `http://127.0.0.1:${port}` });
+	});
+	after(async () => {
+		await h.dispose();
+		await new Promise<void>((r) => server.close(() => r()));
+	});
+
+	const named = (event: string) =>
+		(h.telemetry as Posted[]).filter((r) => r.message.startsWith(`event=${event} `));
+
+	it('a probe that could not ask a provider says so, and passes it on', async () => {
+		h.telemetry.length = 0;
+		const res = await h.json<{ data: { results: { unreachable?: string[] }[] } }>(
+			`${BASE}/companies/probe`,
+			{
+				method: 'POST',
+				tier: 'friend',
+				userId: 'user-op',
+				body: JSON.stringify({ slugs: ['scale'] }),
+			}
+		);
+		assert.equal(res.status, 200);
+		assert.deepEqual(res.body.data.results[0].unreachable, ['lever']);
+		await h.settle();
+		const [row] = named('companies.probe');
+		assert.equal(row.level, 'warn');
+		assert.deepEqual(row.context.unreachable, ['lever']);
+		assert.equal(named('api.change').length, 0);
+	});
+
+	it('a scraper failure is an error row, not just our 502', async () => {
+		h.telemetry.length = 0;
+		const res = await h.fetch(`${BASE}/companies/match`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'user-op',
+			body: JSON.stringify({ names: ['Scale AI'] }),
+		});
+		assert.equal(res.status, 502);
+		await h.settle();
+		const [row] = named('companies.match_failed');
+		assert.equal(row.level, 'error');
+		assert.equal(row.context.scraper_status, 500);
+	});
+});

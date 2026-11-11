@@ -754,7 +754,16 @@ export const ProviderHitSchema = z
 
 export const ProbeCompanyResponseSchema = S(
 	z.object({
-		results: z.array(z.object({ slug: z.string(), hits: z.array(ProviderHitSchema) })),
+		results: z.array(
+			z.object({
+				slug: z.string(),
+				hits: z.array(ProviderHitSchema),
+				unreachable: z.array(z.string()).optional().openapi({
+					description:
+						'Providers that did not answer (scraper ≥ 47bcdce). Missing from hits because they could not be asked, not because there is no board.',
+				}),
+			})
+		),
 	})
 ).openapi('ProbeCompanyResponse');
 
@@ -775,6 +784,10 @@ export const CompanyMatchSchema = z
 		n_jobs: z.number().int(),
 		sample_titles: z.array(z.string()),
 		domain: z.string().nullable(),
+		unreachable: z.array(z.string()).optional().openapi({
+			description:
+				'Providers that did not answer (scraper ≥ 47bcdce). Missing from hits because they could not be asked, not because there is no board.',
+		}),
 	})
 	.openapi('CompanyMatch');
 

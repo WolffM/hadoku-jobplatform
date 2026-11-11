@@ -308,7 +308,8 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
     `rank.rebuild`, `job.import`, `job.state`, `job.state_cleared`,
     `application.queued` / `queue_refused` / `status` / `status_unknown` /
     `approved` / `approve_refused` / `handed_off`, `tailoring.generated` /
-    `tailoring.failed`, `mail.reconciled` / `mail.reconcile_failed`,
+    `tailoring.failed`, `companies.match` / `companies.probe` (warn when
+    the scraper could not ask a provider) and their `_failed`, `mail.reconciled` / `mail.reconcile_failed`,
     `account.erased`, `background_failed`, `unhandled_error`, and `api.change`
     for every other POST/PUT/PATCH/DELETE (`worker/src/opEvents.ts`: route,
     status, user, body field names, and values only for short structural

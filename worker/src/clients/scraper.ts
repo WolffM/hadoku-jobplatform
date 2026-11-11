@@ -24,6 +24,8 @@ interface ProviderHit {
 export interface SlugProbeResult {
 	slug: string;
 	hits: ProviderHit[];
+	/** Providers that did not answer; absent from a scraper older than 47bcdce. */
+	unreachable?: string[];
 }
 
 interface ProbeResponse {
@@ -42,6 +44,8 @@ export interface CompanyMatch {
 	n_jobs: number;
 	sample_titles: string[];
 	domain: string | null;
+	/** Providers that did not answer; absent from a scraper older than 47bcdce. */
+	unreachable?: string[];
 }
 
 interface MatchResponse {
