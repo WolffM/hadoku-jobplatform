@@ -31,12 +31,14 @@ import type { ExecutionContext } from '@cloudflare/workers-types';
 import type { AppEnv } from './types.js';
 import { logger } from './logger.js';
 import { errorHandler } from './errorHandler.js';
+import { changeEvents } from './opEvents.js';
 import { healthRoutes } from './routes/health.js';
 import { ingestRoutes } from './routes/ingest.js';
 import { profileRoutes } from './routes/profiles.js';
 import { jobRoutes } from './routes/jobs/index.js';
 import { companyRoutes } from './routes/companies.js';
 import { accountRoutes } from './routes/account.js';
+import { telemetryRoutes } from './routes/telemetry.js';
 
 interface AppContext {
 	Bindings: AppEnv;
@@ -74,11 +76,16 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 	// X-Edge-Auth is stamped. The /ingest route's own admin||friend check stays.
 	app.use('*', createEdgeAuth());
 
+	// One service_events row per change a request row cannot describe: routes
+	// with richer events of their own post those instead (opEvents.ts).
+	app.use('*', changeEvents(basePath));
+
 	app.route('/', healthRoutes);
 	app.route('/', ingestRoutes);
 	app.route('/', profileRoutes);
 	app.route('/', jobRoutes);
 	app.route('/', companyRoutes);
+	app.route('/', telemetryRoutes);
 	// The account-erase hook. edge-router calls it on account deletion and 404s
 	// the path from outside; see routes/account.ts.
 	app.route('/', accountRoutes);

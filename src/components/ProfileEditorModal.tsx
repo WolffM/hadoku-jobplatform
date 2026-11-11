@@ -256,7 +256,11 @@ export function ProfileEditorModal({ auth, initial, onClose, onSaved, onCompanie
   }
 
   return (
-    <div className="jp-editor-backdrop" onClick={onBackdrop}>
+    <div
+      className="jp-editor-backdrop"
+      data-telemetry="Close profile editor (backdrop)"
+      onClick={onBackdrop}
+    >
       <div
         className="jp-editor"
         role="dialog"

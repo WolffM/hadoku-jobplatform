@@ -65,6 +65,7 @@ import { OpenAPIHono } from '@hono/zod-openapi';
 import { tierAtLeast } from '@wolffm/worker-utils';
 import type { D1Database } from '@cloudflare/workers-types';
 import type { RouteContext } from './jobs/shared.js';
+import { recordEvent } from '../opEvents.js';
 
 /** Each table this hook erases, with the DELETE that removes one person's rows. */
 export const ERASED_TABLES: readonly { table: string; sql: string }[] = [
@@ -129,6 +130,12 @@ app.post('/_account/erase', async (c) => {
 		);
 	}
 	const erased = await eraseUser(c.env.JOB_PLATFORM_DB, userId);
+	recordEvent(c, {
+		level: 'info',
+		event: 'account.erased',
+		message: `${Object.values(erased).reduce((n, k) => n + k, 0)} rows`,
+		context: { user_id: userId, erased },
+	});
 	return c.json({ success: true as const, erased }, 200);
 });
 

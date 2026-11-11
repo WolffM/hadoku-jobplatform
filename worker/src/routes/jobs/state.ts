@@ -1,6 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi';
 import { ErrorResponseSchema, SetJobStateSchema, JobStateResponseSchema } from '../../schemas.js';
 import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
+import { recordEvent } from '../../opEvents.js';
 
 /**
  * PUT / DELETE /jobs/{id}/state — the caller's triage state for one job.
@@ -104,6 +105,12 @@ export function registerStateRoutes(app: JobsApp): void {
 				]);
 			}
 
+			recordEvent(c, {
+				level: 'info',
+				event: 'job.state',
+				message: `${id}: ${exists.prev ?? 'new'} -> ${body.state}`,
+				context: { job_id: id, user_id: userId, from: exists.prev, to: body.state },
+			});
 			return c.json(
 				{
 					success: true as const,
@@ -164,6 +171,12 @@ export function registerStateRoutes(app: JobsApp): void {
 				db.prepare('DELETE FROM job_events WHERE job_id = ? AND user_id = ?').bind(id, userId),
 			]);
 			const deleted = (result.meta?.changes ?? 0) > 0;
+			recordEvent(c, {
+				level: 'info',
+				event: 'job.state_cleared',
+				message: `${id}: cleared${deleted ? '' : ' (had none)'}`,
+				context: { job_id: id, user_id: userId, deleted },
+			});
 			return c.json({ success: true as const, data: { job_id: id, deleted } }, 200);
 		}
 	);

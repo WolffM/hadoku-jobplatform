@@ -10,6 +10,7 @@ import {
 	ReassignOwnerResponseSchema,
 } from '../../schemas.js';
 import { gateAuthed, maybeUserId, type JobsApp } from './shared.js';
+import { recordEvent } from '../../opEvents.js';
 
 /**
  * Handing an application to someone else, BY NAME.
@@ -169,6 +170,17 @@ export function registerOwnerRoutes(app: JobsApp): void {
 					.bind(resolved.userId, now, row.job_id, row.user_id),
 			]);
 
+			recordEvent(c, {
+				level: 'info',
+				event: 'application.handed_off',
+				message: `${id}: to ${resolved.name}`,
+				context: {
+					application_id: id,
+					job_id: row.job_id,
+					from_user_id: row.user_id,
+					to_user_id: resolved.userId,
+				},
+			});
 			return c.json(
 				{
 					success: true as const,

@@ -11,6 +11,7 @@ import {
 import { mailboxOwnerRefusal, reconcileMail, reconcileView } from '../reconcileMail.js';
 import { effectiveUserId, isEffectiveUserError, ownerNameQuery } from './jobs/shared.js';
 import { isTestBoardPosting } from '../testBoards.js';
+import { recordEvent } from '../opEvents.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { geoKeys } from '../geo.js';
@@ -273,6 +274,21 @@ app.openapi(ingestRoute, async (c) => {
 	// No cull or strip here. Both used to run on every board's final batch —
 	// ~900 a night, each reading 35-45k rows to find a few hundred expired ones.
 	// mgmt-api's daily jobplatform:sweep drives POST /ingest/cull instead.
+	recordEvent(c, {
+		level: 'info',
+		event: 'ingest.batch',
+		message: `${source}${board_slug ? `/${board_slug}` : ''} #${batch_number}: ${accepted} new of ${received.length}`,
+		context: {
+			source,
+			board_slug: board_slug ?? null,
+			batch_number,
+			is_final,
+			received: received.length,
+			test_board_dropped: received.length - jobs.length,
+			accepted,
+			already_known: jobs.length - accepted,
+		},
+	});
 	return c.json(
 		{
 			success: true as const,
@@ -450,6 +466,12 @@ app.openapi(rebuildRankRoute, async (c) => {
 		const p = await loadScorableProfile(db, id);
 		if (!(await rankIsCurrent(db, id, p))) remaining++;
 	}
+	recordEvent(c, {
+		level: 'info',
+		event: 'rank.rebuild',
+		message: `profile ${target}: ${ranked} ranked, ${remaining} profiles left`,
+		context: { profile_id: target, jobs_ranked: ranked, remaining },
+	});
 	return c.json(
 		{ success: true as const, data: { rebuilt: target, jobs_ranked: ranked, remaining } },
 		200
@@ -840,6 +862,12 @@ const cullRoute = createRoute({
 app.openapi(cullRoute, async (c) => {
 	const culled = await cullExpired(c.env.JOB_PLATFORM_DB);
 	const stripped = await stripStaleDescriptions(c.env.JOB_PLATFORM_DB);
+	recordEvent(c, {
+		level: 'info',
+		event: 'ingest.cull',
+		message: `culled ${culled}, stripped ${stripped}`,
+		context: { culled, stripped },
+	});
 	return c.json(
 		{
 			success: true as const,
@@ -935,8 +963,28 @@ app.openapi(reconcileMailRoute, async (c) => {
 		// A feed we cannot read is reported, never treated as an empty mailbox.
 		// "No mail" and "no access" look identical downstream, and telling them
 		// apart is the entire reason this feature exists.
+		recordEvent(c, {
+			level: 'error',
+			event: 'mail.reconcile_failed',
+			message: report.error,
+			context: { user_id: who.userId, reset: reset === 'true' },
+		});
 		return c.json({ success: false as const, error: 'Bad gateway', message: report.error }, 502);
 	}
+	recordEvent(c, {
+		level: report.warnings.length ? 'warn' : 'info',
+		event: 'mail.reconciled',
+		message: `${report.messagesSeen} seen, ${report.confirmed} confirmed, ${report.unmatched} unmatched`,
+		context: {
+			user_id: who.userId,
+			messages_seen: report.messagesSeen,
+			confirmed: report.confirmed,
+			verification_flagged: report.verificationFlagged,
+			unmatched: report.unmatched,
+			duplicates_flagged: report.duplicatesFlagged,
+			warnings: report.warnings.slice(0, 5),
+		},
+	});
 	return c.json(
 		{
 			success: true as const,

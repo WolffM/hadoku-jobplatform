@@ -20,9 +20,37 @@
  * beats nothing when the runtime happens to allow it.
  */
 import { logger } from './logger.js';
+import { canPostTelemetry, postServiceEvent } from './clients/telemetry.js';
+import type { AppEnv } from './types.js';
 
 export interface HasExecutionCtx {
 	executionCtx?: { waitUntil(p: Promise<unknown>): void };
+	/** The bindings, when the caller is a Hono context: lets a failure reach service_events. */
+	env?: unknown;
+}
+
+/** Work whose own failure must not be reported through itself. */
+const TELEMETRY_LABEL = 'telemetry:';
+
+/**
+ * Background work fails after its response has gone, so no request row shows
+ * it. Post it to service_events (`event=background_failed`) as well as the
+ * logger, which only Workers Logs can read.
+ */
+function reportFailure(env: unknown, label: string, message: string): Promise<void> {
+	const bindings = env as AppEnv | undefined;
+	if (label.startsWith(TELEMETRY_LABEL) || !canPostTelemetry(bindings)) return Promise.resolve();
+	return postServiceEvent(bindings, {
+		level: 'error',
+		event: 'background_failed',
+		message: `${label}: ${message}`,
+		context: { task: label, error: message },
+	}).catch((err: unknown) => {
+		logger.error('telemetry: background failure not recorded', {
+			task: label,
+			error: err instanceof Error ? err.message : String(err),
+		});
+	});
 }
 
 /**
@@ -33,10 +61,9 @@ export interface HasExecutionCtx {
  */
 export function runAfterResponse(c: HasExecutionCtx, label: string, work: Promise<unknown>): void {
 	const guarded = work.catch((error: unknown) => {
-		logger.error('background work failed', {
-			task: label,
-			error: error instanceof Error ? error.message : String(error),
-		});
+		const message = error instanceof Error ? error.message : String(error);
+		logger.error('background work failed', { task: label, error: message });
+		return reportFailure(c.env, label, message);
 	});
 
 	let ctx: HasExecutionCtx['executionCtx'];
@@ -52,6 +79,8 @@ export function runAfterResponse(c: HasExecutionCtx, label: string, work: Promis
 			hint: 'the host worker must forward ctx: fetch(request, env, ctx) -> createFetchHandler(env)(request, ctx)',
 		});
 		void guarded;
+		// Best effort, like the work itself: without a context this post may not survive either.
+		void reportFailure(c.env, label, 'no ExecutionContext: background work dropped');
 		return;
 	}
 	ctx.waitUntil(guarded);

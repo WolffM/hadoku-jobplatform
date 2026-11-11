@@ -5,6 +5,7 @@
  */
 import { authHeaders, type Auth } from './auth'
 import { JobsApiError } from './jobs'
+import { trackedFetch } from '../telemetry'
 
 export const BASE_URL = '/jobplatform/api'
 
@@ -21,7 +22,7 @@ export async function call<T>(
   init: RequestInit = {},
   json = false
 ): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const response = await trackedFetch(`${BASE_URL}${path}`, {
     ...init,
     headers: authHeaders(auth, json),
     credentials: 'include'

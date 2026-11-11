@@ -5,6 +5,7 @@
  */
 
 import { authHeaders, type Auth } from './auth'
+import { trackedFetch } from '../telemetry'
 
 const BASE_URL = '/jobplatform/api'
 
@@ -52,7 +53,7 @@ async function parseWrapped<T>(response: Response): Promise<T> {
  * (most open jobs) to confirm before adding to a profile. Read-only.
  */
 export async function matchCompanies(names: string[], auth?: Auth): Promise<CompanyMatch[]> {
-  const response = await fetch(`${BASE_URL}/companies/match`, {
+  const response = await trackedFetch(`${BASE_URL}/companies/match`, {
     method: 'POST',
     headers: authHeaders(auth, true),
     credentials: 'include',

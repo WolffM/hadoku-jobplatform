@@ -22,6 +22,7 @@ import {
 	ownerNameQuery,
 } from './shared.js';
 import { questionKey } from '../../questionKey.js';
+import { recordEvent } from '../../opEvents.js';
 
 /**
  * The approve-to-apply queue (issue #15).
@@ -257,8 +258,16 @@ export function registerApplicationRoutes(app: JobsApp): void {
 					404
 				);
 			}
+			const refuse = (reason: string) =>
+				recordEvent(c, {
+					level: 'warn',
+					event: 'application.queue_refused',
+					message: `${id}: ${reason}`,
+					context: { job_id: id, user_id: userId, reason },
+				});
 			// A posting typed in by hand with no link has no form to open.
 			if (publicUrl(job.url) === null) {
+				refuse('no link');
 				return c.json(
 					{
 						success: false as const,
@@ -275,6 +284,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			if (!body?.force) {
 				const delisted = await delistedReason(db, id);
 				if (delisted) {
+					refuse(`delisted: ${delisted}`);
 					return c.json(
 						{
 							success: false as const,
@@ -319,6 +329,7 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				.bind(userId, id)
 				.first<{ status: string }>();
 			if (existing?.status === 'submitted' || (existing?.status === 'approved' && !body?.force)) {
+				refuse(`already ${existing.status}`);
 				return c.json(
 					{
 						success: false as const,
@@ -364,6 +375,20 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			// The upsert above guarantees the row; a miss here is a real bug.
 			if (!row) throw new Error(`application row missing after upsert (job '${id}')`);
 
+			recordEvent(c, {
+				level: 'info',
+				event: 'application.queued',
+				message: `${id}: ${existing ? `re-queued from ${existing.status}` : 'queued'} (${mode})`,
+				context: {
+					job_id: id,
+					application_id: row.id,
+					user_id: userId,
+					mode,
+					force: Boolean(body?.force),
+					previous: existing?.status ?? null,
+					on_behalf: who.onBehalfOf ?? null,
+				},
+			});
 			return c.json({ success: true as const, data: { application: toApplication(row) } }, 200);
 		}
 	);
@@ -524,6 +549,18 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				.bind(id, userId)
 				.first<ApplicationRow>();
 			if (!existing) {
+				// The runner reporting on a row that is not there: its outcome is lost unless it is here.
+				recordEvent(c, {
+					level: 'warn',
+					event: 'application.status_unknown',
+					message: `${id}: ${body.status} for an application not found`,
+					context: {
+						application_id: id,
+						user_id: userId,
+						status: body.status,
+						error: body.error ?? null,
+					},
+				});
 				return c.json(
 					{
 						success: false as const,
@@ -555,6 +592,20 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				)
 				.bind(body.status, body.error ?? null, evidence, approvedFingerprint, now, id)
 				.run();
+			recordEvent(c, {
+				level: body.status === 'failed' ? 'warn' : 'info',
+				event: 'application.status',
+				message: `${id}: ${existing.status} -> ${body.status}${body.error ? ` (${body.error.slice(0, 120)})` : ''}`,
+				context: {
+					application_id: id,
+					job_id: existing.job_id,
+					user_id: userId,
+					from: existing.status,
+					to: body.status,
+					error: body.error ?? null,
+					on_behalf: who.onBehalfOf ?? null,
+				},
+			});
 
 			return c.json(
 				{
@@ -631,6 +682,12 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			// check. Approving anything else would be a no-op at best and a
 			// double-submit at worst.
 			if (existing.status !== 'filled') {
+				recordEvent(c, {
+					level: 'warn',
+					event: 'application.approve_refused',
+					message: `${id}: is ${existing.status}, not filled`,
+					context: { application_id: id, user_id: userId, status: existing.status },
+				});
 				return c.json(
 					{
 						success: false as const,
@@ -655,6 +712,12 @@ export function registerApplicationRoutes(app: JobsApp): void {
 			// this whole path exists to prevent.
 			const fingerprint = parseEvidence(existing.evidence)?.fingerprint;
 			if (typeof fingerprint !== 'string' || fingerprint.length === 0) {
+				recordEvent(c, {
+					level: 'warn',
+					event: 'application.approve_refused',
+					message: `${id}: filled without a fingerprint`,
+					context: { application_id: id, user_id: userId, status: existing.status },
+				});
 				return c.json(
 					{
 						success: false as const,
@@ -676,6 +739,12 @@ export function registerApplicationRoutes(app: JobsApp): void {
 				)
 				.bind(fingerprint, now, id)
 				.run();
+			recordEvent(c, {
+				level: 'info',
+				event: 'application.approved',
+				message: `${id}: approved`,
+				context: { application_id: id, job_id: existing.job_id, user_id: userId },
+			});
 
 			return c.json(
 				{

@@ -1,6 +1,7 @@
 import { authHeaders, type Auth } from './auth'
 import type { ProfileTrack, RoleLevel } from './profiles'
 import type { Tracking } from './pipeline'
+import { trackedFetch } from '../telemetry'
 
 const BASE_URL = '/jobplatform/api'
 
@@ -181,7 +182,7 @@ export async function listJobs(opts: ListJobsOptions, auth?: Auth): Promise<Jobs
   }
 
   const url = `${BASE_URL}/jobs${params.toString() ? `?${params}` : ''}`
-  const response = await fetch(url, {
+  const response = await trackedFetch(url, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -203,7 +204,7 @@ export async function preflightCount(
   if (probe.keyword) params.set('keyword', probe.keyword)
   if (probe.track) params.set('track', probe.track)
   if (probe.level) params.set('level', probe.level)
-  const response = await fetch(`${BASE_URL}/jobs/preflight?${params}`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/preflight?${params}`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -218,7 +219,7 @@ export async function getJob(
   auth?: Auth
 ): Promise<JobDetail> {
   const params = profileId ? `?profile_id=${encodeURIComponent(profileId)}` : ''
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}${params}`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}${params}`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -238,7 +239,7 @@ export async function setJobState(
   auth?: Auth,
   variantSlug?: string
 ): Promise<{ job_id: string; state: JobStateRead; updated_at: string }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
     method: 'PUT',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -257,7 +258,7 @@ export async function setJobFeedback(
   reasons: FeedbackReason[],
   auth?: Auth
 ): Promise<{ job_id: string; vote: VoteValue | null; reasons: string[]; updated_at: string }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
     method: 'PUT',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -279,7 +280,7 @@ export async function clearJobFeedback(
   id: string,
   auth?: Auth
 ): Promise<{ job_id: string; vote: VoteValue | null; reasons: string[]; updated_at: string }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/feedback`, {
     method: 'DELETE',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -301,7 +302,7 @@ export async function generateResume(
   auth?: Auth,
   opts?: { profile_type?: string; tailor?: boolean }
 ): Promise<{ resume_markdown: string; blocks_used: string[]; cached: boolean }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/resume`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/resume`, {
     method: 'POST',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -319,7 +320,7 @@ export async function generateCoverLetter(
   auth?: Auth,
   opts?: { tone?: 'formal' | 'conversational' }
 ): Promise<{ cover_letter_markdown: string; cached: boolean }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/cover-letter`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/cover-letter`, {
     method: 'POST',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -339,7 +340,7 @@ export async function mintPacketLink(
   body: { resume_markdown: string; cover_letter_markdown?: string; ttl_days?: number },
   auth?: Auth
 ): Promise<{ slug: string; url: string }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/packet-link`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/packet-link`, {
     method: 'POST',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -382,12 +383,15 @@ export async function generateApplicationExtras(
   body: { resume_markdown: string },
   auth?: Auth
 ): Promise<ApplicationExtras> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/application-extras`, {
-    method: 'POST',
-    headers: authHeaders(auth, true),
-    credentials: 'include',
-    body: JSON.stringify(body)
-  })
+  const response = await trackedFetch(
+    `${BASE_URL}/jobs/${encodeURIComponent(id)}/application-extras`,
+    {
+      method: 'POST',
+      headers: authHeaders(auth, true),
+      credentials: 'include',
+      body: JSON.stringify(body)
+    }
+  )
   return parseWrapped<ApplicationExtras>(response)
 }
 
@@ -411,7 +415,7 @@ export interface PacketSummary {
  * Friend-gated: packets are per-user, so this 403s without auth.
  */
 export async function listPackets(auth?: Auth): Promise<PacketSummary[]> {
-  const response = await fetch(`${BASE_URL}/jobs/packets`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/packets`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -428,7 +432,7 @@ export async function clearJobState(
   id: string,
   auth?: Auth
 ): Promise<{ job_id: string; deleted: boolean }> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/state`, {
     method: 'DELETE',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -497,7 +501,7 @@ export async function queueApplication(
   mode: 'review' | 'auto' = 'review',
   auth?: Auth
 ): Promise<ApplicationSummary> {
-  const response = await fetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/apply`, {
+  const response = await trackedFetch(`${BASE_URL}/jobs/${encodeURIComponent(id)}/apply`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(auth) },
     credentials: 'include',
@@ -513,7 +517,7 @@ export async function listApplications(
   auth?: Auth
 ): Promise<ApplicationSummary[]> {
   const query = status ? `?status=${encodeURIComponent(status)}` : ''
-  const response = await fetch(`${BASE_URL}/applications${query}`, {
+  const response = await trackedFetch(`${BASE_URL}/applications${query}`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -529,11 +533,14 @@ export async function listApplications(
  * and nothing is sent until a human has looked at it and called this.
  */
 export async function approveApplication(id: string, auth?: Auth): Promise<ApplicationSummary> {
-  const response = await fetch(`${BASE_URL}/applications/${encodeURIComponent(id)}/approve`, {
-    method: 'POST',
-    headers: authHeaders(auth),
-    credentials: 'include'
-  })
+  const response = await trackedFetch(
+    `${BASE_URL}/applications/${encodeURIComponent(id)}/approve`,
+    {
+      method: 'POST',
+      headers: authHeaders(auth),
+      credentials: 'include'
+    }
+  )
   const data = await parseWrapped<{ application: ApplicationSummary }>(response)
   return data.application
 }
@@ -616,7 +623,7 @@ export interface SimilarAnswer {
 }
 
 export async function listUnansweredQuestions(auth: Auth): Promise<UnansweredQuestion[]> {
-  const response = await fetch(`${BASE_URL}/unanswered-questions`, {
+  const response = await trackedFetch(`${BASE_URL}/unanswered-questions`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -626,7 +633,7 @@ export async function listUnansweredQuestions(auth: Auth): Promise<UnansweredQue
 }
 
 export async function listAnswers(auth: Auth): Promise<StandingAnswer[]> {
-  const response = await fetch(`${BASE_URL}/application-answers`, {
+  const response = await trackedFetch(`${BASE_URL}/application-answers`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -640,7 +647,7 @@ export async function saveAnswer(
   answer: string,
   auth: Auth
 ): Promise<StandingAnswer> {
-  const response = await fetch(`${BASE_URL}/application-answers`, {
+  const response = await trackedFetch(`${BASE_URL}/application-answers`, {
     method: 'PUT',
     headers: { ...authHeaders(auth), 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -651,7 +658,7 @@ export async function saveAnswer(
 }
 
 export async function forgetAnswer(questionKey: string, auth: Auth): Promise<StandingAnswer[]> {
-  const response = await fetch(
+  const response = await trackedFetch(
     `${BASE_URL}/application-answers/${encodeURIComponent(questionKey)}`,
     { method: 'DELETE', headers: authHeaders(auth), credentials: 'include' }
   )
@@ -678,7 +685,7 @@ export interface VerificationCode {
  * "nothing to show" rather than an error.
  */
 export async function listVerificationCodes(auth?: Auth): Promise<VerificationCode[]> {
-  const response = await fetch(`${BASE_URL}/verification-codes`, {
+  const response = await trackedFetch(`${BASE_URL}/verification-codes`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'

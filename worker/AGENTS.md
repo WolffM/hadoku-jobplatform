@@ -34,6 +34,9 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
   `internal error`, which cost 39 batches on 2026-10-30 (issue #26). Every
   failure is also posted to monitoring-api's `service_events`
   (`event=unhandled_error`, `service=jobplatform`)
+- `src/opEvents.ts` — `recordEvent` (one `service_events` row per operation, after the
+  response) and the `changeEvents` middleware that covers every other mutating route as
+  `api.change`; `src/routes/telemetry.ts` relays the UI's events. Event list: root AGENTS.md
 - `src/clients/telemetry.ts` — `postServiceEvent`, over the EDGE binding as this
   worker's service key. Read back with `GET /health/api/service-events?service=jobplatform`
 - Every response carries `Server-Timing` (hono `timing()` in `index.ts`), which

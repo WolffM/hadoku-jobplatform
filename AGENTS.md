@@ -93,6 +93,7 @@ admin too.
 | PUT    | /application-answers               | friend | Save or replace one answer †                                                                                                                                                                                                                 |
 | DELETE | /application-answers/:key          | friend | Forget one answer †                                                                                                                                                                                                                          |
 | GET    | /unanswered-questions              | friend | Questions the runner could not answer, most costly first †                                                                                                                                                                                   |
+| POST   | /telemetry                         | open   | The UI's event relay (`src/telemetry.ts`): ≤25 events a batch, forwarded one row each to `service_events` as `source=browser`; identity from the edge, never the body                                                                        |
 | POST   | /\_account/erase                   | member | Account-erase hook, edge-router only (it 404s `_account` paths from outside); deletes the X-User-Id's own rows                                                                                                                               |
 
 \*`GET /jobs` is open, but `state=` requires friend. `hide_dismissed=` is a no-op
@@ -295,6 +296,25 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
 - Only finished requests that reach the edge are logged. A UI app's page
   is served by GitHub Pages, so only its `/jobplatform/api/*` calls show up; a
   tunnel app's whole prefix does.
+- **What is in `service_events` for this app** (`service=jobplatform`):
+  - From the browser (`source=browser`, `context.app` = `jobplatform` or
+    `jobpulse`, `context.session` = one page load): `ui.click` (every
+    control, by one delegated listener in `src/telemetry.ts`; name an unclear
+    one with `data-telemetry="..."`), `ui.change` (selects), `ui.submit`,
+    `api.error` (a failed call, including one that never reached the edge),
+    `ui.error` (a render crash, from `CrashBoundary`), `app.mounted` /
+    `app.unmounted`. Typed text is never recorded.
+  - From the worker (`source=worker`): `ingest.batch`, `ingest.cull`,
+    `rank.rebuild`, `job.import`, `job.state`, `job.state_cleared`,
+    `application.queued` / `queue_refused` / `status` / `status_unknown` /
+    `approved` / `approve_refused` / `handed_off`, `tailoring.generated` /
+    `tailoring.failed`, `mail.reconciled` / `mail.reconcile_failed`,
+    `account.erased`, `background_failed`, `unhandled_error`, and `api.change`
+    for every other POST/PUT/PATCH/DELETE (`worker/src/opEvents.ts`: route,
+    status, user, body field names, and values only for short structural
+    fields). A new mutating route is covered by `api.change` with no wiring;
+    give it its own event when its outcome needs more than that.
+  - Query one visit: `&source=browser`, then filter `context.session`.
 - `user_id c8c59a87-f8af-4da7-9c99-d9e536b3fca8` is the daily automated tour
   (~09:2x UTC), not a visitor.
 

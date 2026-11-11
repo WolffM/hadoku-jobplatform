@@ -1,3 +1,5 @@
+import { trackedFetch } from '../telemetry'
+
 const BASE_URL = '/jobplatform/api'
 
 export type RemotePref = 'remote' | 'hybrid' | 'onsite' | 'any'
@@ -95,7 +97,7 @@ async function parseWrapped<T>(response: Response): Promise<T> {
 }
 
 export async function listProfiles(auth?: Auth): Promise<JobProfile[]> {
-  const response = await fetch(`${BASE_URL}/profiles`, {
+  const response = await trackedFetch(`${BASE_URL}/profiles`, {
     method: 'GET',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -105,7 +107,7 @@ export async function listProfiles(auth?: Auth): Promise<JobProfile[]> {
 }
 
 export async function createProfile(input: ProfileInput, auth?: Auth): Promise<JobProfile> {
-  const response = await fetch(`${BASE_URL}/profiles`, {
+  const response = await trackedFetch(`${BASE_URL}/profiles`, {
     method: 'POST',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -120,7 +122,7 @@ export async function updateProfile(
   input: Partial<ProfileInput>,
   auth?: Auth
 ): Promise<JobProfile> {
-  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
+  const response = await trackedFetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: authHeaders(auth, true),
     credentials: 'include',
@@ -131,7 +133,7 @@ export async function updateProfile(
 }
 
 export async function deleteProfile(id: string, auth?: Auth): Promise<void> {
-  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
+  const response = await trackedFetch(`${BASE_URL}/profiles/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: authHeaders(auth),
     credentials: 'include'
@@ -145,11 +147,14 @@ export async function listProfileCompanies(
   profileId: string,
   auth?: Auth
 ): Promise<ProfileCompany[]> {
-  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`, {
-    method: 'GET',
-    headers: authHeaders(auth),
-    credentials: 'include'
-  })
+  const response = await trackedFetch(
+    `${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`,
+    {
+      method: 'GET',
+      headers: authHeaders(auth),
+      credentials: 'include'
+    }
+  )
   const data = await parseWrapped<{ companies: ProfileCompany[] }>(response)
   return data.companies
 }
@@ -159,12 +164,15 @@ export async function addProfileCompany(
   company: { ats: string; slug: string; display_name: string },
   auth?: Auth
 ): Promise<{ company: ProfileCompany; search_triggered: boolean }> {
-  const response = await fetch(`${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`, {
-    method: 'POST',
-    headers: authHeaders(auth, true),
-    credentials: 'include',
-    body: JSON.stringify(company)
-  })
+  const response = await trackedFetch(
+    `${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies`,
+    {
+      method: 'POST',
+      headers: authHeaders(auth, true),
+      credentials: 'include',
+      body: JSON.stringify(company)
+    }
+  )
   return parseWrapped<{ company: ProfileCompany; search_triggered: boolean }>(response)
 }
 
@@ -173,7 +181,7 @@ export async function removeProfileCompany(
   companyId: string,
   auth?: Auth
 ): Promise<void> {
-  const response = await fetch(
+  const response = await trackedFetch(
     `${BASE_URL}/profiles/${encodeURIComponent(profileId)}/companies/${encodeURIComponent(companyId)}`,
     { method: 'DELETE', headers: authHeaders(auth), credentials: 'include' }
   )

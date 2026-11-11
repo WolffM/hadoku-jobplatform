@@ -17,6 +17,8 @@ export const TELEMETRY_SERVICE = 'jobplatform';
 
 export interface ServiceEvent {
 	level: 'info' | 'warn' | 'error';
+	/** Who observed it. `browser` for events relayed from the UI; the worker's own otherwise. */
+	source?: 'worker' | 'browser';
 	/** Lands in the `event` column; keep it short and stable, it is what gets grouped by. */
 	event: string;
 	message: string;
@@ -39,7 +41,7 @@ export async function postServiceEvent(env: AppEnv, ev: ServiceEvent): Promise<v
 			'X-User-Key': key,
 		},
 		body: JSON.stringify({
-			source: 'worker',
+			source: ev.source ?? 'worker',
 			level: ev.level,
 			type: 'log',
 			message: `event=${ev.event} ${ev.message}`,

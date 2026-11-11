@@ -6,6 +6,8 @@
  * production), so no auth headers.
  */
 
+import { trackedFetch } from '../telemetry'
+
 const RESUME_BASE = 'https://hadoku.me/resume'
 
 /** Public packet page — what a recruiter sees when the link is shared. */
@@ -35,7 +37,7 @@ export interface PacketVariant {
 }
 
 export async function getPacketVariant(slug: string): Promise<PacketVariant> {
-  const response = await fetch(`${RESUME_BASE}/api/resume?v=${encodeURIComponent(slug)}`)
+  const response = await trackedFetch(`${RESUME_BASE}/api/resume?v=${encodeURIComponent(slug)}`)
   if (!response.ok) throw new Error(`Failed to load packet (HTTP ${response.status})`)
   return (await response.json()) as PacketVariant
 }

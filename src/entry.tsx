@@ -1,6 +1,8 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { logger } from '@wolffm/logger/client'
 import App from './App'
+import { CrashBoundary } from './components/CrashBoundary'
+import { startTelemetry } from './telemetry'
 // REQUIRED: Import @wolffm/themes CSS - DO NOT REMOVE
 import '@wolffm/themes/style.css'
 // REQUIRED: Import theme picker CSS
@@ -29,16 +31,23 @@ export interface JobPlatformProps {
 
 interface JobPlatformElement extends HTMLElement {
   __root?: Root
+  __stopTelemetry?: () => void
 }
 
 export function mount(el: HTMLElement, props: JobPlatformProps = {}) {
   const root = createRoot(el)
-  root.render(<App {...props} />)
+  root.render(
+    <CrashBoundary>
+      <App {...props} />
+    </CrashBoundary>
+  )
   ;(el as JobPlatformElement).__root = root
+  ;(el as JobPlatformElement).__stopTelemetry = startTelemetry(el, { app: 'jobplatform' })
   logger.info('[job-platform] Mounted successfully', { theme: props.theme })
 }
 
 export function unmount(el: HTMLElement) {
+  ;(el as JobPlatformElement).__stopTelemetry?.()
   ;(el as JobPlatformElement).__root?.unmount()
   logger.info('[job-platform] Unmounted successfully')
 }

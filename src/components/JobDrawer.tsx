@@ -427,7 +427,11 @@ export function JobDrawer({
 
   return (
     <>
-      <div className="jp-drawer-backdrop" onClick={onClose} />
+      <div
+        className="jp-drawer-backdrop"
+        data-telemetry="Close drawer (backdrop)"
+        onClick={onClose}
+      />
       <aside className="jp-drawer" role="dialog" aria-labelledby="jp-drawer-title">
         <div className="jp-drawer__header">
           <button type="button" className="jp-drawer__close" onClick={onClose} aria-label="Close">

@@ -48,6 +48,7 @@ import {
 	type JobsApp,
 } from './shared.js';
 import type { AppEnv } from '../../types.js';
+import { recordEvent } from '../../opEvents.js';
 
 type DB = AppEnv['JOB_PLATFORM_DB'];
 
@@ -216,6 +217,20 @@ export function registerImportRoute(app: JobsApp): void {
 			const who = await effectiveUserId(c, ownerName);
 			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const db = c.env.JOB_PLATFORM_DB;
+			/** One row per import, whichever way it ends: a refusal's reason is not in the request row. */
+			const report = (outcome: string, extra: Record<string, unknown> = {}) =>
+				recordEvent(c, {
+					level: outcome.startsWith('refused') || outcome.startsWith('failed') ? 'warn' : 'info',
+					event: 'job.import',
+					message: `${outcome}: ${url ?? '(typed by hand, no url)'}`,
+					context: {
+						outcome,
+						url: url ?? null,
+						manual: Boolean(manual),
+						user_id: who.userId,
+						...extra,
+					},
+				});
 
 			// Already in the corpus under exactly this URL: no scrape needed.
 			let row =
@@ -282,6 +297,7 @@ export function registerImportRoute(app: JobsApp): void {
 				// this answer rather than a 404. The check after extraction covers
 				// a page whose board only the scraper can name.
 				if (isTestBoardPosting(url)) {
+					report('refused: test board');
 					return c.json(
 						failure(422, "That board holds LinkedIn's ATS test postings, not real jobs."),
 						422
@@ -294,18 +310,22 @@ export function registerImportRoute(app: JobsApp): void {
 					if (!(err instanceof ScraperClientError)) throw err;
 					// The scraper's own words are written for the person.
 					if (err.status === 404) {
+						report('refused: not found', { message: err.message });
 						return c.json(
 							{ success: false as const, error: 'Not found', message: err.message },
 							404
 						);
 					}
 					if (err.status === 400 || err.status === 422) {
+						report('refused: unreadable', { message: err.message });
 						return c.json(failure(422, err.message), 422);
 					}
+					report('failed: scraper', { status: err.status, message: err.message });
 					return c.json(failure(502, `Could not read that posting: ${err.message}`), 502);
 				}
 				const job = IngestJobSchema.safeParse(extracted.job);
 				if (!job.success) {
+					report('failed: unstorable posting', { message: job.error.message.slice(0, 200) });
 					return c.json(
 						failure(
 							502,
@@ -315,6 +335,7 @@ export function registerImportRoute(app: JobsApp): void {
 					);
 				}
 				if (isTestBoardPosting(job.data.url, { ats: extracted.ats, slug: extracted.board_slug })) {
+					report('refused: test board');
 					return c.json(
 						failure(422, "That board holds LinkedIn's ATS test postings, not real jobs."),
 						422
@@ -347,6 +368,7 @@ export function registerImportRoute(app: JobsApp): void {
 				.first<{ state: string }>();
 			if (prev) {
 				const kept = JobStateSchema.safeParse(prev.state);
+				report('already tracked', { job_id: row.id, created });
 				return c.json(
 					{
 						success: true as const,
@@ -379,6 +401,7 @@ export function registerImportRoute(app: JobsApp): void {
 					)
 					.bind(row.id, who.userId, state, now),
 			]);
+			report(created ? 'imported' : 'tracked existing', { job_id: row.id, created, state });
 			return c.json(
 				{
 					success: true as const,

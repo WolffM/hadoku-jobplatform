@@ -17,6 +17,8 @@
 import { EDGE_BASE } from '@wolffm/worker-utils/edge-routes';
 import type { AppEnv } from '../../types.js';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
+import { recordEvent } from '../../opEvents.js';
+import type { HasExecutionCtx } from '../../background.js';
 
 interface JobTailoringFields {
 	title: string;
@@ -105,14 +107,47 @@ function ownerNameOf(opts: Record<string, unknown>): string | undefined {
 	return typeof opts.ownerName === 'string' ? opts.ownerName : undefined;
 }
 
-/** resume-api errors surface as 502 with a truncated upstream detail. */
-async function upstreamError(res: Response) {
-	const detail = await res.text();
+/** What each route asks resume-api to make; the `kind` on its telemetry rows. */
+type TailoringKind = 'resume' | 'cover_letter' | 'packet_link' | 'application_extras';
+
+/**
+ * resume-api errors surface as 502 with a truncated upstream detail. The
+ * request row shows only the 502; resume-api's own status and words go to
+ * service_events (`tailoring.failed`).
+ */
+async function upstreamError(
+	c: HasExecutionCtx,
+	kind: TailoringKind,
+	jobId: string,
+	res: Response
+) {
+	const detail = (await res.text()).slice(0, 300);
+	recordEvent(c, {
+		level: 'warn',
+		event: 'tailoring.failed',
+		message: `${kind} for ${jobId}: resume-api ${res.status}`,
+		context: { kind, job_id: jobId, upstream_status: res.status, detail },
+	});
 	return {
 		success: false as const,
 		error: 'Upstream error',
-		message: `resume-api ${res.status}: ${detail.slice(0, 300)}`,
+		message: `resume-api ${res.status}: ${detail}`,
 	};
+}
+
+/** One row per LLM generation: they are the spend, and the request row cannot say which kind. */
+function generated(
+	c: HasExecutionCtx,
+	kind: TailoringKind,
+	jobId: string,
+	extra: Record<string, unknown> = {}
+) {
+	recordEvent(c, {
+		level: 'info',
+		event: 'tailoring.generated',
+		message: `${kind} for ${jobId}`,
+		context: { kind, job_id: jobId, ...extra },
+	});
 }
 
 export function registerTailoringRoutes(app: JobsApp): void {
@@ -137,8 +172,9 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			...(typeof opts.profile_type === 'string' ? { profile_type: opts.profile_type } : {}),
 			...(typeof opts.tailor === 'boolean' ? { tailor: opts.tailor } : {}),
 		});
-		if (!res.ok) return c.json(await upstreamError(res), 502);
+		if (!res.ok) return c.json(await upstreamError(c, 'resume', id, res), 502);
 		const data = await res.json();
+		generated(c, 'resume', id);
 		return c.json({ success: true as const, data }, 200);
 	});
 
@@ -159,8 +195,9 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			description: job.description,
 			...(opts.tone === 'formal' || opts.tone === 'conversational' ? { tone: opts.tone } : {}),
 		});
-		if (!res.ok) return c.json(await upstreamError(res), 502);
+		if (!res.ok) return c.json(await upstreamError(c, 'cover_letter', id, res), 502);
 		const data = await res.json();
+		generated(c, 'cover_letter', id);
 		return c.json({ success: true as const, data }, 200);
 	});
 
@@ -211,7 +248,7 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			job_title: job.title,
 			ttl_days: ttlDays,
 		});
-		if (!res.ok) return c.json(await upstreamError(res), 502);
+		if (!res.ok) return c.json(await upstreamError(c, 'packet_link', id, res), 502);
 		const variant: { slug?: string } = await res.json();
 		if (!variant.slug) {
 			return c.json(
@@ -259,6 +296,7 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		]);
 
 		const url = `https://hadoku.me/resume?v=${encodeURIComponent(variant.slug)}`;
+		generated(c, 'packet_link', id, { slug: variant.slug, user_id: who.userId });
 		return c.json({ success: true as const, data: { slug: variant.slug, url } }, 200);
 	});
 
@@ -339,8 +377,9 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			job_location: job.location ?? undefined,
 			workplace_type: job.workplace_type ?? undefined,
 		});
-		if (!res.ok) return c.json(await upstreamError(res), 502);
+		if (!res.ok) return c.json(await upstreamError(c, 'application_extras', id, res), 502);
 		const data = await res.json();
+		generated(c, 'application_extras', id);
 		return c.json({ success: true as const, data }, 200);
 	});
 }
