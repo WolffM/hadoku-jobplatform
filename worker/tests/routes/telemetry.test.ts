@@ -246,6 +246,19 @@ describe('operation events', () => {
 		assert.ok(!JSON.stringify(row).includes('250000'), 'free text never reaches the log');
 	});
 
+	it('a DELETE names its target from the query string', async () => {
+		h.telemetry.length = 0;
+		await h.fetch(`${BASE}/blocked-companies?company=Acme`, {
+			method: 'DELETE',
+			tier: 'friend',
+			userId: 'user-op',
+		});
+		await h.settle();
+		const [row] = named('api.change');
+		assert.equal(row.context.company, 'Acme');
+		assert.deepEqual(row.context.fields, ['company']);
+	});
+
 	it('a refused import says why', async () => {
 		h.telemetry.length = 0;
 		const res = await h.fetch(`${BASE}/jobs/import`, {

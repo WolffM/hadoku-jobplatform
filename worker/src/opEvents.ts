@@ -70,7 +70,7 @@ function summarize(body: unknown): Record<string, unknown> {
 }
 
 interface ChangeContext extends HasExecutionCtx {
-	req: { method: string; path: string; json(): Promise<unknown> };
+	req: { method: string; path: string; json(): Promise<unknown>; query(): Record<string, string> };
 	res: { status: number };
 	get(key: 'authContext'): { userId?: string | null; userType?: string } | undefined;
 }
@@ -89,7 +89,8 @@ export function changeEvents(base: string) {
 		if (OWN_EVENT.some((re) => re.test(path))) return;
 		const status = c.res.status;
 		// Hono caches the parsed body, so this reads what the validator already read.
-		const body = method === 'DELETE' ? null : await c.req.json().catch(() => null);
+		// A DELETE names its target in the query (`?company=`), the others in the body.
+		const body = method === 'DELETE' ? c.req.query() : await c.req.json().catch(() => null);
 		const auth = c.get('authContext');
 		recordEvent(c, {
 			level: status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info',
