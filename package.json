@@ -66,7 +66,7 @@
     "@wolffm/dev-vault": "npm:@hadoku/dev-vault@^1.5.7",
     "@wolffm/logger": "^1.4.4",
     "@wolffm/task-ui-components": "^4.23.31",
-    "@wolffm/themes": "^5.13.46",
+    "@wolffm/themes": "^5.14.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
