@@ -2,12 +2,9 @@
 title: Job Platform
 summary: >-
   An end-to-end job-search pipeline at
-  [hadoku.me/jobplatform](https://hadoku.me/jobplatform): postings are pulled
-  from company application boards, scored against role profiles you define,
-  triaged, tracked through a Kanban pipeline, and turned into a tailored
-  application packet (résumé, cover letter, screening answers) for the ones
-  worth applying to. The job feed is open to anyone; an account is needed for
-  profiles, triage and packets.
+  [hadoku.me/jobplatform](https://hadoku.me/jobplatform) that scores,
+  triages and tracks postings into a tailored application packet, open to
+  anyone to browse but signed in for profiles, triage and packets.
 features:
   - name: The feed
     summary: Every scraped posting, ranked against a profile's keywords, seniority and remote preference.
@@ -52,6 +49,8 @@ It lives at [hadoku.me/jobplatform](https://hadoku.me/jobplatform). The feed
 is public: anyone can browse scored postings with no account. Profiles,
 triage state, the pipeline and application packets need to be signed in at
 friend tier or above.
+
+![The public feed: real postings from company boards, newest first, with no account signed in](images/feed.webp)
 
 ## How a posting gets here
 

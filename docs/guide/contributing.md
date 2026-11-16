@@ -36,23 +36,14 @@ Two independently published packages live in one repo:
 | `@wolffm/jobplatform`        | `src/`    | React micro-frontend, `mount`/`unmount` |
 | `@wolffm/jobplatform-worker` | `worker/` | Cloudflare Worker API (Hono + D1)       |
 
-```
-a profile's companies ──► GET /directives ──► a separate scraper service
-                                                      │ fetches each board,
-                                                      │ posts full postings
-                                                      ▼
-                                              POST /ingest (this worker)
-                                                      │ dedup, classify role,
-                                                      │ store in D1
-                                                      ▼
-                                              score on read, per request
-                                                      │
-                                                      ▼
-                                              React UI: feed, triage,
-                                              pipeline, packets
-                                                      │ secured service call
-                                                      ▼
-                                              a separate résumé service
+```mermaid
+flowchart LR
+    A["a profile's companies"] --> B["GET /directives"]
+    B --> C["a separate scraper service"]
+    C -->|"fetches each board,<br/>posts full postings"| D["POST /ingest<br/>(this worker)"]
+    D -->|"dedup, classify role,<br/>store in D1"| E["score on read,<br/>per request"]
+    E --> F["React UI: feed, triage,<br/>pipeline, packets"]
+    F -->|"secured service call"| G["a separate résumé service"]
 ```
 
 Companies are a **directive the scraper pulls**, never a target this app

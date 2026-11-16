@@ -32,7 +32,7 @@ The best facts about Job Platform, each with its source.
   the join order fixed the drawer at 2,866 rows and 32ms (`df6d07d`).
 - A feed read by a service identity acting for a person once silently
   dropped who it was reading for, scoring the feed against the service
-  identity's own (empty) application history instead — a route that ignores
+  identity's own (empty) application history instead. A route that ignores
   this answers for an identity that owns nothing, and nothing errors to say
   so. `GET /jobs` carried exactly that bug before being fixed (`fbf59d2`).
 - Every identity found sitting in the database was, on inspection, automation

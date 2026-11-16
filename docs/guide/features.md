@@ -48,7 +48,7 @@ straight from its card. Moving it to **applied** opens it on a Kanban board
 (To Apply → Applied → Interviewing → Offer → Rejected), with notes,
 priority, a follow-up date and a timeline of what happened and when.
 
-**How to use it.** Buttons on the job drawer set the state; a card on the
+**How to use it.** Buttons on the job drawer set the state. A card on the
 Pipeline tab can also be dragged between columns or changed from its own
 select — both routes write the same state change, so the board is never a
 second source of truth. Overdue follow-ups are flagged.
@@ -97,11 +97,14 @@ posting.
 
 ## Insights
 
-**What it does.** A summary of your own search: how many postings reached
-each pipeline stage, response/interview/offer rates as a share of what you
-applied to, your weekly pace over the last twelve weeks, the mix of
-remote/hybrid/onsite you're applying to, and which skills show up most in
-postings you're chasing versus your own saved skill list.
+**What it does.** A summary of your own search:
+
+- how many postings reached each pipeline stage;
+- response/interview/offer rates as a share of what you applied to;
+- your weekly pace over the last twelve weeks;
+- the mix of remote/hybrid/onsite you're applying to;
+- which skills show up most in postings you're chasing, versus your own
+  saved skill list.
 
 **How to use it.** Open the **Insights** tab. It reads only what you have
 already triaged or logged; there is nothing to configure.

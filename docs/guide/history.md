@@ -26,8 +26,8 @@ to a separate résumé-building service and surfaced as a **Generate packet**
 button on the job drawer, shipped on 2026-07-14 (`a6595c0`). Within two weeks
 the tier checks that gate it were rewritten from an allowlist to a tier
 hierarchy — `public < friend < service < admin`, where naming the lowest
-admits everything above it (`aa4b10e`, 2026-07-25), and the generated
-packet's shareable link was given a durable home on the triage row itself so
+admits everything above it (`aa4b10e`, 2026-07-25). The generated packet's
+shareable link was then given a durable home on the triage row itself, so
 the record of what was actually sent survives a later edit
 (`d2a6322`; migration 0010).
 
@@ -63,7 +63,7 @@ An applicant profile (contact details, education, work history) and
 "fill packets" built for filling forms in the owner's own browser arrived
 first (`d50a5c1`), then the Fill extension itself. It reached the dashboard
 as an install prompt and an **Open form** shortcut straight to the page it
-fills (`2f26a0e`, `774779c`), and then as **send sessions** that fill and
+fills (`2f26a0e`, `774779c`). Then came **send sessions** that fill and
 advance through every ready application in one sitting, leaving Submit and
 any verification code to the owner — by design, since that step is exactly
 what tells a board a person is there (`caa80c5`, 2026-10-07).
@@ -77,8 +77,8 @@ interviewing/offered/rejected states, notes, priority, a follow-up date and a
 Kanban board (`6e8fced`, `c09851e`, 2026-11-07; migration 0028). Two days
 later, an outside contributor's job-tracker UI started shipping as a
 second, published front end on this app's own worker API, built from a
-pinned commit of its own upstream repo (`7914685`, 2026-11-09), the same
-day the `@wolffm/*` dependencies switched from a private registry to their
+pinned commit of its own upstream repo (`7914685`, 2026-11-09). The same
+day, the `@wolffm/*` dependencies switched from a private registry to their
 public npm mirrors (`a1af6b1`).
 
 ## Removed along the way
