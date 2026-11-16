@@ -1,0 +1,6 @@
+{
+  "//": "Edge access lists this repo's service identity asks to be on: list id -> the one reason. The operator grants each on hadoku_site's command-station -> Service grants; nothing grants it automatically (hadoku_site docs/operations/SECRETS.md, 'How a repo asks for an edge access list').",
+  "contact-mailfeed": "The worker reads the scoped mail feed to reconcile application mail and verification codes (GET /contact/api/mailfeed, worker/src/clients/mailfeed.ts)",
+  "identity-resolve": "The worker resolves an owner name to a userId for on-behalf job calls, cached in D1 (resolveGranteeVia over the EDGE binding, worker/src/ownerName.ts)",
+  "scraper-service": "The worker drives the scraper's job-board routes: probe, match, search, extract (/api/v1/jobboards/*, worker/src/clients/scraper.ts)"
+}
