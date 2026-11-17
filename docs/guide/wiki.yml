@@ -1,0 +1,35 @@
+title: Job Platform
+summary: >-
+  An end-to-end job-search pipeline at
+  [hadoku.me/jobplatform](https://hadoku.me/jobplatform) that scores,
+  triages and tracks postings into a tailored application packet, open to
+  anyone to browse but signed in for profiles, triage and packets.
+features:
+  - name: The feed
+    summary: Every scraped posting, ranked against a profile's keywords, seniority and remote preference.
+    anchor: the-feed
+  - name: Profiles
+    summary: Define a role you want — keywords, seniority, remote preference, companies to watch.
+    anchor: profiles
+    tier: friend
+  - name: Triage and the pipeline
+    summary: Mark a posting interested, saved or dismissed, then track it through a Kanban to offer or rejection.
+    anchor: triage-and-the-pipeline
+    tier: friend
+  - name: Application packets
+    summary: A tailored résumé, cover letter and screening answers for one posting, generated on demand.
+    anchor: application-packets
+    tier: friend
+  - name: The Fill extension
+    summary: A Chrome extension that types a packet's answers into the real application form for you to submit.
+    anchor: the-fill-extension
+    tier: friend
+  - name: Insights
+    summary: Funnel, response and interview rates, and how your applications are pacing.
+    anchor: insights
+    tier: friend
+trivia:
+  - 'The whole first version landed in one commit: 8,158 lines across 38 files (`d846a1d`).'
+  - "A profile subscribed to three companies once saw only 953 of 33,103 jobs in the corpus — under 3% of it — because a feed query starved the same job's own detail page sitting beside it: 61,673 rows and 1,975ms on every request, cut to 2,866 rows and 32ms by pinning the join order (`df6d07d`)."
+  - "Every identity found sitting in the database resolved, on inspection, to automation or the owner — never a second person — the tell being that only the owner's own rows carry votes or standing answers, things only a human does in a browser (`71e6395`)."
+  - 'The busiest day on record is 26 commits, one Wednesday in August (fact sheet, 2026-11-16).'
