@@ -46,13 +46,13 @@ importers:
         specifier: npm:@hadoku/dev-vault@^1.5.7
         version: '@hadoku/dev-vault@1.5.7'
       '@wolffm/logger':
-        specifier: ^1.4.4
+        specifier: 1.4.4
         version: 1.4.4
       '@wolffm/task-ui-components':
-        specifier: ^4.23.35
+        specifier: 4.23.35
         version: 4.23.35(@wolffm/themes@5.14.4(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@wolffm/themes':
-        specifier: ^5.14.4
+        specifier: 5.14.4
         version: 5.14.4(react@19.2.4)
       esbuild:
         specifier: ^0.28.2
@@ -115,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: ^1.7.24
-        version: 1.7.24(hono@4.12.9)(zod@4.6.7)
+        specifier: 1.7.26
+        version: 1.7.26(hono@4.12.9)(zod@4.6.7)
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -1292,8 +1292,8 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
-  '@wolffm/worker-utils@1.7.24':
-    resolution: {integrity: sha512-ZEHhUz79YLpEb1wZqCA7CD7PG44VdF7y0hD92imaB89qsPxFrcbv6KpyGHeQmUPiZfHOXUhMjOM1rltVbqYpPA==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.7.24/f69f1a6e71d07baabbccadad92e54bd0c9f8e854}
+  '@wolffm/worker-utils@1.7.26':
+    resolution: {integrity: sha512-x7lPkcXMjg1HYyElC99qZEweBs/FPP271FSPKs25ToPaDokv4jZfGw59mVMSKzYv7H628yo9vihojykTVXAOEQ==, tarball: https://npm.pkg.github.com/download/@wolffm/worker-utils/1.7.26/734ccf1f34a40b343ad8644bb2dba7bceeba8d89}
     peerDependencies:
       hono: ^4.11.4
 
@@ -3813,7 +3813,7 @@ snapshots:
       react: 19.2.4
       zod: 4.3.6
 
-  '@wolffm/worker-utils@1.7.24(hono@4.12.9)(zod@4.6.7)':
+  '@wolffm/worker-utils@1.7.26(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
       '@wolffm/logger': 1.4.4
