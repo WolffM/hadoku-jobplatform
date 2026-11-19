@@ -1,5 +1,7 @@
 # hadoku-jobplatform
 
+**Guide:** [overview](docs/guide/index.md) · [features](docs/guide/features.md) · [contributing](docs/guide/contributing.md) · [history](docs/guide/history.md) · [trivia](docs/guide/trivia.md)
+
 An end-to-end job-search pipeline. It pulls postings off company ATS boards, scores
 them against role profiles you define, lets you triage what survives, and assembles a
 full application packet — tailored resume, cover letter, intro email, screening
