@@ -111,6 +111,13 @@ function ownerNameOf(opts: Record<string, unknown>): string | undefined {
 type TailoringKind = 'resume' | 'cover_letter' | 'packet_link' | 'application_extras';
 
 /**
+ * Room for resume-api's whole error. Since resume-bot 1e6d0dc it names every
+ * provider that failed, in chain order, and the one that matters is usually the
+ * LAST (Groq's 429 alone runs ~300 chars); the old 300 cut it off.
+ */
+const UPSTREAM_DETAIL_CHARS = 1500;
+
+/**
  * resume-api errors surface as 502 with a truncated upstream detail. The
  * request row shows only the 502; resume-api's own status and words go to
  * service_events (`tailoring.failed`).
@@ -121,7 +128,7 @@ async function upstreamError(
 	jobId: string,
 	res: Response
 ) {
-	const detail = (await res.text()).slice(0, 300);
+	const detail = (await res.text()).slice(0, UPSTREAM_DETAIL_CHARS);
 	recordEvent(c, {
 		level: 'warn',
 		event: 'tailoring.failed',
