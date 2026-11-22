@@ -56,7 +56,7 @@ flowchart LR
     A["a profile's companies"] --> B["GET /directives"]
     B --> C["a separate scraper service"]
     C -->|"fetches each board,<br/>posts full postings"| D["POST /ingest<br/>(this worker)"]
-    D -->|"dedup, classify role,<br/>store in D1"| E["score on read,<br/>per request"]
+    D -->|"dedup, classify role,<br/>store in D1"| E["rank a shortlist,<br/>score it live"]
     E --> F["React UI: feed, triage,<br/>pipeline, packets"]
     F -->|"secured service call"| G["a separate résumé service"]
 ```
@@ -67,38 +67,69 @@ the scraper reads that on its next run (`worker/src/routes/ingest.ts`). That
 keeps registry ownership in one place — the scraper decides how to scrape,
 this app decides what is worth scraping.
 
-**Scoring** runs on read, per request (`worker/src/routes/jobs/feed.ts`), not
-from a precomputed table — a score always reflects the profile as it is
-right now. Three things are hard SQL filters rather than score factors,
-because "only show me X" is a different request from "rank X higher": a
-profile's companies, its IC/manager track, and (as a view control) the
-feed's salary floor. Salary itself was removed as a score factor entirely —
-`salary_min` is NULL on most postings, so scoring it returned a neutral ~0.5
-for nearly everything, noise dressed as signal — and demoted to that view
-filter; a posting with no listed salary still survives it rather than being
-hidden. The four remaining signals and their weights:
+**Companies are not a feed filter.** Adding a company to a profile only puts
+its board's jobs into the corpus. From there every job competes on the
+profile's criteria alone, wherever it came from. Until 2026-09-10 a profile's
+companies were a hard filter, so subscribing to three companies hid about
+33,000 of 34,135 jobs.
 
-| Signal          | Weight | What it measures                            |
-| --------------- | -----: | ------------------------------------------- |
-| `keyword_match` |   0.40 | profile keywords against the description    |
-| `title_match`   |   0.30 | profile keywords against the title          |
-| `level_match`   |   0.15 | distance on the seniority ladder            |
-| `remote_match`  |   0.15 | remote / hybrid / onsite against preference |
+**Ranking** happens in two passes (`worker/src/routes/jobs/feed.ts`). The
+light pass scores every job without reading its description: title,
+location, workplace type, salary and level. That number is precomputed per
+profile into the `job_profile_rank` table (`worker/src/rank.ts`), so the feed
+can sort and cap in SQL instead of reading the whole corpus. The top 800 then
+get the full score, descriptions included, live on every request. So the
+score a user sees always reflects their profile as it is now.
+
+The stored ranking is built lazily. The first feed request that finds none is
+ranked live and builds one behind its response, and a profile edit rebuilds it
+the same way. Two markers in `job_profile_rank_state` (a hash of the
+profile's criteria, and the newest job covered) decide whether it can be
+trusted. When it cannot, the feed ranks live. Stale rank data therefore costs
+speed, never correctness. A change to the scorer itself is not covered by the
+hash: rebuild with `POST /ingest/rebuild-rank`.
+
+**The score** (`worker/src/scoring.ts`) is a weighted sum of six axes:
+
+| Axis              | Weight | What it measures                                                        |
+| ----------------- | -----: | ----------------------------------------------------------------------- |
+| `relevance`       |   0.40 | profile keywords in the title and description, with diminishing returns |
+| `level_match`     |   0.15 | distance on the seniority ladder                                        |
+| `domain_interest` |   0.15 | the profile's liked and avoided topics                                  |
+| `geo_fit`         |   0.12 | remote / hybrid / onsite preference, and the posting's country          |
+| `comp_fit`        |   0.10 | published salary against the profile's floor                            |
+| `stack_fit`       |   0.08 | technologies named in the title that the profile's stack lacks          |
 
 `level_match` grades by distance, not equality: exact rung 1.0, one rung off
-0.7, further or off-track 0.2 — and an unclassified job scores 0.5, since no
-signal is not the same as a bad match. Full algorithm and data model:
-[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+0.7, further or off-track 0.2. An unclassified job scores 0.5, since no
+signal is not the same as a bad match. An unpublished salary is neutral for
+the same reason: most strong payers do not publish one.
 
-**Role classification** (`worker/src/roleClassify.ts`) infers seniority and
-track from the title's head, since no ATS publishes either, along two
-orthogonal axes — `track` (`ic` or `manager`: does the job have direct
-reports?) and `level` (the rung on that track's ladder) — rather than one
-flat list, because `senior` and `manager` are answers to different
-questions, not alternatives. It reads the title's head, before the first
-comma, so "Software Engineer, Ads Manager" correctly lands as an IC; only
-the genuinely ambiguous `lead` family falls back to probing the description
-body. Regression cases live in `worker/tests/roleClassify.test.ts`.
+Some evidence multiplies the whole score instead of adding to it: a job in an
+adjacent discipline (×0.15), remote work outside the Americas (×0.1), and a
+published salary far below the floor (×0.15). The feed then applies the
+caller's own factors live: their up or down vote, how stale the posting is,
+how long ago it was posted, and how many applications they already have out
+at that company (×0.85 from one, ×0.6 from five, ×0.3 from twenty). Those
+stay out of the stored ranking because they are per person and change on
+every click.
+
+**Filters** are separate from the score, because "only show me X" is a
+different request from "rank X higher". The profile's IC or manager track is
+a hard SQL filter. The feed's salary floor, location radius and blocked
+companies are view filters. A posting with no listed salary survives the
+salary filter rather than being hidden, since most postings list none. Full
+algorithm and data model: [`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+
+**Role classification** (`worker/src/roleClassify.ts`) infers a job's
+seniority and track, since no ATS publishes either. It uses two separate
+axes rather than one flat list. `track` is `ic` or `manager`: does the job
+have direct reports? `level` is the rung on that track's ladder. They are
+separate because `senior` and `manager` answer different questions; they
+are not alternatives. It reads the title's head, before the first comma, so
+"Software Engineer, Ads Manager" lands as an IC. Only the ambiguous `lead`
+family falls back to reading the description. Regression cases live in
+`worker/tests/roleClassify.test.ts`.
 
 **Gating** is tier-ranked (`public < friend < service < admin`) and enforced
 in-worker, never just upstream: `worker/src/routes/jobs/shared.ts`'s
