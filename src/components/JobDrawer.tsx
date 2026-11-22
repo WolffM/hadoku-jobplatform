@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import {
   getJob,
   setJobState,
-  generateApplicationExtras,
   mintPacketLink,
   queueApplication,
   JobsApiError,
@@ -318,17 +317,11 @@ export function JobDrawer({
       setPacket({ resume: built.resume, coverLetter: built.coverLetter })
       setPacketLink(built.url)
       setPacketSlug(built.slug)
-      // The kit is fetched separately here (and only here): the feed never
-      // shows it, so applyQueue does not carry it, but the drawer's copy
-      // blocks are the whole point of opening a posting.
-      try {
-        const kit = await generateApplicationExtras(jobId, { resume_markdown: built.resume }, auth)
-        setExtras(kit)
-      } catch (err) {
-        setExtrasError(
-          err instanceof JobsApiError ? err.message : 'Failed to generate the application kit'
-        )
-      }
+      // The sequence already built the kit (it needs the cover letter from
+      // it), so the drawer shows that one. Asking again doubled every
+      // Prepare's LLM spend and its failures (issue #30).
+      setExtras(built.kit)
+      setExtrasError(built.kitError)
       return built.slug
     } catch (err) {
       setPacketError(err instanceof JobsApiError ? err.message : 'Failed to generate résumé')

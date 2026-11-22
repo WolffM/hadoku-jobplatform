@@ -20,12 +20,24 @@ import {
   generateCoverLetter,
   mintPacketLink,
   queueApplication,
-  JobsApiError
+  JobsApiError,
+  type ApplicationExtras
 } from './jobs'
 import type { Auth } from './auth'
 
 /** Where one job is in the sequence. `error` carries a reason; the rest don't. */
 export type ApplyPhase = 'idle' | 'waiting' | 'preparing' | 'queueing' | 'queued' | 'error'
+
+/** What one run of the sequence produced. */
+export interface PreparedPacket {
+  slug: string
+  url: string
+  resume: string
+  coverLetter: string
+  /** The whole kit, or null when its call failed — `kitError` then says why. */
+  kit: ApplicationExtras | null
+  kitError: string | null
+}
 
 export interface ApplyStatus {
   phase: ApplyPhase
@@ -46,24 +58,24 @@ export async function prepareApplicationPacket(
   jobId: string,
   auth: Auth,
   onPhase?: (phase: ApplyPhase) => void
-): Promise<{ slug: string; url: string; resume: string; coverLetter: string }> {
+): Promise<PreparedPacket> {
   onPhase?.('preparing')
   const resume = await generateResume(jobId, auth)
 
   // The kit is best-effort: a posting whose extras call fails can still be
   // queued off the résumé alone, and refusing to queue over a missing cover
-  // letter would be a worse answer than queueing without one.
+  // letter would be a worse answer than queueing without one. The failure is
+  // handed back rather than dropped, so the drawer can say why its kit is
+  // missing without asking resume-api for the same kit a second time.
+  let kit: ApplicationExtras | null = null
+  let kitError: string | null = null
   let coverLetter = ''
   try {
-    const kit = await generateApplicationExtras(
-      jobId,
-      { resume_markdown: resume.resume_markdown },
-      auth
-    )
+    kit = await generateApplicationExtras(jobId, { resume_markdown: resume.resume_markdown }, auth)
     coverLetter =
       kit.cover_letter_markdown || (await generateCoverLetter(jobId, auth)).cover_letter_markdown
-  } catch {
-    // fall through with an empty cover letter
+  } catch (err) {
+    kitError = err instanceof JobsApiError ? err.message : 'Failed to generate the application kit'
   }
 
   const { url, slug } = await mintPacketLink(
@@ -74,7 +86,7 @@ export async function prepareApplicationPacket(
     },
     auth
   )
-  return { slug, url, resume: resume.resume_markdown, coverLetter }
+  return { slug, url, resume: resume.resume_markdown, coverLetter, kit, kitError }
 }
 
 /**
