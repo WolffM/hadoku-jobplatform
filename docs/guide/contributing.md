@@ -8,6 +8,9 @@ scorer, the ingest pipeline or role classification.
 
 ## Run it
 
+New here? [`docs/ONBOARDING.md`](../ONBOARDING.md) is the first-day checklist:
+access, credentials and setup for this repo and the two it works with.
+
 Needs Node 22+ and pnpm. Installing and every check need no credential or
 `.npmrc`: the `@wolffm/*` dev dependencies are npm aliases of their public
 copies.

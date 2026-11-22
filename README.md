@@ -53,6 +53,9 @@ hadoku repo, so the steps live on one page:
 The identity to ask for is `jobplatform-service-key`. Once you have it, `pnpm dev` and
 `pnpm test:e2e` work as they are: they run through dev-vault (a dev dependency).
 
+New to the project? [docs/ONBOARDING.md](docs/ONBOARDING.md) sets up all three
+repos the pipeline spans, from GitHub access to a first passing test.
+
 ---
 
 ## Development
