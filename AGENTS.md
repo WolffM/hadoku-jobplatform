@@ -248,7 +248,7 @@ dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension fi
 ## Auth & secrets (hadoku ecosystem)
 
 - **Browser fetches** must hit `hadoku.me/{prefix}/*` via edge-router — NEVER `*.hadoku.me` direct subdomains. The `hadoku_session` cookie (`Domain=.hadoku.me`, 30d sliding) is set on `/auth` and resolved server-side by edge-router into `X-User-Key` for the backend.
-- **Secrets**: vault-broker model, NO `.env` files. Local dev fetches via `.devvault.json` + `pnpm exec dev-vault -- <cmd>` (`@wolffm/dev-vault` is a dev dependency; `pnpm dev` and `pnpm test:e2e` already use it). If `pnpm dev` fails, run `pnpm exec dev-vault --check` for diagnostics. **Tutorial: `../hadoku_site/docs/child-apps/USING_VAULT.md`**. Operational reference: `../hadoku_site/docs/operations/SECRETS.md`.
+- **Secrets**: vault-broker model, NO `.env` files. Local dev fetches via `.devvault.json` + `pnpm exec dev-vault -- <cmd>` (`@wolffm/dev-vault` is a dev dependency; `pnpm test:e2e` already uses it). `pnpm dev` reads no secret and does not go through it, so a contributor needs no grant to run the dev server. If `pnpm test:e2e` fails on auth, run `pnpm exec dev-vault --check` for diagnostics. **Tutorial: `../hadoku_site/docs/child-apps/USING_VAULT.md`**. Operational reference: `../hadoku_site/docs/operations/SECRETS.md`.
 - **Auth model**: 1:1 named user-keys. `/auth` accepts key + name; whoami returns the name. Admin endpoints `GET/POST/DELETE /session/admin/keys` manage the registry. See `../hadoku_site/docs/planning/next-work.md`.
 
 ## Vault — how this repo gets its dev secrets

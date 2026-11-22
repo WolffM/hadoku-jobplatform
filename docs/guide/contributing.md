@@ -9,7 +9,7 @@ scorer, the ingest pipeline or role classification.
 ## Run it
 
 New here? [`docs/ONBOARDING.md`](../ONBOARDING.md) is the first-day checklist:
-access, credentials and setup for this repo and the two it works with.
+access and setup for this repo, or for either of the two it works with on its own.
 
 Needs Node 22+ and pnpm. Installing and every check need no credential or
 `.npmrc`: the `@wolffm/*` dev dependencies are npm aliases of their public
@@ -26,10 +26,11 @@ pnpm typecheck
 cd worker && pnpm test   # node:test, no framework
 ```
 
-The dev server and the signed-in end-to-end suite talk to the real
-production API, so those need your own credential (a `jobplatform-service-key`
-grant); getting one is documented in this repo's own README. To act as an
-authenticated user in dev, pass `?apiKey=<key>` once — the harness in
+The dev server talks to the real production API and needs no credential of
+its own. The signed-in end-to-end suite does (a `jobplatform-service-key`
+grant, because it signs in as the shared e2e account); getting one is documented
+in this repo's own README. To act as an authenticated user in dev, pass
+`?apiKey=<your hadoku.me key>` once — the harness in
 `index.html` exchanges it for a session id through the same code path
 production uses. The parameter is dev-only and never accepted in
 production.

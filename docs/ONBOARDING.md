@@ -1,60 +1,209 @@
 # Onboarding: the job-search pipeline
 
-For a new contributor setting up the job-search pipeline on their own computer.
-The pipeline spans three repos, and this page sets up all three in order. The
-credential steps are a copy of
-[hadoku.me/docs/contributing](https://hadoku.me/docs/contributing/), which
-every hadoku repo shares. If the two disagree, that page is right; tell the
-owner so this one gets fixed.
+The job-search pipeline is three repos, and **you can work on any one of them
+without the other two**. Each one runs and tests against the live versions of
+the others, so you never clone, install or run a repo you aren't changing. Pick
+your track below. Each track section is complete on its own.
+
+Access steps that every hadoku repo shares live on
+[hadoku.me/docs/contributing](https://hadoku.me/docs/contributing/). If that
+page and this one disagree, that page is right. Tell the owner so this one gets
+fixed.
 
 ## The three repos
 
-| Repo                                                                       | Visibility | What it is                                                                              | Credential                                                      |
-| -------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| [hadoku-jobplatform](https://github.com/WolffM/hadoku-jobplatform)         | public     | The feed, triage and application UI (React) and its API (Cloudflare Worker, TypeScript) | `jobplatform-service-key`, for `pnpm dev` and `pnpm test:e2e`   |
-| [hadoku-resume-bot](https://github.com/WolffM/hadoku-resume-bot)           | public     | The tailored résumé and cover-letter API, and the résumé chat widget                    | `resume-bot-service-key`, for installing and friend-only routes |
-| [hadoku-scrapers-collab](https://github.com/WolffM/hadoku-scrapers-collab) | private    | The job-board scrapers and the apply runner, as Python plugins for the scrape service   | none                                                            |
+| Repo                                                                       | Visibility | What it is                                                                              | Track                               |
+| -------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- | ----------------------------------- |
+| [hadoku-scrapers-collab](https://github.com/WolffM/hadoku-scrapers-collab) | private    | The job-board scrapers and the apply runner, as Python plugins for the scrape service   | [Scrapers](#track-scrapers)         |
+| [hadoku-resume-bot](https://github.com/WolffM/hadoku-resume-bot)           | public     | The tailored résumé and cover-letter API, and the résumé page with its chat             | [Résumé](#track-résumé)             |
+| [hadoku-jobplatform](https://github.com/WolffM/hadoku-jobplatform)         | public     | The feed, triage and application UI (React) and its API (Cloudflare Worker, TypeScript) | [Job platform](#track-job-platform) |
 
 ```mermaid
 flowchart LR
     S["scrapers-collab<br/>jobboards plugin"] -->|"POST /ingest"| W["jobplatform worker"]
     W -->|"GET /directives:<br/>what to scrape"| S
     W --> U["jobplatform UI"]
-    U -->|"tailor a résumé"| R["resume-bot API"]
+    W -->|"tailor a résumé<br/>(service binding)"| R["resume-bot API"]
     A["scrapers-collab<br/>apply runner"] -->|"reads the queue,<br/>reports status"| W
 ```
 
-## 1. What the owner sets up
+The arrows are the only places the repos touch. A change that keeps them intact
+needs nothing from the other repos:
 
-Ask the owner to confirm each of these before you start:
+| Seam                                  | Defined in                                                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Scraper → jobplatform: jobs           | jobplatform `POST /ingest`; scrapers-collab `docs/jobboards-api.md`                                   |
+| Jobplatform → scraper: what to scrape | jobplatform `GET /directives`                                                                         |
+| Apply runner ↔ jobplatform: queue     | jobplatform `/applications*`, route table in its `AGENTS.md`                                          |
+| Jobplatform → résumé: tailoring       | resume-bot `/tailored-resume`, `/cover-letter`, `/application-extras`, route table in its `AGENTS.md` |
 
-- [ ] A hadoku.me account at **friend** tier or above, and the key to sign in with.
-- [ ] Service grants for **`jobplatform-service-key`** and **`resume-bot-service-key`**.
-- [ ] A GitHub invite to **hadoku-scrapers-collab**, which is private. Accept it from
-      your GitHub notifications or email: an invite expires after 7 days.
-- [ ] Write access on GitHub to all three repos, so you can push to `main`.
+## What you need, by track
 
-## 2. Your computer, once
+| You need                     | Scrapers                                 | Résumé                           | Job platform                                        |
+| ---------------------------- | ---------------------------------------- | -------------------------------- | --------------------------------------------------- |
+| GitHub                       | invite to the private repo, write access | write access                     | write access                                        |
+| A hadoku.me account (friend) | no                                       | only to try the tailoring routes | to sign in to the dev server                        |
+| A service grant              | none                                     | none                             | `jobplatform-service-key`, for `pnpm test:e2e` only |
+| Tools                        | git, Python 3.11+                        | git, Node 22+, pnpm 11           | git, Node 22+, pnpm 11                              |
 
-- Node 22 or newer, git, and pnpm 11 (`corepack enable` sets pnpm up).
-- Python 3.11 or newer, for scrapers-collab.
-- A user `.npmrc` (`~/.npmrc`, or `C:\Users\<you>\.npmrc` on Windows; create it if
-  it is missing) with these two lines, exactly as written:
+`corepack enable` sets pnpm up. No track needs a `.npmrc`, a token or a
+`.env` file to install, build or run its checks: every package comes from PyPI
+or npmjs.
 
-  ```ini
-  @wolffm:registry=https://npm.pkg.github.com
-  //npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
-  ```
+---
 
-  Leave `${NODE_AUTH_TOKEN}` as it is: dev-vault fills it in for each command it
-  runs. resume-bot's install needs this. jobplatform's does not.
+## Track: Scrapers
 
-## 3. Your credential: once per clone, then every 7 days
+`hadoku-scrapers-collab` holds two plugins that run inside the private scrape
+service: `jobboards` (Greenhouse, Lever, Ashby and LinkedIn listings, plus
+matching a company to its board) and `apply` (the form runner). They are built on
+the public [`hadoku-scrape-sdk`](https://pypi.org/project/hadoku-scrape-sdk/), so
+you never need the service itself.
 
-There are no shared keys. You hold your own credential for each repo. It lasts 7
-days, and you renew it with your passkey and an authenticator app.
+**Ask the owner for:** a GitHub invite to the repo. Accept it from your GitHub
+notifications or email within 7 days, or it expires.
 
-1. Sign in at [hadoku.me](https://hadoku.me), in the browser you will approve from.
+```sh
+git clone git@github.com:WolffM/hadoku-scrapers-collab.git
+cd hadoku-scrapers-collab
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/python -m patchright install --only-shell chromium
+HADOKU_PLUGINS_MANIFEST=tests/resources/plugins.toml .venv/bin/python -m hadoku_sdk.plugins
+# -> apply loaded, jobboards loaded
+```
+
+On Windows, `.venv/bin/` is `.venv\Scripts\`, and you set the variable with
+`$env:HADOKU_PLUGINS_MANIFEST="tests/resources/plugins.toml"` (PowerShell) on a
+line of its own.
+
+**Checks** (CI runs the same; all must pass with zero warnings):
+
+```sh
+.venv/bin/python -m pytest tests/unit/ -q
+.venv/bin/python -m ruff check .
+```
+
+The unit tests mock every network call. `tests/integration/` hits real job
+boards, and its LinkedIn tests need a login.
+
+**Read next:** the repo's `AGENTS.md` has the plugin contract, how to put a
+scraper on the nightly schedule, and the rules the service enforces (events,
+timestamps, browsers, secrets).
+
+**Shipping:** push to `main`. Within about ten minutes the scrape service pulls
+the commit, installs it and restarts. Deploys wait out the nightly hold
+(23:00–08:00 Pacific) and any run in progress. Everything on `main` runs in
+production with its secrets, so run the checks first.
+
+---
+
+## Track: Résumé
+
+`hadoku-resume-bot` is one package with two halves: the résumé page and chat
+widget (React, `src/`) and the worker API that assembles tailored résumés and
+cover letters (`worker/src/`). The résumé itself is content blocks in a
+Cloudflare KV store, not files in the repo. An LLM picks and lightly rewrites
+blocks for a job, and a deterministic assembler builds the document.
+
+**Ask the owner for:** write access to the repo, and a hadoku.me account at
+friend tier if you'll work on tailoring.
+
+```sh
+git clone https://github.com/WolffM/hadoku-resume-bot.git
+cd hadoku-resume-bot
+pnpm install
+pnpm dev          # http://localhost:5173
+```
+
+The dev page mounts the widget against the live API at
+`hadoku.me/resume/api`, so it shows the real résumé. Add `?theme=ocean` to try a
+theme, or `?apiBaseUrl=` to point it somewhere else.
+
+**Checks** (there is no test suite in this repo):
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm lint:css
+pnpm build
+```
+
+**The worker doesn't run locally.** It runs only inside hadoku.me, so a worker
+change goes live when it deploys. Try the live routes with your own key. The
+friend-only ones (tailoring, cover letters, `/system-prompt`) take it in a
+header:
+
+```sh
+curl -H "X-User-Key: <your hadoku.me key>" https://hadoku.me/resume/api/system-prompt
+```
+
+A tailoring call spends a real LLM request. Its endpoints and request bodies are
+in the repo's `AGENTS.md`.
+
+**Read next:** `AGENTS.md` (endpoints and bindings) and
+`docs/guide/contributing.md` (architecture: blocks, the assembler, the LLM
+provider chain).
+
+**Shipping:** push to `main`. CI publishes the package and hadoku.me redeploys
+within minutes. CI sets the version, so never edit one by hand.
+
+---
+
+## Track: Job platform
+
+`hadoku-jobplatform` is the dashboard at
+[hadoku.me/jobplatform](https://hadoku.me/jobplatform/): the scored feed,
+triage, the application pipeline, and the worker API behind them. It also holds
+the Fill browser extension (`extension/`).
+
+**Ask the owner for:** write access to the repo, a hadoku.me account at friend
+tier, and, only if you'll run the signed-in browser tests, a service grant for
+`jobplatform-service-key`.
+
+```sh
+git clone https://github.com/WolffM/hadoku-jobplatform.git
+cd hadoku-jobplatform
+pnpm install
+pnpm exec playwright install chromium   # once, for the browser tests
+pnpm dev                                # http://localhost:5173
+```
+
+The dev server talks to the **real production API**. To sign in, open
+`http://localhost:5173/?apiKey=<your hadoku.me key>` once. It swaps the key for
+a session cookie the way production does. After that, plain `localhost:5173`
+keeps you signed in.
+
+**Checks** (CI runs the same; none needs a credential):
+
+```sh
+pnpm lint
+pnpm lint:css
+pnpm typecheck
+pnpm test:unit
+pnpm test:extension
+pnpm build
+cd worker && pnpm test
+```
+
+`pnpm test:e2e` runs the browser suite against the real API, signed in as the
+shared e2e test account. It is the one command that needs the service grant:
+see [Your credential](#your-credential-only-for-pnpm-teste2e).
+
+**Read next:** `AGENTS.md` (the full route table and the decisions behind the
+feed) and [`docs/guide/contributing.md`](guide/contributing.md) (the
+architecture map).
+
+**Shipping:** push to `main`. CI publishes both packages and hadoku.me
+redeploys within minutes. CI sets the versions, so never edit one by hand.
+
+### Your credential (only for `pnpm test:e2e`)
+
+There are no shared keys. You hold your own credential, it lasts 7 days, and you
+renew it with your passkey and an authenticator app.
+
+1. Sign in at [hadoku.me](https://hadoku.me), in the browser you'll approve from.
 2. In the clone, run `npx @hadoku/dev-vault login`. It prints a code and a link to
    hadoku.me/account/device. Leave it running: it waits up to 24 hours.
 3. Open the link. It shows which machine and repo are asking. **The first time only:**
@@ -67,110 +216,41 @@ days, and you renew it with your passkey and an authenticator app.
    gitignored. Never commit it or share it.
 6. Check it with `npx @hadoku/dev-vault --check`.
 
-Renew with `npx @hadoku/dev-vault login` every 7 days, or whenever hadoku.me answers
-401 or `required: friend`. After the first time it is just the approve screen.
+Renew with `npx @hadoku/dev-vault login` every 7 days, or whenever the tests
+answer 401 or `required: friend`. After the first time it's just the approve
+screen.
 
-## 4. Set up each repo
+---
 
-### hadoku-jobplatform
+## Rules for every track
 
-```sh
-git clone https://github.com/WolffM/hadoku-jobplatform.git
-cd hadoku-jobplatform
-pnpm install                          # needs no credential
-npx @hadoku/dev-vault login           # step 3, identity jobplatform-service-key
-pnpm exec playwright install chromium # once, for the browser tests
-pnpm dev                              # http://localhost:5173
-```
-
-The dev server talks to the **real production API**. To sign in, open
-`http://localhost:5173/?apiKey=<your hadoku.me key>` once. It swaps the key for a
-session cookie the way production does. After that, plain `localhost:5173` keeps
-you signed in.
-
-The checks CI runs need no credential:
-
-```sh
-pnpm lint
-pnpm lint:css
-pnpm typecheck
-pnpm test:unit
-pnpm test:extension
-cd worker && pnpm test
-```
-
-`pnpm test:e2e` runs the browser suite against the real API, signed in as the shared
-e2e test account.
-
-### hadoku-resume-bot
-
-```sh
-git clone https://github.com/WolffM/hadoku-resume-bot.git
-cd hadoku-resume-bot
-npx @hadoku/dev-vault login            # step 3, identity resume-bot-service-key
-npx @hadoku/dev-vault -- pnpm install  # its packages come from GitHub Packages
-pnpm dev                               # http://localhost:5173
-```
-
-Stop the jobplatform dev server first: both use port 5173. The rest of its commands
-are in that repo's `docs/guide/contributing.md`.
-
-### hadoku-scrapers-collab
-
-No credential: setup, the unit tests and ruff need only PyPI.
-
-```sh
-git clone git@github.com:WolffM/hadoku-scrapers-collab.git
-cd hadoku-scrapers-collab
-python -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-.venv/bin/python -m patchright install --only-shell chromium
-.venv/bin/python -m pytest tests/unit/ -q
-.venv/bin/python -m ruff check .
-```
-
-On Windows, `.venv/bin/` is `.venv\Scripts\`. Its `AGENTS.md` has the plugin
-contract and the rules the scrape service enforces.
-
-## 5. Check that it all works
-
-- [ ] `npx @hadoku/dev-vault --check` passes in the jobplatform and resume-bot clones.
-- [ ] jobplatform: `pnpm dev`, sign in with `?apiKey=`, and the feed shows your profiles.
-- [ ] jobplatform: `cd worker && pnpm test` passes.
-- [ ] resume-bot: `pnpm dev` renders the résumé.
-- [ ] scrapers-collab: pytest and ruff both pass.
-
-## 6. Before your first change
-
-- **Read the repo's `AGENTS.md` first.** It holds the rules each change must keep,
-  and why. jobplatform's also has the full route table. Its
-  [`docs/guide/contributing.md`](guide/contributing.md) is the architecture map.
-- **The dev server changes real data.** What you save in `pnpm dev` is saved for your
-  real account.
+- **Read the repo's `AGENTS.md` before your first change.** It holds the rules each
+  change must keep, and why.
+- **You push straight to `main`, and that ships to production.** No pull request is
+  needed, and nothing reviews the change before it goes live. Run the repo's
+  checks first, and push only when they all pass.
+- **Dev talks to production.** In the résumé and job-platform tracks, what you
+  save from the dev server is saved for your real account.
 - **Never press "Queue for Auto-Apply"** in dev or in a test. It queues a real
   application, which the apply runner fills in and can send to a real employer. A
   browser test must block the route: `page.route('**/jobs/*/apply', r => r.abort())`.
 - **Colours come from theme tokens** (`var(--color-*)`), never hex values or
-  fallbacks. `pnpm lint:css` checks this.
-- **CI sets version numbers.** Never edit one by hand.
-- **No `.env` files.** Secrets come only through dev-vault.
-- **You push straight to `main`, and that ships to production.** No pull request is
-  needed. jobplatform publishes and the site redeploys within minutes.
-  scrapers-collab deploys to the scrape service within about ten. Nothing reviews
-  the change before it goes live, so run the repo's checks first and push only
-  when they all pass.
-- **To see what happened in production,** query telemetry with your own credential.
-  jobplatform's `AGENTS.md`, section "Telemetry", has the commands and every event
-  name.
+  fallbacks. `pnpm lint:css` checks this in both JS repos.
+- **No `.env` files.** Secrets arrive in production as the service's environment;
+  ask the owner before code reads a new one.
+- **To see what happened in production,** jobplatform's `AGENTS.md`, section
+  "Telemetry", has the commands and every event name.
 
 ## If something goes wrong
 
-| What you see                                     | What to do                                                                                                   |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| "You hold no service grants" on the approve page | The grant for that identity is missing. Ask the owner.                                                       |
-| The passkey prompt has nothing to pick           | Your passkey is on another device. Choose **Use another device** and scan with that phone, or save one here. |
-| The login request expired                        | Run `npx @hadoku/dev-vault login` again.                                                                     |
-| 401 or `required: friend`                        | Your 7-day credential expired. Log in again.                                                                 |
-| resume-bot install fails on `@wolffm/*`          | Check the two `.npmrc` lines, and install through `npx @hadoku/dev-vault -- pnpm install`.                   |
-| `git clone` of scrapers-collab says not found    | The GitHub invite is not accepted yet, or it expired. Ask the owner for a new one.                           |
-| "Cloudflare refused this network"                | This should not happen from any network. Tell the owner.                                                     |
+| What you see                                     | What to do                                                                                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `git clone` of scrapers-collab says not found    | The GitHub invite isn't accepted yet, or it expired. Ask the owner for a new one.                                                 |
+| `pnpm install` fails with 401 on `@wolffm/*`     | A dependency slipped back to GitHub Packages. That's a bug: tell the owner. Every `@wolffm/*` should be an `npm:@hadoku/*` alias. |
+| Browser tests say "Executable doesn't exist"     | Run `pnpm exec playwright install chromium` (job platform) or the `patchright install` line (scrapers).                           |
+| Port 5173 is taken                               | Both JS repos use it. Stop the other dev server, or run `pnpm dev --port 5174`.                                                   |
+| "You hold no service grants" on the approve page | The grant for that identity is missing. Ask the owner.                                                                            |
+| The passkey prompt has nothing to pick           | Your passkey is on another device. Choose **Use another device** and scan with that phone, or save one here.                      |
+| The login request expired                        | Run `npx @hadoku/dev-vault login` again.                                                                                          |
+| 401 or `required: friend`                        | Your 7-day credential expired, or your hadoku.me key isn't friend tier. Log in again, or ask the owner.                           |
+| "Cloudflare refused this network"                | This shouldn't happen from any network. Tell the owner.                                                                           |

@@ -46,15 +46,17 @@ versions and redeploy — see [contributing.md#how-it-deploys](docs/guide/contri
 
 A fresh clone installs, builds and passes every check with no credential and no
 `.npmrc`: the `@wolffm/*` dev dependencies are npm aliases of their public npmjs copies
-(`npm:@hadoku/<name>`). The dev server and the signed-in e2e suite talk to the real
-hadoku.me API, so those need your own credential. Getting one is the same for every
-hadoku repo, so the steps live on one page:
+(`npm:@hadoku/<name>`). The dev server talks to the real hadoku.me API and needs
+only your own hadoku.me key: open `localhost:5173/?apiKey=<key>` once to sign in.
+The signed-in e2e suite is the one command that needs a credential, because it signs
+in as the shared e2e account. Getting one is the same for every hadoku repo, so the
+steps live on one page:
 **[hadoku.me/docs/contributing/#jobplatform](https://hadoku.me/docs/contributing/#jobplatform)**.
-The identity to ask for is `jobplatform-service-key`. Once you have it, `pnpm dev` and
-`pnpm test:e2e` work as they are: they run through dev-vault (a dev dependency).
+The identity to ask for is `jobplatform-service-key`. Once you have it,
+`pnpm test:e2e` works as it is: it runs through dev-vault (a dev dependency).
 
-New to the project? [docs/ONBOARDING.md](docs/ONBOARDING.md) sets up all three
-repos the pipeline spans, from GitHub access to a first passing test.
+New to the project? [docs/ONBOARDING.md](docs/ONBOARDING.md) sets up any one of the
+three repos the pipeline spans, without the other two.
 
 ---
 
@@ -64,7 +66,7 @@ Requires Node 22+ and `pnpm`.
 
 ```bash
 pnpm install
-pnpm dev          # dev server on :5173, needs a credential — see Getting access above
+pnpm dev          # dev server on :5173, sign in with ?apiKey= — see Getting access above
 ```
 
 The rest of the commands, the theming and logging conventions, and how a change
