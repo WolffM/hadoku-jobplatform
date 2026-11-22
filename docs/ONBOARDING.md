@@ -32,8 +32,7 @@ Ask the owner to confirm each of these before you start:
 - [ ] Service grants for **`jobplatform-service-key`** and **`resume-bot-service-key`**.
 - [ ] A GitHub invite to **hadoku-scrapers-collab**, which is private. Accept it from
       your GitHub notifications or email: an invite expires after 7 days.
-- [ ] Write access to the two public repos, if you will push branches there instead
-      of working from a fork.
+- [ ] Write access on GitHub to all three repos, so you can push to `main`.
 
 ## 2. Your computer, once
 
@@ -155,9 +154,11 @@ contract and the rules the scrape service enforces.
   fallbacks. `pnpm lint:css` checks this.
 - **CI sets version numbers.** Never edit one by hand.
 - **No `.env` files.** Secrets come only through dev-vault.
-- **Merging to `main` ships to production.** jobplatform publishes and the site
-  redeploys within minutes. scrapers-collab deploys to the scrape service within
-  about ten. Open a pull request unless the owner has agreed otherwise.
+- **You push straight to `main`, and that ships to production.** No pull request is
+  needed. jobplatform publishes and the site redeploys within minutes.
+  scrapers-collab deploys to the scrape service within about ten. Nothing reviews
+  the change before it goes live, so run the repo's checks first and push only
+  when they all pass.
 - **To see what happened in production,** query telemetry with your own credential.
   jobplatform's `AGENTS.md`, section "Telemetry", has the commands and every event
   name.
