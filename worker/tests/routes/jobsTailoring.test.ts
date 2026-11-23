@@ -238,6 +238,45 @@ describe('POST /jobs/{id}/application-extras', () => {
 		assert.equal(call?.body.workplace_type, 'hybrid');
 	});
 
+	// The apply runner sends the form's own free-text labels; one only this
+	// posting asks (Fleetio's "How did you hear about Fleetio…") matched none
+	// of the kit's generic answers and went to the owner unanswered.
+	it("passes the form's questions through, bounded, and their answers back", async () => {
+		h.resume.respondWith(200, {
+			screening_answers: [],
+			form_answers: [{ q: 'How did you hear about us?', a: 'Over coffee.' }],
+		});
+		const long = 'x'.repeat(600);
+		const { status, body } = await h.json<{ data: { form_answers: unknown } }>(
+			`${BASE}/jobs/tailor-1/application-extras`,
+			{
+				method: 'POST',
+				...AUTH,
+				body: JSON.stringify({
+					resume_markdown: '# R',
+					questions: ['How did you hear about us?', '  ', 7, long],
+				}),
+			}
+		);
+		assert.equal(status, 200);
+		assert.deepEqual(h.resume.calls.at(-1)?.body.questions, [
+			'How did you hear about us?',
+			'x'.repeat(500),
+		]);
+		assert.deepEqual(body.data.form_answers, [
+			{ q: 'How did you hear about us?', a: 'Over coffee.' },
+		]);
+	});
+
+	it('sends no questions when the caller sent none', async () => {
+		await h.json(`${BASE}/jobs/tailor-1/application-extras`, {
+			method: 'POST',
+			...AUTH,
+			body: JSON.stringify({ resume_markdown: '# R', questions: 'not a list' }),
+		});
+		assert.equal(h.resume.calls.at(-1)?.body.questions, undefined);
+	});
+
 	it('404s a missing job', async () => {
 		const { status } = await h.json(`${BASE}/jobs/ghost/application-extras`, {
 			method: 'POST',

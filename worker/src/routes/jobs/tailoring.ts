@@ -107,6 +107,20 @@ function ownerNameOf(opts: Record<string, unknown>): string | undefined {
 	return typeof opts.ownerName === 'string' ? opts.ownerName : undefined;
 }
 
+/**
+ * The application form's own free-text questions, as the apply runner sends
+ * them: non-empty strings, at most 25, each cut to 500 characters (resume-api
+ * applies the same bounds). Anything else is no questions.
+ */
+function questionsOf(opts: Record<string, unknown>): string[] | undefined {
+	if (!Array.isArray(opts.questions)) return undefined;
+	const questions = opts.questions
+		.filter((q): q is string => typeof q === 'string' && q.trim() !== '')
+		.map((q) => q.trim().slice(0, 500))
+		.slice(0, 25);
+	return questions.length ? questions : undefined;
+}
+
 /** What each route asks resume-api to make; the `kind` on its telemetry rows. */
 type TailoringKind = 'resume' | 'cover_letter' | 'packet_link' | 'application_extras';
 
@@ -321,6 +335,10 @@ export function registerTailoringRoutes(app: JobsApp): void {
 	// treats a failure here as "no drafted answers" and falls back to standing
 	// ones. So an absent résumé now resolves from the packet already minted for
 	// this job, which is the record of what was actually prepared for it.
+	//
+	// `questions` are the form's own free-text labels the runner could not
+	// answer. resume-api drafts one answer per label into `form_answers`, which
+	// passes back untouched with the rest of the kit.
 	app.post('/jobs/:id/application-extras', gateAuthed);
 	app.post('/jobs/:id/application-extras', async (c) => {
 		const id = c.req.param('id');
@@ -383,6 +401,7 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			// candidate's default metro — resume-api injects these into its prompt.
 			job_location: job.location ?? undefined,
 			workplace_type: job.workplace_type ?? undefined,
+			questions: questionsOf(opts),
 		});
 		if (!res.ok) return c.json(await upstreamError(c, 'application_extras', id, res), 502);
 		const data = await res.json();
