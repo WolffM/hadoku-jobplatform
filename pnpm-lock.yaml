@@ -115,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: npm:@hadoku/worker-utils@2.0.0
-        version: '@hadoku/worker-utils@2.0.0(hono@4.12.9)(zod@4.6.7)'
+        specifier: npm:@hadoku/worker-utils@2.0.1
+        version: '@hadoku/worker-utils@2.0.1(hono@4.12.9)(zod@4.6.7)'
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -711,8 +711,8 @@ packages:
       react:
         optional: true
 
-  '@hadoku/worker-utils@2.0.0':
-    resolution: {integrity: sha512-AfJ34eW5n9PJ8HQ5SUbBlSsffGd0lzvyCribnhd1s7iYR5UdpPlojQ8Id2VemI1TMD7po/80QyMSeSjgkefzbQ==}
+  '@hadoku/worker-utils@2.0.1':
+    resolution: {integrity: sha512-4EA6IKk3EqjBU4SSjQ+Tn03ihqpfRdSlju5pCdQ+K11QZJvVeiewQc/59DxnHbpn0ubr2wgJsb9kbAiRRsneqw==}
     peerDependencies:
       hono: ^4.11.4
 
@@ -3265,7 +3265,7 @@ snapshots:
     optionalDependencies:
       react: 19.2.4
 
-  '@hadoku/worker-utils@2.0.0(hono@4.12.9)(zod@4.6.7)':
+  '@hadoku/worker-utils@2.0.1(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
       '@wolffm/logger': '@hadoku/logger@1.4.4'
