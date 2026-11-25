@@ -49,11 +49,11 @@ importers:
         specifier: npm:@hadoku/logger@1.4.5
         version: '@hadoku/logger@1.4.5'
       '@wolffm/task-ui-components':
-        specifier: npm:@hadoku/task-ui-components@4.23.47
-        version: '@hadoku/task-ui-components@4.23.47(@hadoku/themes@5.14.17(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
+        specifier: npm:@hadoku/task-ui-components@4.23.48
+        version: '@hadoku/task-ui-components@4.23.48(@hadoku/themes@5.14.18(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
       '@wolffm/themes':
-        specifier: npm:@hadoku/themes@5.14.17
-        version: '@hadoku/themes@5.14.17(react@19.2.4)'
+        specifier: npm:@hadoku/themes@5.14.18
+        version: '@hadoku/themes@5.14.18(react@19.2.4)'
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -695,15 +695,15 @@ packages:
       react:
         optional: true
 
-  '@hadoku/task-ui-components@4.23.47':
-    resolution: {integrity: sha512-TC16eAz1w2IG8j7+pr1JUpwLn9Nu/xZ7c9NVVuLlmCRg8DH61s8fMwlViDBtkb7DFf0nJ6UsE8KrNFux93yF4Q==}
+  '@hadoku/task-ui-components@4.23.48':
+    resolution: {integrity: sha512-Ih9KwIe75ZEcxDBayCqeS0aKr+bg9T+0wYkU4wLjTQmDe8reTS7+XNgTVK6GtCIF9Wl1XKIAmG9FFb2dPCKb3w==}
     peerDependencies:
       '@wolffm/themes': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@hadoku/themes@5.14.17':
-    resolution: {integrity: sha512-sPyetToEj4SX1PI1wOg+FNelNhoo4BQWJXehrguQhHxtqwr8K/JcLXG7xP6aYReDouuqvZ0pw8LPTO3bb90qyQ==}
+  '@hadoku/themes@5.14.18':
+    resolution: {integrity: sha512-bJmbaZMeFEqkmzizd0Ul1mDRjxSRKamBahS2Qs+1vPDpE7HM16tCMFXcxlMKx9qP+1bwlcTByMm5h9pqrtPqLw==}
     hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3252,13 +3252,13 @@ snapshots:
     optionalDependencies:
       react: 19.2.4
 
-  '@hadoku/task-ui-components@4.23.47(@hadoku/themes@5.14.17(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@hadoku/task-ui-components@4.23.48(@hadoku/themes@5.14.18(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': '@hadoku/themes@5.14.17(react@19.2.4)'
+      '@wolffm/themes': '@hadoku/themes@5.14.18(react@19.2.4)'
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@hadoku/themes@5.14.17(react@19.2.4)':
+  '@hadoku/themes@5.14.18(react@19.2.4)':
     dependencies:
       '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.4)(zod@4.3.6)'
       zod: 4.3.6
