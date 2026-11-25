@@ -29,7 +29,7 @@
 		"format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
 		"format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
 		"typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
-		"test": "node --import ./tests/register.mjs --test \"tests/**/*.test.ts\"",
+		"test": "mkdir -p reports && node --import ./tests/register.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=reports/node-test.xml \"tests/**/*.test.ts\"",
 		"prepare": "git config core.hooksPath .husky 2>/dev/null || true"
 	},
 	"peerDependencies": {

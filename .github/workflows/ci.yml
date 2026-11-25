@@ -231,9 +231,22 @@ jobs:
           NODE_AUTH_TOKEN: ${{ steps.pnpm.outputs.npm-token }}
 
       - name: Worker tests (real D1 via Miniflare)
+        id: worker_tests
         if: steps.scope.outputs.run == 'true'
         working-directory: worker
         run: pnpm test
+
+      # Every test into the fleet test store (hadoku_site
+      # docs/planning/unified-test-reporting-2026-11-23.md), red runs too; not
+      # after a suite the scope step skipped, which wrote no report. Advisory:
+      # it never fails the job, which the test step already does.
+      - name: Report the worker tests
+        if: always() && steps.worker_tests.outcome != 'skipped'
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: worker
+          reports: node-test worker/reports/node-test.xml
+          key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
       # A hosted runner gets Chromium's system libraries too (it has sudo); a
       # claw already has them and has no passwordless sudo, so it gets only the
@@ -248,8 +261,17 @@ jobs:
           fi
 
       - name: Browser units (pnpm test:unit)
+        id: browser_units
         if: steps.scope.outputs.run == 'true'
         run: pnpm test:unit
+
+      - name: Report the browser units
+        if: always() && steps.browser_units.outcome != 'skipped'
+        uses: WolffM/hadoku-actions/report-tests@v1
+        with:
+          suite: browser-units
+          reports: playwright reports/unit.json
+          key: ${{ secrets.KEY_SERVICE_JOBPLATFORM }}
 
   # ONE report per RUN, not one per job — and this is a correctness constraint,
   # not tidiness.

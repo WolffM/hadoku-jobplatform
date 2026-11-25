@@ -36,6 +36,8 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 test-results/
+# Test reports (report-tests reads them in CI)
+reports/
 playwright-report/
 playwright/.cache/
 # Console/page dumps written into the repo root by the Playwright MCP server.

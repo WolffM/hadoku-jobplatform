@@ -9,5 +9,6 @@ export default defineConfig({
   testDir: './tests/unit',
   testMatch: /.*\.spec\.ts$/,
   workers: 1,
-  reporter: [['list']]
+  // json for report-tests in CI (reports/ is gitignored); list for the console.
+  reporter: [['list'], ['json', { outputFile: 'reports/unit.json' }]]
 })

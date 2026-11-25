@@ -159,8 +159,15 @@ pnpm lint
 pnpm lint:css
 pnpm typecheck
 pnpm test:extension
+pnpm test:unit           # browser units in Chromium
 cd worker && pnpm test
 ```
+
+CI's `test` job runs the worker suite and the browser units and posts both,
+red runs too, to the fleet test store through
+`WolffM/hadoku-actions/report-tests` (suites `worker` and `browser-units`,
+from `worker/reports/node-test.xml` and `reports/unit.json`; advisory, it
+never fails the job).
 
 Colors come from `@wolffm/themes` as semantic CSS custom properties; never a
 hex literal or a `var(--x, fallback)`. `pnpm lint:css` fails the build on a
