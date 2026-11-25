@@ -43,11 +43,11 @@ importers:
         specifier: npm:@hadoku/catalogue@^1.0.18
         version: '@hadoku/catalogue@1.0.18'
       '@wolffm/dev-vault':
-        specifier: npm:@hadoku/dev-vault@^1.5.7
-        version: '@hadoku/dev-vault@1.5.7'
+        specifier: npm:@hadoku/dev-vault@^1.5.8
+        version: '@hadoku/dev-vault@1.5.8'
       '@wolffm/logger':
-        specifier: npm:@hadoku/logger@1.4.4
-        version: '@hadoku/logger@1.4.4'
+        specifier: npm:@hadoku/logger@1.4.5
+        version: '@hadoku/logger@1.4.5'
       '@wolffm/task-ui-components':
         specifier: npm:@hadoku/task-ui-components@4.23.47
         version: '@hadoku/task-ui-components@4.23.47(@hadoku/themes@5.14.17(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
@@ -115,8 +115,8 @@ importers:
         specifier: ^8.46.4
         version: 8.57.2(eslint@9.39.4)(typescript@5.9.3)
       '@wolffm/worker-utils':
-        specifier: npm:@hadoku/worker-utils@2.0.1
-        version: '@hadoku/worker-utils@2.0.1(hono@4.12.9)(zod@4.6.7)'
+        specifier: npm:@hadoku/worker-utils@2.0.2
+        version: '@hadoku/worker-utils@2.0.2(hono@4.12.9)(zod@4.6.7)'
       eslint:
         specifier: ^9.39.1
         version: 9.39.4
@@ -676,17 +676,17 @@ packages:
     resolution: {integrity: sha512-K+poigLmaEhXQcB54y8as3HsDyjmYAVQwZBEImjRB0jA8waNWpo4PYq7bFRXtubd0+rt5Jsmom22slCO+YCOhA==}
     engines: {node: '>=18'}
 
-  '@hadoku/dev-vault@1.5.7':
-    resolution: {integrity: sha512-+DGCOPBU7IODt//te21hH8wa/LhRM5vytzBpfmiceVZxZdMqugC5uhpiV68h8VEJxs3TjuOVDfWOCOGUunKgGg==}
+  '@hadoku/dev-vault@1.5.8':
+    resolution: {integrity: sha512-swZQJrSmtIy4gUwNfWRy6JlB4xtSHSqVKkMA49WJoC4qZaKsQDojmhblO6pDESfc5cAjUkazTL+a1LiFkb888w==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@hadoku/logger@1.4.4':
-    resolution: {integrity: sha512-9yBQYHc4fRNqYY74jVYD5WELQRkhP2ogwCPi3YAJDUoruDESePyBGThsexfoFjKAgzWw2vv85LUSccQI1vjZUg==}
+  '@hadoku/logger@1.4.5':
+    resolution: {integrity: sha512-I9IJpC9urBVLwe/3EAY0tc/A+NWLZRdWoAxOrvYHVMegZzAeTsqiDBYkgdUrtAgs71F/Ja+T+KNazrUbsQV1mA==}
     engines: {node: '>=18'}
 
-  '@hadoku/prefs-client@1.2.0':
-    resolution: {integrity: sha512-amEb9/ev6wudqmtfkPMxobedMREz5mJTh0poczGNxMdYyMS9sjdLWAjdsj2VkszU/oO6yWpkz63KpR83H5Loag==}
+  '@hadoku/prefs-client@1.2.1':
+    resolution: {integrity: sha512-YZOC+TiT59/gNAsnyMgbgiLXEP/8wQ3a+Cket1xMrzOdAVCZv+pOk2tGdNFz5785jvpodiyvvS6kI5VvVICYIg==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -711,8 +711,8 @@ packages:
       react:
         optional: true
 
-  '@hadoku/worker-utils@2.0.1':
-    resolution: {integrity: sha512-4EA6IKk3EqjBU4SSjQ+Tn03ihqpfRdSlju5pCdQ+K11QZJvVeiewQc/59DxnHbpn0ubr2wgJsb9kbAiRRsneqw==}
+  '@hadoku/worker-utils@2.0.2':
+    resolution: {integrity: sha512-bpUL7y18wkmEeOkROmgKme5bNTxS0YLQO1nuoHpAFx2GId6lslOsLO0hLCUDzgd/v3zMu7ywTml+8/0Kla358Q==}
     peerDependencies:
       hono: ^4.11.4
 
@@ -3242,11 +3242,11 @@ snapshots:
 
   '@hadoku/catalogue@1.0.18': {}
 
-  '@hadoku/dev-vault@1.5.7': {}
+  '@hadoku/dev-vault@1.5.8': {}
 
-  '@hadoku/logger@1.4.4': {}
+  '@hadoku/logger@1.4.5': {}
 
-  '@hadoku/prefs-client@1.2.0(react@19.2.4)(zod@4.3.6)':
+  '@hadoku/prefs-client@1.2.1(react@19.2.4)(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
     optionalDependencies:
@@ -3260,15 +3260,15 @@ snapshots:
 
   '@hadoku/themes@5.14.17(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.0(react@19.2.4)(zod@4.3.6)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.4)(zod@4.3.6)'
       zod: 4.3.6
     optionalDependencies:
       react: 19.2.4
 
-  '@hadoku/worker-utils@2.0.1(hono@4.12.9)(zod@4.6.7)':
+  '@hadoku/worker-utils@2.0.2(hono@4.12.9)(zod@4.6.7)':
     dependencies:
       '@hono/zod-openapi': 1.2.3(hono@4.12.9)(zod@4.6.7)
-      '@wolffm/logger': '@hadoku/logger@1.4.4'
+      '@wolffm/logger': '@hadoku/logger@1.4.5'
       hono: 4.12.9
     transitivePeerDependencies:
       - zod
