@@ -49,11 +49,11 @@ importers:
         specifier: npm:@hadoku/logger@1.4.5
         version: '@hadoku/logger@1.4.5'
       '@wolffm/task-ui-components':
-        specifier: npm:@hadoku/task-ui-components@4.23.48
-        version: '@hadoku/task-ui-components@4.23.48(@hadoku/themes@5.14.18(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
+        specifier: npm:@hadoku/task-ui-components@4.23.49
+        version: '@hadoku/task-ui-components@4.23.49(@hadoku/themes@5.14.19(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
       '@wolffm/themes':
-        specifier: npm:@hadoku/themes@5.14.18
-        version: '@hadoku/themes@5.14.18(react@19.2.4)'
+        specifier: npm:@hadoku/themes@5.14.19
+        version: '@hadoku/themes@5.14.19(react@19.2.4)'
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -685,8 +685,8 @@ packages:
     resolution: {integrity: sha512-I9IJpC9urBVLwe/3EAY0tc/A+NWLZRdWoAxOrvYHVMegZzAeTsqiDBYkgdUrtAgs71F/Ja+T+KNazrUbsQV1mA==}
     engines: {node: '>=18'}
 
-  '@hadoku/prefs-client@1.2.1':
-    resolution: {integrity: sha512-YZOC+TiT59/gNAsnyMgbgiLXEP/8wQ3a+Cket1xMrzOdAVCZv+pOk2tGdNFz5785jvpodiyvvS6kI5VvVICYIg==}
+  '@hadoku/prefs-client@1.2.2':
+    resolution: {integrity: sha512-DmLSGtxhw6O0a7zgSgZEpeDW1s8Rz40Jxdy6uj3KWdTCoc0b6NyQ3OfuQWJuuKW+QAEjj87g8Wivf/YpnIweYQ==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -695,15 +695,15 @@ packages:
       react:
         optional: true
 
-  '@hadoku/task-ui-components@4.23.48':
-    resolution: {integrity: sha512-Ih9KwIe75ZEcxDBayCqeS0aKr+bg9T+0wYkU4wLjTQmDe8reTS7+XNgTVK6GtCIF9Wl1XKIAmG9FFb2dPCKb3w==}
+  '@hadoku/task-ui-components@4.23.49':
+    resolution: {integrity: sha512-SnUwqtTpK04F2OsQpO3FO7T0D+FsjFYp2gZCc2YBDjpLShmdqAGs5Iq27O94oSGLN/twV+oUHu9yN3bTxhYdZg==}
     peerDependencies:
       '@wolffm/themes': '*'
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@hadoku/themes@5.14.18':
-    resolution: {integrity: sha512-bJmbaZMeFEqkmzizd0Ul1mDRjxSRKamBahS2Qs+1vPDpE7HM16tCMFXcxlMKx9qP+1bwlcTByMm5h9pqrtPqLw==}
+  '@hadoku/themes@5.14.19':
+    resolution: {integrity: sha512-tKsKPZ4novF1QjpbRgJxVrLxgxxiduveWQU+YvrzNeOjw6UNPITmutvEOljGOWx4w86RrFayWj3jBq6csgur9g==}
     hasBin: true
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
@@ -3246,21 +3246,21 @@ snapshots:
 
   '@hadoku/logger@1.4.5': {}
 
-  '@hadoku/prefs-client@1.2.1(react@19.2.4)(zod@4.3.6)':
+  '@hadoku/prefs-client@1.2.2(react@19.2.4)(zod@4.3.6)':
     dependencies:
       zod: 4.3.6
     optionalDependencies:
       react: 19.2.4
 
-  '@hadoku/task-ui-components@4.23.48(@hadoku/themes@5.14.18(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@hadoku/task-ui-components@4.23.49(@hadoku/themes@5.14.19(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
-      '@wolffm/themes': '@hadoku/themes@5.14.18(react@19.2.4)'
+      '@wolffm/themes': '@hadoku/themes@5.14.19(react@19.2.4)'
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  '@hadoku/themes@5.14.18(react@19.2.4)':
+  '@hadoku/themes@5.14.19(react@19.2.4)':
     dependencies:
-      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.1(react@19.2.4)(zod@4.3.6)'
+      '@wolffm/prefs-client': '@hadoku/prefs-client@1.2.2(react@19.2.4)(zod@4.3.6)'
       zod: 4.3.6
     optionalDependencies:
       react: 19.2.4
