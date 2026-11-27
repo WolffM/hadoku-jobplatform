@@ -99,3 +99,23 @@ describe('placesWithin / resolvePlace / searchPlaces', () => {
 		assert.ok(searchPlaces('francisco').some((p) => p.key === 'san-francisco-ca'));
 	});
 });
+
+describe('German places the pulled sources name', () => {
+	// Constructed in the forms Jobsuche, Personio and SmartRecruiters write them.
+	it('reads German spellings and the country in German', () => {
+		assert.deepEqual(keys('Berlin, Deutschland'), ['berlin-de']);
+		assert.deepEqual(keys('Köln'), ['cologne-de']);
+		assert.deepEqual(keys('Nürnberg, Germany'), ['nuremberg-de']);
+		assert.deepEqual(keys('Düsseldorf | Remote'), ['dusseldorf-de']);
+		assert.deepEqual(keys('München'), ['munich-de']);
+	});
+
+	it('puts Potsdam inside a 25-mile Berlin radius', () => {
+		const berlin = resolvePlace('berlin-de');
+		assert.ok(berlin);
+		assert.deepEqual(
+			placesWithin(berlin, 25).map((p) => p.key),
+			['berlin-de', 'potsdam-de']
+		);
+	});
+});
