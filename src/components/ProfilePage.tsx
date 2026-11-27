@@ -55,6 +55,13 @@ function merged(original: ApplicantProfile | null, draft: ApplicantProfile): App
   out.name = out.name.trim()
   out.email = out.email.trim()
   for (const k of OPTIONAL_TEXT) {
+    // The draft starts as a copy of the document read, so an optional field
+    // missing from it was emptied by an earlier save in this visit. The
+    // document read at load still has it and must not bring it back.
+    if (!(k in draft)) {
+      delete out[k]
+      continue
+    }
     const v = out[k]
     if (typeof v === 'string' && !v.trim()) delete out[k]
     else if (typeof v === 'string') out[k] = v.trim()

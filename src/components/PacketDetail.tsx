@@ -140,8 +140,9 @@ export function PacketDetail({ auth, jobId, slug, onClose }: Props) {
           {!variant && !packetError && <p className="jp-muted">Loading packet…</p>}
           {variant && (
             <>
-              {/* resume-api never 404s a slug — it falls back to the canonical
-                  résumé and omits `variant`, so its absence means expired. */}
+              {/* An expired owner slug falls back to the canonical résumé
+                  and omits `variant`, so its absence means expired. Another
+                  user's gone packet is a 404 instead (getPacketVariant). */}
               {!variant.variant && (
                 <p className="jp-muted">
                   This packet link has expired — showing the canonical résumé it now serves.
