@@ -107,8 +107,12 @@ signal is not the same as a bad match. An unpublished salary is neutral for
 the same reason: most strong payers do not publish one.
 
 Some evidence multiplies the whole score instead of adding to it: a job in an
-adjacent discipline (×0.15), remote work outside the Americas (×0.1), and a
-published salary far below the floor (×0.15). The feed then applies the
+adjacent discipline (×0.15), a posting that names only regions outside the
+profile's home region (×0.1), and a published salary far below the floor
+(×0.15). The home region (Americas, EMEA or APAC) comes from the profile's
+`location`, and is the Americas when none is set. The discipline factor is
+waived when one of the profile's keywords is itself an adjacent-ladder title
+("project manager") and the posting's title carries it. The feed then applies the
 caller's own factors live: their up or down vote, how stale the posting is,
 how long ago it was posted, and how many applications they already have out
 at that company (×0.85 from one, ×0.6 from five, ×0.3 from twenty). Those
