@@ -317,7 +317,7 @@ describe('POST /jobs/{id}/packet-link', () => {
 
 		const call = h.resume.calls.at(-1);
 		assert.equal(call?.path, '/resume/api/variants');
-		assert.equal(call?.body.label, 'Acme — Senior Software Engineer');
+		assert.equal(call?.body.label, 'Acme - Senior Software Engineer');
 		assert.equal(call?.body.markdown, '# R');
 		assert.equal(call?.body.cover_letter_markdown, '# CL');
 		assert.equal(call?.body.ttl_days, 365, 'default retention');

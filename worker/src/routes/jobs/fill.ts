@@ -20,6 +20,8 @@ import { publicUrl } from '../../ingestWrite.js';
 import type { D1Database } from '@cloudflare/workers-types';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 import { parseEvidence } from './applications.js';
+import { reseedResume, resumeNeedsReseed } from '../../clients/resume.js';
+import { runAfterResponse } from '../../background.js';
 
 /** Where resume-api renders a minted packet as a PDF (`?v=<slug>`). */
 const RESUME_PDF_URL = 'https://hadoku.me/resume/api/resume.pdf';
@@ -58,7 +60,8 @@ function profileProblem(p: Record<string, unknown>): string | null {
 	return null;
 }
 
-async function loadProfile(db: D1Database, userId: string) {
+/** The applicant profile a user saved, or null when none (or an unusable one) is stored. */
+export async function loadProfile(db: D1Database, userId: string) {
 	const row = await db
 		.prepare('SELECT profile, updated_at FROM applicant_profiles WHERE user_id = ?')
 		.bind(userId)
@@ -103,6 +106,7 @@ export function registerFillRoutes(app: JobsApp) {
 		if (problem) return c.json(badRequest(problem), 400);
 		const who = await effectiveUserId(c, typeof b.ownerName === 'string' ? b.ownerName : undefined);
 		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+		const before = await loadProfile(c.env.JOB_PLATFORM_DB, who.userId);
 		const now = new Date().toISOString();
 		await c.env.JOB_PLATFORM_DB.prepare(
 			`INSERT INTO applicant_profiles (user_id, profile, updated_at) VALUES (?, ?, ?)
@@ -110,6 +114,13 @@ export function registerFillRoutes(app: JobsApp) {
 		)
 			.bind(who.userId, JSON.stringify(b.profile), now)
 			.run();
+		// A changed résumé (pasted text, or the work history it is composed from)
+		// or changed contact details replace the person's résumé at resume-api,
+		// so the next tailored résumé is built from what they just saved. Behind
+		// the response: the save itself never waits on resume-api.
+		if (resumeNeedsReseed(before?.profile, b.profile)) {
+			runAfterResponse(c, 'resume-api reseed', reseedResume(c.env, who.userId, b.profile));
+		}
 		return c.json({ success: true as const, data: { updated_at: now } }, 200);
 	});
 

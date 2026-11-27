@@ -54,7 +54,7 @@ admin too.
 | POST   | /skills                            | friend | Add one ({name, category?, proficiency?}); 409 when its canonical name is listed †                                                                                                                                                           |
 | DELETE | /skills/:id                        | friend | Remove one of the caller's own †                                                                                                                                                                                                             |
 | GET    | /jobs/:id/match                    | friend | The posting's skills (skills.ts) vs the caller's list, else their profiles' stack: matched / missing / score †                                                                                                                               |
-| POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity                                                                                                                                                          |
+| POST   | /jobs/:id/resume                   | friend | Tailored resume from resume-api, through the edge as this worker's service identity, built from the caller's own résumé (see Per-user résumés below)                                                                                         |
 | POST   | /jobs/:id/cover-letter             | friend | Cover letter via the same binding                                                                                                                                                                                                            |
 | POST   | /jobs/:id/application-extras       | friend | The non-résumé half of the apply kit (intro email, screening answers, …); `questions` (a form's own free-text labels) adds `form_answers`, one per label                                                                                     |
 | POST   | /jobs/:id/packet-link              | friend | Mint the shareable packet link; its slug is stashed on `job_states.variant_slug`                                                                                                                                                             |
@@ -110,6 +110,24 @@ ignores it is a bug and the dangerous kind — it answers for the SERVICE identi
 which owns nothing, so every per-user filter evaluates against nobody and nothing
 errors. `GET /jobs` was that bug until 2026-10-01: a service-key read of an
 owner's feed listed 23 of their own applications as fresh postings.
+
+## Per-user résumés
+
+resume-api keeps résumé content per user. Every tailoring call
+(`/jobs/:id/{resume,cover-letter,application-extras,packet-link}`) names the
+person it is for as `on_behalf_of_user_id`: the caller, or the owner the runner
+names with `ownerName`. resume-api honours that field only from this worker's
+service identity, which must be listed in its `ON_BEHALF_CALLER_USER_IDS`.
+
+A person resume-api has no content for answers 409 (`NO_RESUME_BLOCKS` /
+`NO_CONTACT_PROFILE`). The route then seeds them once from their applicant
+profile (`worker/src/resumeSeed.ts`: `master_resume_text`, else the structured
+fields) and retries; with nothing to seed from, the UI gets a 409 with
+`code` and a message pointing at the Profile page's Résumé box. A profile
+save that changes the résumé (the pasted text, or the work history it is
+composed from) or the contact details re-imports it behind the response
+(`worker/src/clients/resume.ts` `resumeNeedsReseed`, `reseedResume`). A 404
+from resume-api (per-user résumés not deployed yet) is logged, not reported.
 
 ## Key Decisions
 
