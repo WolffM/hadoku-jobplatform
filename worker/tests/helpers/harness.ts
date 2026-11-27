@@ -85,6 +85,7 @@ async function applyMigrations(db: D1Database): Promise<void> {
 // ============================================================================
 
 export interface ResumeCall {
+	method: string;
 	path: string;
 	body: Record<string, unknown>;
 	headers: Record<string, string | undefined>;
@@ -96,6 +97,12 @@ export interface ResumeService {
 	calls: ResumeCall[];
 	/** Reply to subsequent call(s) with this status/body instead of the default. */
 	respondWith(status: number, body: unknown): void;
+	/**
+	 * Reply to the NEXT call to `path` with this, once; queued replies for a
+	 * path are used in order, ahead of respondWith and the default. For
+	 * sequences such as "409 first, 200 after the seed".
+	 */
+	enqueue(path: string, status: number, body: unknown): void;
 	/** Forget recorded calls and drop any respondWith override. */
 	reset(): void;
 	stop(): Promise<void>;
@@ -120,11 +127,15 @@ const DEFAULT_REPLIES: Record<string, unknown> = {
 	// Reading a minted variant back. `variant` present = the slug still resolves;
 	// resume-api omits it (and serves the canonical résumé) once one has expired.
 	'/resume/api/resume': { content: '# Minted Resume', variant: 'abc123' },
+	// Seeding a person's own résumé content (resume-bot per-user blocks).
+	'/resume/api/blocks/import': { blocks: [], contact: null },
+	'/resume/api/contact-profile': { contact: null },
 };
 
 export async function startResumeService(): Promise<ResumeService> {
 	const calls: ResumeCall[] = [];
 	let override: { status: number; body: unknown } | null = null;
+	const queued = new Map<string, { status: number; body: unknown }[]>();
 
 	const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 		const chunks: Buffer[] = [];
@@ -139,6 +150,7 @@ export async function startResumeService(): Promise<ResumeService> {
 				body = { __unparsed: raw };
 			}
 			calls.push({
+				method: req.method ?? 'GET',
 				path,
 				body,
 				headers: {
@@ -149,6 +161,12 @@ export async function startResumeService(): Promise<ResumeService> {
 				},
 			});
 
+			const next = queued.get(path)?.shift();
+			if (next) {
+				res.writeHead(next.status, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify(next.body));
+				return;
+			}
 			if (override) {
 				const { status, body: b } = override;
 				res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -188,9 +206,15 @@ export async function startResumeService(): Promise<ResumeService> {
 		respondWith(status: number, body: unknown) {
 			override = { status, body };
 		},
+		enqueue(path: string, status: number, body: unknown) {
+			const list = queued.get(path) ?? [];
+			list.push({ status, body });
+			queued.set(path, list);
+		},
 		reset() {
 			calls.length = 0;
 			override = null;
+			queued.clear();
 		},
 		async stop() {
 			await new Promise<void>((resolve, reject) =>

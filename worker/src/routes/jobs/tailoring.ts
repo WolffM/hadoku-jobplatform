@@ -13,12 +13,22 @@
  * resume-api's, so they stay out of the OpenAPI schema and dodge zod-openapi's
  * strict handler-return typing. gateAuthed (admin/friend) is registered on each
  * method+path first, then the handler.
+ *
+ * WHOSE résumé: every call names the person it is for as
+ * `on_behalf_of_user_id` (the caller, or the owner the apply runner names), and
+ * resume-api builds from that person's own blocks. It honours the field only
+ * from this worker's service identity (its ON_BEHALF_CALLER_USER_IDS). Before
+ * that, every user's tailored résumé was silently the site owner's. A person
+ * resume-api has no blocks for gets a 409, and is seeded once from their
+ * applicant profile (resumeSeed.ts); without one, the UI is told to add it.
  */
-import { EDGE_BASE } from '@wolffm/worker-utils/edge-routes';
 import type { AppEnv } from '../../types.js';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 import { recordEvent } from '../../opEvents.js';
 import type { HasExecutionCtx } from '../../background.js';
+import { loadProfile } from './fill.js';
+import { profileContact, profileResumeText } from '../../resumeSeed.js';
+import { callResumeBinding, resumeViaEdge } from '../../clients/resume.js';
 
 interface JobTailoringFields {
 	title: string;
@@ -38,37 +48,92 @@ async function loadTailoringFields(
 		.first<JobTailoringFields>();
 }
 
-/**
- * resume-api, reached the way any service caller reaches it: through the
- * edge, over the EDGE binding, as this worker's own service identity. It
- * used to be called over its own binding with `X-Edge-Auth` and
- * `X-Hadoku-Tier` stamped from EDGE_AUTH_SECRET. Since 2026-11-02 each backend
- * holds its own seal, so this worker's opens this worker alone, and a tier is
- * the edge's to stamp, never a caller's.
- */
-function resumeViaEdge(
-	env: AppEnv,
-	path: string,
-	init: { method: 'GET' | 'POST'; headers?: Record<string, string>; body?: string }
-): Promise<Response> {
-	if (!env.EDGE) throw new Error('EDGE service binding not configured');
-	const key = env.HADOKU_SERVICE_KEY?.trim();
-	if (!key) throw new Error('HADOKU_SERVICE_KEY not configured');
-	const headers = new Headers(init.headers);
-	headers.set('X-User-Key', key);
-	return env.EDGE.fetch(`${EDGE_BASE}${path}`, { ...init, headers });
+/** resume-api's 409 codes for a person whose own résumé content is not there yet. */
+type MissingContent = 'NO_RESUME_BLOCKS' | 'NO_CONTACT_PROFILE';
+
+async function missingContent(res: Response): Promise<MissingContent | null> {
+	if (res.status !== 409) return null;
+	try {
+		const body: { code?: unknown } = await res.clone().json();
+		return body.code === 'NO_RESUME_BLOCKS' || body.code === 'NO_CONTACT_PROFILE'
+			? body.code
+			: null;
+	} catch {
+		return null;
+	}
 }
 
-async function callResumeBinding(
-	env: AppEnv,
+/** What the UI shows when there is nothing of the person's own to build from. */
+export const MISSING_CONTENT_MESSAGE: Record<MissingContent, string> = {
+	NO_RESUME_BLOCKS:
+		'Your résumé is not set up yet. Paste it into the Résumé box on the Profile page ' +
+		'(or fill in your work history there), then try again. Tailored résumés and cover ' +
+		'letters are built only from your own résumé.',
+	NO_CONTACT_PROFILE:
+		'Your contact details are not set up yet. Fill in your applicant profile ' +
+		'(Profile page), then try again.',
+};
+
+type ForUser = { res: Response } | { refusal: MissingContent };
+
+/**
+ * One resume-api call for one person. When resume-api has none of that
+ * person's content yet, seed it from their applicant profile and retry once:
+ * blocks via `/blocks/import` (which stores the contact profile too), or just
+ * the contact profile. With no applicant profile to seed from, the caller gets
+ * a refusal to show, never someone else's résumé.
+ */
+async function callResumeFor(
+	c: HasExecutionCtx & { env: AppEnv },
+	userId: string,
 	path: string,
 	payload: Record<string, unknown>
-): Promise<Response> {
-	return resumeViaEdge(env, path, {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(payload),
+): Promise<ForUser> {
+	const body = { ...payload, on_behalf_of_user_id: userId };
+	const first = await callResumeBinding(c.env, path, body);
+	const missing = await missingContent(first);
+	if (!missing) return { res: first };
+
+	const profile = (await loadProfile(c.env.JOB_PLATFORM_DB, userId))?.profile;
+	if (!profile) return { refusal: missing };
+	if (missing === 'NO_RESUME_BLOCKS') {
+		const text = profileResumeText(profile);
+		if (!text) return { refusal: missing };
+		const seeded = await callResumeBinding(c.env, '/resume/api/blocks/import', {
+			on_behalf_of_user_id: userId,
+			resume_text: text,
+			contact: profileContact(profile),
+		});
+		// 409 here means someone seeded in between, which is as good.
+		if (!seeded.ok && seeded.status !== 409) return { res: seeded };
+	} else {
+		const put = await callResumeBinding(
+			c.env,
+			'/resume/api/contact-profile',
+			{ on_behalf_of_user_id: userId, contact: profileContact(profile) },
+			'PUT'
+		);
+		if (!put.ok) return { res: put };
+	}
+	recordEvent(c, {
+		level: 'info',
+		event: 'tailoring.seeded',
+		message: `seeded resume-api ${missing === 'NO_RESUME_BLOCKS' ? 'blocks' : 'contact'} from the applicant profile`,
+		context: { user_id: userId, missing },
 	});
+
+	const retry = await callResumeBinding(c.env, path, body);
+	const still = await missingContent(retry);
+	return still ? { refusal: still } : { res: retry };
+}
+
+function refusalBody(missing: MissingContent) {
+	return {
+		success: false as const,
+		error: 'Résumé not set up',
+		code: missing,
+		message: MISSING_CONTENT_MESSAGE[missing],
+	};
 }
 
 /**
@@ -186,13 +251,18 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			);
 		}
 
-		const res = await callResumeBinding(c.env, '/resume/api/tailored-resume', {
+		const who = await effectiveUserId(c, ownerNameOf(opts));
+		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+
+		const out = await callResumeFor(c, who.userId, '/resume/api/tailored-resume', {
 			job_title: job.title,
 			company: job.company,
 			description: job.description,
 			...(typeof opts.profile_type === 'string' ? { profile_type: opts.profile_type } : {}),
 			...(typeof opts.tailor === 'boolean' ? { tailor: opts.tailor } : {}),
 		});
+		if ('refusal' in out) return c.json(refusalBody(out.refusal), 409);
+		const res = out.res;
 		if (!res.ok) return c.json(await upstreamError(c, 'resume', id, res), 502);
 		const data = await res.json();
 		generated(c, 'resume', id);
@@ -210,12 +280,17 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			);
 		}
 
-		const res = await callResumeBinding(c.env, '/resume/api/cover-letter', {
+		const who = await effectiveUserId(c, ownerNameOf(opts));
+		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
+
+		const out = await callResumeFor(c, who.userId, '/resume/api/cover-letter', {
 			job_title: job.title,
 			company: job.company,
 			description: job.description,
 			...(opts.tone === 'formal' || opts.tone === 'conversational' ? { tone: opts.tone } : {}),
 		});
+		if ('refusal' in out) return c.json(refusalBody(out.refusal), 409);
+		const res = out.res;
 		if (!res.ok) return c.json(await upstreamError(c, 'cover_letter', id, res), 502);
 		const data = await res.json();
 		generated(c, 'cover_letter', id);
@@ -261,7 +336,9 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		const who = await effectiveUserId(c, ownerNameOf(opts));
 		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 
-		const res = await callResumeBinding(c.env, '/resume/api/variants', {
+		// The variant is minted in that person's own space at resume-api, so it
+		// is listed to them alone and its PDF carries their name.
+		const out = await callResumeFor(c, who.userId, '/resume/api/variants', {
 			label: `${job.company} — ${job.title}`,
 			markdown: resumeMarkdown,
 			...(coverLetterMarkdown ? { cover_letter_markdown: coverLetterMarkdown } : {}),
@@ -269,6 +346,8 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			job_title: job.title,
 			ttl_days: ttlDays,
 		});
+		if ('refusal' in out) return c.json(refusalBody(out.refusal), 409);
+		const res = out.res;
 		if (!res.ok) return c.json(await upstreamError(c, 'packet_link', id, res), 502);
 		const variant: { slug?: string } = await res.json();
 		if (!variant.slug) {
@@ -344,11 +423,11 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		const id = c.req.param('id');
 		const opts = await readOptions(c);
 		let resumeMarkdown = typeof opts.resume_markdown === 'string' ? opts.resume_markdown : '';
+		// The owner's kit when the runner names one — see packet-link.
+		const who = await effectiveUserId(c, ownerNameOf(opts));
+		if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 
 		if (!resumeMarkdown) {
-			// The owner's packet when the runner names one — see packet-link.
-			const who = await effectiveUserId(c, ownerNameOf(opts));
-			if (isEffectiveUserError(who)) return c.json(who.error.body, who.error.status);
 			const userId = who.userId;
 			const row = userId
 				? await c.env.JOB_PLATFORM_DB.prepare(
@@ -392,7 +471,7 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			);
 		}
 
-		const res = await callResumeBinding(c.env, '/resume/api/application-extras', {
+		const out = await callResumeFor(c, who.userId, '/resume/api/application-extras', {
 			job_title: job.title,
 			company: job.company,
 			description: job.description,
@@ -403,6 +482,8 @@ export function registerTailoringRoutes(app: JobsApp): void {
 			workplace_type: job.workplace_type ?? undefined,
 			questions: questionsOf(opts),
 		});
+		if ('refusal' in out) return c.json(refusalBody(out.refusal), 409);
+		const res = out.res;
 		if (!res.ok) return c.json(await upstreamError(c, 'application_extras', id, res), 502);
 		const data = await res.json();
 		generated(c, 'application_extras', id);
