@@ -37,7 +37,8 @@ const OPTIONAL_TEXT = [
   'summary',
   'linkedin',
   'github',
-  'portfolio'
+  'portfolio',
+  'master_resume_text'
 ]
 
 const EMPTY: ApplicantProfile = { name: '', email: '' }
@@ -332,6 +333,22 @@ function ApplicantProfileForm({ auth }: { auth: Auth }) {
       >
         Add a school
       </button>
+
+      <h3 className="jp-me__subhead">Résumé</h3>
+      <label className="jp-me__field jp-me__field--wide">
+        <span>Your full résumé (markdown or plain text)</span>
+        <textarea
+          rows={12}
+          value={str(draft.master_resume_text)}
+          maxLength={50_000}
+          placeholder={
+            'Paste your whole résumé. Tailored résumés, cover letters and packets are built ' +
+            "from it, and from nobody else's."
+          }
+          onChange={e => set({ master_resume_text: e.target.value })}
+          data-testid="me-master_resume_text"
+        />
+      </label>
 
       <div className="jp-me__actions">
         <button

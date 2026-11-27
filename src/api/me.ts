@@ -40,6 +40,8 @@ export interface ApplicantProfile {
   linkedin?: string
   github?: string
   portfolio?: string
+  /** The whole résumé as text; resume-api builds this person's own résumé from it. */
+  master_resume_text?: string
   work_experience?: WorkExperience[]
   education?: Education[]
   [other: string]: unknown
