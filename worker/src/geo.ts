@@ -240,6 +240,12 @@ const WORLD: Row[] = [
 	['munich', 'de', 48.1351, 11.582],
 	['hamburg', 'de', 53.5511, 9.9937],
 	['frankfurt', 'de', 50.1109, 8.6821],
+	['potsdam', 'de', 52.3906, 13.0645],
+	['cologne', 'de', 50.9375, 6.9603],
+	['dusseldorf', 'de', 51.2277, 6.7735],
+	['stuttgart', 'de', 48.7758, 9.1829],
+	['leipzig', 'de', 51.3397, 12.3731],
+	['nuremberg', 'de', 49.4521, 11.0767],
 	['amsterdam', 'nl', 52.3676, 4.9041],
 	['paris', 'fr', 48.8566, 2.3522],
 	['brussels', 'be', 50.8503, 4.3517],
@@ -313,6 +319,8 @@ const ALIASES: Record<string, string> = {
 	gurgaon: 'gurugram|in',
 	delhi: 'new delhi|in',
 	munchen: 'munich|de',
+	koln: 'cologne|de',
+	nurnberg: 'nuremberg|de',
 	'tel aviv yafo': 'tel aviv|il',
 };
 
