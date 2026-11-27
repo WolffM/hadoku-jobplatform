@@ -319,8 +319,12 @@ const ALIASES: Record<string, string> = {
 	gurgaon: 'gurugram|in',
 	delhi: 'new delhi|in',
 	munchen: 'munich|de',
+	muenchen: 'munich|de',
 	koln: 'cologne|de',
+	koeln: 'cologne|de',
 	nurnberg: 'nuremberg|de',
+	nuernberg: 'nuremberg|de',
+	duesseldorf: 'dusseldorf|de',
 	'tel aviv yafo': 'tel aviv|il',
 };
 
@@ -490,7 +494,10 @@ for (const [alias, target] of Object.entries(ALIASES)) {
 const PHRASES = [...BY_PHRASE.keys()].sort((a, b) => b.length - a.length);
 
 const STATE_NAMES = new Set(Object.values(US_STATES));
-const ALL_REGIONS = [...Object.keys(US_STATES), ...Object.keys(COUNTRY_WORDS)];
+// A region code can be both a US state and a country ('de' is Delaware and
+// Germany, 'in' Indiana and India; also 'il', 'co', 'ar', 'id'), so it is
+// listed once and named by either the state's evidence or the country's words.
+const ALL_REGIONS = [...new Set([...Object.keys(US_STATES), ...Object.keys(COUNTRY_WORDS)])];
 
 /** Does the string carry evidence that it means this place's region? */
 function regionNamed(raw: string, folded: string, region: string): boolean {
@@ -501,7 +508,7 @@ function regionNamed(raw: string, folded: string, region: string): boolean {
 		const code = region.toUpperCase();
 		if (new RegExp(`(?:^|[^A-Za-z])${code}(?:[^A-Za-z]|$)`).test(raw)) return true;
 		if (region === 'dc' && /\bD\.C\.?/.test(raw)) return true;
-		return folded.includes(` ${stateName} `);
+		if (folded.includes(` ${stateName} `)) return true;
 	}
 	return (COUNTRY_WORDS[region] ?? []).some((w) => folded.includes(fold(w)));
 }

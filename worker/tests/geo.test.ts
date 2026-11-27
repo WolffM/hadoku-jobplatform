@@ -86,6 +86,23 @@ describe('German places the pulled sources name', () => {
 		assert.deepEqual(keys('München'), ['munich-de']);
 	});
 
+	it('reads the ASCII transliterations German boards also write', () => {
+		assert.deepEqual(keys('Koeln'), ['cologne-de']);
+		assert.deepEqual(keys('Nuernberg, Deutschland'), ['nuremberg-de']);
+		assert.deepEqual(keys('Duesseldorf'), ['dusseldorf-de']);
+		assert.deepEqual(keys('Muenchen'), ['munich-de']);
+	});
+
+	it('reads a country whose code is also a US state code as evidence', () => {
+		// 'de' is Delaware and Germany, 'in' Indiana and India: the country's
+		// words count, so a city that is not in that country is not placed.
+		assert.deepEqual(keys('Hollywood, Germany'), []);
+		assert.deepEqual(keys('Dublin, Deutschland'), []);
+		assert.deepEqual(keys('Berlin, Indiana'), []);
+		assert.deepEqual(keys('Bengaluru, India'), ['bengaluru-in']);
+		assert.deepEqual(keys('Indianapolis, IN'), ['indianapolis-in']);
+	});
+
 	it('puts Potsdam inside a 25-mile Berlin radius', () => {
 		const berlin = resolvePlace('berlin-de');
 		assert.ok(berlin);
