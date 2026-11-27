@@ -44,6 +44,11 @@ Cloudflare Worker package exporting factory functions for hadoku_site.
   `insert/seen/restore/rank`; `/applications` names `who/read`
 - `src/clients/scraper.ts` — typed client for hadoku-scrape
 - `src/routes/health.ts` — health check
+- `src/sources/`: job sources the worker pulls itself: `arbeitsagentur.ts` (Bundesagentur
+  Jobsuche API, keyword + German place), `personio.ts` (per-company XML feed), `smartrecruiters.ts`
+  (per-company Posting API), `boards.ts` (starter Berlin boards; `WORKER_PULLED_ATS`, which
+  /directives withholds from the scraper), `plan.ts` (tasks from profiles), `run.ts` (one task,
+  written through `writeJobBatch`). Driven by `src/routes/sources.ts`, `GET`/`POST /ingest/sources`
 - `src/routes/ingest.ts` — scraper webhook receiver (reads jobs inline from body, dedups, classifies, stores in D1) + `GET /directives`
 - `src/routes/jobs/` — job listing queries, triage state, resume/cover-letter binding calls:
   - `index.ts` — assembles the sub-app. **Registration order is load-bearing** —
@@ -112,5 +117,5 @@ Use `okWrapped()` / `createdWrapped()` from `@wolffm/worker-utils`.
 ## Does NOT
 
 - Deploy directly (host is `hadoku_site/workers/jobplatform-api/`)
-- Handle scraping (see hadoku-scrape)
+- Handle scraping (see hadoku-scrape), apart from the keyless public feeds in `src/sources/`
 - Store raw job data long-term (raw data lives in KV; scored data in D1)

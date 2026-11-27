@@ -79,6 +79,8 @@ admin too.
 | POST   | /ingest/backfill-salary            | friend | Populate `salary_min/max` from description prose where NULL                                                                                                                                                                                  |
 | POST   | /ingest/cull                       | friend | One batch: delete expired listings, blank descriptions unseen 14d; mgmt-api's daily jobplatform:sweep loops it                                                                                                                               |
 | POST   | /ingest/rebuild-rank               | friend | Rebuild the precomputed feed ranking — needed when the SCORER changes                                                                                                                                                                        |
+| GET    | /ingest/sources                    | friend | The plan of the worker-pulled sources (src/sources/): Jobsuche searches per German profile place × keyword, plus Personio / SmartRecruiters boards                                                                                           |
+| POST   | /ingest/sources?task=              | friend | Run one plan task (list, fetch new postings' text, write via the ingest write); a daily sweep follows `next_task` until null                                                                                                                 |
 | POST   | /ingest/reconcile-mail             | friend | Walk ATS mail into the queue; mailbox owner only (`?reset=true` = backfill) †                                                                                                                                                                |
 | GET    | /ingest/reconcile-mail             | friend | Read the reconciliation; mailbox owner only (`MAILFEED_OWNER_USER_ID`) †                                                                                                                                                                     |
 | PUT    | /jobs/:id/feedback                 | friend | Up/downvote a posting with an axis-aligned reason (per-user upsert)                                                                                                                                                                          |
@@ -226,7 +228,8 @@ dashboard bundle (`src/fillExtension/`), so `pnpm build` builds the extension fi
 
 - Bundle react, react-dom, @wolffm/themes (externalized — see `vite.config.ts`)
 - Run its own Cloudflare Worker directly (host is in `hadoku_site/workers/jobplatform-api/`)
-- Handle scraping (that's hadoku-scrape)
+- Handle scraping (that's hadoku-scrape). The exception is `src/sources/`: public,
+  keyless JSON/XML feeds (Jobsuche, Personio, SmartRecruiters) that need no browser
 - Generate resumes itself (that's resume-bot; jobplatform calls it through the edge as its own service identity)
 
 ## External Dependencies
@@ -304,7 +307,7 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
     `api.error` (a failed call, including one that never reached the edge),
     `ui.error` (a render crash, from `CrashBoundary`), `app.mounted` /
     `app.unmounted`. Typed text is never recorded.
-  - From the worker (`source=worker`): `ingest.batch`, `ingest.cull`,
+  - From the worker (`source=worker`): `ingest.batch`, `ingest.cull`, `ingest.sources`,
     `rank.rebuild`, `job.import`, `job.state`, `job.state_cleared`,
     `application.queued` / `queue_refused` / `status` / `status_unknown` /
     `approved` / `approve_refused` / `handed_off`, `tailoring.generated` /
