@@ -155,7 +155,8 @@ interface ProfileFields {
 	track: ProfileTrack;
 	levels: RoleLevel[];
 	remote_pref: 'remote' | 'hybrid' | 'onsite' | 'any';
-	// View defaults (migration 0034): never scored, never in the criteria hash.
+	// View defaults (migration 0034): not scored and not in the criteria hash,
+	// except that `location`'s home region is (see scoring.ts homeRegion).
 	location: string | null;
 	radius_miles: number;
 	min_salary: number | null;
