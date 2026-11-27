@@ -20,6 +20,12 @@ export interface ScorableProfile {
 	interests_like: string[];
 	interests_avoid: string[];
 	salary_floor: number | null;
+	/**
+	 * The profile's view-default location (migration 0034). Scored only through
+	 * the home region it resolves to (scoring.ts homeRegion), which decides
+	 * which postings count as out-of-region for the geo axis.
+	 */
+	location: string | null;
 }
 
 const NEUTRAL: ScorableProfile = {
@@ -31,6 +37,7 @@ const NEUTRAL: ScorableProfile = {
 	interests_like: [],
 	interests_avoid: [],
 	salary_floor: null,
+	location: null,
 };
 
 /**
@@ -43,7 +50,7 @@ export async function loadScorableProfile(
 ): Promise<ScorableProfile> {
 	const r = await db
 		.prepare(
-			'SELECT keywords, track, levels, remote_pref, stack, interests_like, interests_avoid, salary_floor FROM profiles WHERE id = ?'
+			'SELECT keywords, track, levels, remote_pref, stack, interests_like, interests_avoid, salary_floor, location FROM profiles WHERE id = ?'
 		)
 		.bind(profileId)
 		.first<Record<string, unknown>>();
@@ -65,5 +72,6 @@ export async function loadScorableProfile(
 		interests_like: arr(r.interests_like),
 		interests_avoid: arr(r.interests_avoid),
 		salary_floor: typeof r.salary_floor === 'number' ? r.salary_floor : null,
+		location: typeof r.location === 'string' ? r.location : null,
 	};
 }

@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPlaces, geoKeys, placesWithin, resolvePlace, searchPlaces } from '../src/geo.ts';
+import {
+	findPlaces,
+	geoKeys,
+	placeCountry,
+	placesWithin,
+	resolvePlace,
+	searchPlaces,
+} from '../src/geo.ts';
 
 const keys = (loc: string) => findPlaces(loc).map((p) => p.key);
 
@@ -97,5 +104,26 @@ describe('placesWithin / resolvePlace / searchPlaces', () => {
 		assert.equal(found[0], 'san-marcos-tx');
 		assert.ok(found.every((k) => k.startsWith('san')));
 		assert.ok(searchPlaces('francisco').some((p) => p.key === 'san-francisco-ca'));
+	});
+});
+
+describe('placeCountry', () => {
+	const country = (q: string) => placeCountry(resolvePlace(q)!);
+
+	it('tells a country code from the US state code it shares', () => {
+		assert.equal(country('berlin-de'), 'de');
+		assert.equal(country('munich-de'), 'de');
+		assert.equal(country('bengaluru-in'), 'in');
+		assert.equal(country('tel-aviv-il'), 'il');
+	});
+
+	it('reads US places as us, including the US rows in the world table', () => {
+		assert.equal(country('seattle-wa'), 'us');
+		assert.equal(country('chicago-il'), 'us');
+		assert.equal(country('dublin-ca'), 'us');
+	});
+
+	it('reads a province-qualified region as its country', () => {
+		assert.equal(country('toronto-ca-on'), 'ca');
 	});
 });

@@ -1,4 +1,5 @@
 import { classifyDiscipline, levelRank, levelTrack, type RoleLevel } from './roleClassify.js';
+import { placeCountry, resolvePlace } from './geo.js';
 
 /**
  * Scoring v2 (2026-08-19). The v1 model was a threshold, not a ranking: its
@@ -11,9 +12,12 @@ import { classifyDiscipline, levelRank, levelTrack, type RoleLevel } from './rol
  *                    outweigh description hits; specific keywords outweigh
  *                    generic ones. Soft-OR composition — never clamps to 1.
  *   level_match      unchanged from v1 (distance on the ladder) — it worked.
- *   geo_fit          remote/hybrid preference × country signal. Explicitly
- *                    non-Americas remote is a multiplicative sink (×0.1):
- *                    "Remote Spain" must not tie with "U.S. Remote".
+ *   geo_fit          remote/hybrid preference × country signal. A posting
+ *                    that names only regions outside the profile's home
+ *                    region is a multiplicative sink (×0.1): for the default
+ *                    (Americas) home, "Remote Spain" must not tie with
+ *                    "U.S. Remote". The home region comes from the profile's
+ *                    `location`; no location means the Americas.
  *   comp_fit         published salary vs the profile's salary_floor. Unpublished
  *                    is NEUTRAL (most strong payers don't publish). Published
  *                    far below floor is a multiplicative sink (×0.15).
@@ -21,7 +25,9 @@ import { classifyDiscipline, levelRank, levelTrack, type RoleLevel } from './rol
  *                    ("(Ruby/Rails)") grades down — a fit signal, not a filter.
  *   domain_interest  per-profile ± phrase lists over title+description: what
  *                    the work is about matters (gen-AI > ads), softly.
- *   discipline_factor unchanged from v1 (adjacent ladders ×0.15).
+ *   discipline_factor adjacent ladders ×0.15, unless the profile asks for that
+ *                    ladder by name (a "project manager" keyword that the
+ *                    title carries).
  */
 
 export interface ScoreBreakdown {
@@ -63,6 +69,13 @@ export interface ScoringProfile {
 	interests_avoid: string[];
 	/** Comp floor in USD; null disables the comp axis (neutral 0.5). */
 	salary_floor: number | null;
+	/**
+	 * Where the profile is looking from: a place key from GET /locations
+	 * ("berlin-de") or free text. Only its home REGION is scored (see
+	 * homeRegion); absent or unresolvable means the Americas, which is how
+	 * every profile scored before this field was read.
+	 */
+	location?: string | null;
 }
 
 const WEIGHTS = {
@@ -75,7 +88,7 @@ const WEIGHTS = {
 } as const;
 
 const DISCIPLINE_PENALTY = 0.15;
-const NON_AMERICAS_PENALTY = 0.1;
+const FOREIGN_REGION_PENALTY = 0.1;
 const LOWBALL_PENALTY = 0.15;
 /** Estimated TOTAL comp below this fraction of the floor is a lowball sink. */
 const LOWBALL_RATIO = 0.75;
@@ -196,18 +209,28 @@ function levelMatch(jobLevel: RoleLevel | null, wanted: RoleLevel[]): number {
 
 // ── geo ──────────────────────────────────────────────────────────────────────
 
-// Explicit non-Americas signals in a location string. Americas timezones are
-// workable for a continental-US schedule; Europe/Asia/Africa/Oceania are not.
-// Word-boundary matching keeps "UK" from firing inside "Ukraine" etc.
-const NON_AMERICAS = new RegExp(
-	'\\b(?:emea|apac|europe|spain|poland|germany|france|netherlands|ireland|' +
+// Region signals in a location string, one pattern per region a schedule can
+// be worked from. Americas timezones are workable for a continental-US
+// schedule; Europe/Asia/Africa/Oceania are not, and the same holds the other
+// way round for a profile based in Europe. Word-boundary matching keeps "UK"
+// from firing inside "Ukraine" etc.
+//
+// EMEA_HINT and APAC_HINT together are exactly the single non-Americas list
+// this replaced, so a profile with the default home region scores as before.
+const EMEA_HINT = new RegExp(
+	'\\b(?:emea|europe|spain|poland|germany|france|netherlands|ireland|' +
 		'portugal|italy|romania|czechia|czech republic|hungary|austria|belgium|' +
 		'denmark|sweden|norway|finland|estonia|lithuania|latvia|greece|serbia|' +
 		'croatia|bulgaria|slovakia|slovenia|switzerland|luxembourg|ukraine|' +
-		'uk|u\\.k\\.|united kingdom|england|scotland|london|india|pakistan|' +
-		'bangladesh|philippines|vietnam|indonesia|malaysia|singapore|thailand|' +
-		'china|japan|korea|taiwan|hong kong|israel|turkey|uae|dubai|egypt|' +
-		'nigeria|kenya|south africa|australia|new zealand)\\b',
+		'uk|u\\.k\\.|united kingdom|england|scotland|london|' +
+		'israel|turkey|uae|dubai|egypt|nigeria|kenya|south africa)\\b',
+	'i'
+);
+
+const APAC_HINT = new RegExp(
+	'\\b(?:apac|india|pakistan|bangladesh|philippines|vietnam|indonesia|' +
+		'malaysia|singapore|thailand|china|japan|korea|taiwan|hong kong|' +
+		'australia|new zealand)\\b',
 	'i'
 );
 
@@ -216,6 +239,91 @@ const AMERICAS_HINT = new RegExp(
 		'mexico|argentina|colombia|chile|peru|costa rica)\\b',
 	'i'
 );
+
+export type HomeRegion = 'americas' | 'emea' | 'apac';
+
+const REGION_HINTS: Record<HomeRegion, RegExp> = {
+	americas: AMERICAS_HINT,
+	emea: EMEA_HINT,
+	apac: APAC_HINT,
+};
+
+// ISO country (as geo.ts's placeCountry returns it) to region, for the
+// countries geo.ts has places in.
+const COUNTRY_REGION: Record<string, HomeRegion> = {
+	us: 'americas',
+	ca: 'americas',
+	mx: 'americas',
+	br: 'americas',
+	ar: 'americas',
+	co: 'americas',
+	cl: 'americas',
+	gb: 'emea',
+	ie: 'emea',
+	de: 'emea',
+	nl: 'emea',
+	fr: 'emea',
+	be: 'emea',
+	ch: 'emea',
+	at: 'emea',
+	se: 'emea',
+	dk: 'emea',
+	no: 'emea',
+	fi: 'emea',
+	es: 'emea',
+	pt: 'emea',
+	pl: 'emea',
+	cz: 'emea',
+	ro: 'emea',
+	gr: 'emea',
+	tr: 'emea',
+	il: 'emea',
+	ae: 'emea',
+	sa: 'emea',
+	eg: 'emea',
+	ng: 'emea',
+	ke: 'emea',
+	za: 'emea',
+	in: 'apac',
+	sg: 'apac',
+	my: 'apac',
+	id: 'apac',
+	ph: 'apac',
+	jp: 'apac',
+	kr: 'apac',
+	tw: 'apac',
+	hk: 'apac',
+	cn: 'apac',
+	au: 'apac',
+	nz: 'apac',
+	th: 'apac',
+};
+
+const HOME_REGION = new Map<string, HomeRegion>();
+
+/**
+ * The region a profile is looking from. A known place ("berlin-de",
+ * "Munich") decides it; otherwise free text naming exactly one region
+ * ("Germany") does; otherwise it is the Americas, the default every profile
+ * had before `location` was scored. Memoised: the light pass asks once per
+ * job in the corpus, always with the same handful of strings.
+ */
+export function homeRegion(location: string | null | undefined): HomeRegion {
+	const text = (location ?? '').trim();
+	if (!text) return 'americas';
+	let region = HOME_REGION.get(text);
+	if (region) return region;
+	const place = resolvePlace(text);
+	region = place ? COUNTRY_REGION[placeCountry(place)] : undefined;
+	if (!region) {
+		const named = (Object.keys(REGION_HINTS) as HomeRegion[]).filter((r) =>
+			REGION_HINTS[r].test(text)
+		);
+		region = named.length === 1 ? named[0] : 'americas';
+	}
+	HOME_REGION.set(text, region);
+	return region;
+}
 
 function remotePrefMatch(workplaceType: string, remotePref: string): number {
 	if (remotePref === 'any') return 1.0;
@@ -236,17 +344,21 @@ function remotePrefMatch(workplaceType: string, remotePref: string): number {
 function geoFit(
 	location: string | null,
 	workplaceType: string,
-	remotePref: string
+	remotePref: string,
+	home: HomeRegion
 ): { fit: number; penalty: number } {
 	const loc = location ?? '';
 	const base = remotePrefMatch(workplaceType, remotePref);
-	if (NON_AMERICAS.test(loc) && !AMERICAS_HINT.test(loc)) {
-		return { fit: Math.min(base, NON_AMERICAS_PENALTY), penalty: NON_AMERICAS_PENALTY };
+	const namesHome = REGION_HINTS[home].test(loc);
+	const namesElsewhere = (Object.keys(REGION_HINTS) as HomeRegion[]).some(
+		(r) => r !== home && REGION_HINTS[r].test(loc)
+	);
+	if (namesElsewhere && !namesHome) {
+		return { fit: Math.min(base, FOREIGN_REGION_PENALTY), penalty: FOREIGN_REGION_PENALTY };
 	}
-	// Known-Americas scores the preference cleanly; an unparseable location gets
-	// a small haircut so explicit US postings edge it out.
-	const known = AMERICAS_HINT.test(loc);
-	return { fit: round3(known ? base : base * 0.85), penalty: 1 };
+	// Known-home scores the preference cleanly; an unparseable location gets
+	// a small haircut so explicit home-region postings edge it out.
+	return { fit: round3(namesHome ? base : base * 0.85), penalty: 1 };
 }
 
 // ── comp ─────────────────────────────────────────────────────────────────────
@@ -372,6 +484,38 @@ function domainInterestUpperBound(title: string, like: string[], avoid: string[]
 	return round3(Math.min(1, Math.max(0, 0.5 + delta)));
 }
 
+// ── discipline ───────────────────────────────────────────────────────────────
+
+const KEYWORD_IS_ADJACENT = new Map<string, boolean>();
+
+function keywordIsAdjacent(kw: string): boolean {
+	let adjacent = KEYWORD_IS_ADJACENT.get(kw);
+	if (adjacent === undefined) {
+		adjacent = classifyDiscipline(kw) === 'adjacent';
+		KEYWORD_IS_ADJACENT.set(kw, adjacent);
+	}
+	return adjacent;
+}
+
+/**
+ * The adjacent-ladder sink exists so an engineering profile is not topped by
+ * PM/design/sales seats. A profile whose own keywords name one of those
+ * ladders ("project manager", "program manager") is asking for exactly those
+ * seats, so a title carrying such a keyword is not penalized. Only keywords
+ * that are themselves adjacent-ladder titles count: an engineering profile's
+ * "ml" in "Product Manager, ML" still sinks.
+ */
+/** Does any keyword name an adjacent ladder, so the waiver can ever apply? */
+export function disciplineTargets(keywords: string[]): boolean {
+	return keywords.some((kw) => keywordIsAdjacent(kw.trim()));
+}
+
+export function disciplineFactor(title: string, keywords: string[]): number {
+	if (classifyDiscipline(title) !== 'adjacent') return 1.0;
+	const targeted = keywords.some((kw) => keywordIsAdjacent(kw.trim()) && wordHit(title, kw));
+	return targeted ? 1.0 : DISCIPLINE_PENALTY;
+}
+
 // ── composition ──────────────────────────────────────────────────────────────
 
 function compose(breakdown: ScoreBreakdown, penalties: number): number {
@@ -386,7 +530,12 @@ function compose(breakdown: ScoreBreakdown, penalties: number): number {
 }
 
 export function scoreJob(job: ScorableJob, profile: ScoringProfile): ScoreResult {
-	const geo = geoFit(job.location, job.workplace_type, profile.remote_pref);
+	const geo = geoFit(
+		job.location,
+		job.workplace_type,
+		profile.remote_pref,
+		homeRegion(profile.location)
+	);
 	const comp = compFit(job.salary_max, profile.salary_floor);
 	const breakdown: ScoreBreakdown = {
 		relevance: relevance(job.title, job.description, profile.keywords),
@@ -400,7 +549,7 @@ export function scoreJob(job: ScorableJob, profile: ScoringProfile): ScoreResult
 			profile.interests_like,
 			profile.interests_avoid
 		),
-		discipline_factor: classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0,
+		discipline_factor: disciplineFactor(job.title, profile.keywords),
 	};
 	return { score: compose(breakdown, geo.penalty * comp.penalty), breakdown };
 }
@@ -408,8 +557,8 @@ export function scoreJob(job: ScorableJob, profile: ScoringProfile): ScoreResult
 /** Description-independent axis values plus bounds for the two description-
  *  dependent ones — the feed's light pass uses these both to shortlist for
  *  full scoring and to shortlist per-LENS (sort by comp/interest/relevance).
- *  `penalized` marks the multiplicative sinks (lowball comp, non-Americas
- *  remote, adjacent discipline) — lens views exclude those outright: they are
+ *  `penalized` marks the multiplicative sinks (lowball comp, a posting only
+ *  outside the profile's home region, adjacent discipline) — lens views exclude those outright: they are
  *  exactly the owner's hard floors. */
 export interface LightAxes {
 	relevance_bound: number;
@@ -424,9 +573,14 @@ export interface LightAxes {
 }
 
 export function scoreJobLightAxes(job: ScorableJobLight, profile: ScoringProfile): LightAxes {
-	const geo = geoFit(job.location, job.workplace_type, profile.remote_pref);
+	const geo = geoFit(
+		job.location,
+		job.workplace_type,
+		profile.remote_pref,
+		homeRegion(profile.location)
+	);
 	const comp = compFit(job.salary_max, profile.salary_floor);
-	const discipline = classifyDiscipline(job.title) === 'adjacent' ? DISCIPLINE_PENALTY : 1.0;
+	const discipline = disciplineFactor(job.title, profile.keywords);
 	const breakdown: ScoreBreakdown = {
 		relevance: relevanceUpperBound(job.title, profile.keywords),
 		level_match: levelMatch(job.role_level, profile.levels),

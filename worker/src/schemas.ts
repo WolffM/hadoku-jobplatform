@@ -29,8 +29,10 @@ export const RoleLevelSchema = z.enum([...IC_LEVELS, ...MANAGER_LEVELS]).openapi
 
 /**
  * View defaults a UI passes to GET /jobs (migration 0034). Not scoring
- * criteria: rank.ts's criteriaHash leaves them out, so they never touch the
- * precomputed ranking.
+ * criteria, with one exception: the home REGION `location` resolves to
+ * (Americas / EMEA / APAC) decides which postings the geo axis treats as
+ * out-of-region, so rank.ts's criteriaHash carries that region (not the raw
+ * string). The rest never touch the precomputed ranking.
  */
 const ProfileViewDefaultsShape = {
 	/** near= centre: a place key from GET /locations or free text, stored as given. */

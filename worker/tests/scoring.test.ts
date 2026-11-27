@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreJob, scoreJobUpperBound, type ScoringProfile } from '../src/scoring.ts';
+import {
+	disciplineFactor,
+	homeRegion,
+	scoreJob,
+	scoreJobUpperBound,
+	type ScoringProfile,
+} from '../src/scoring.ts';
 
 /** The owner's profile shape, as seeded 2026-08-19. */
 const OWNER: ScoringProfile = {
@@ -204,6 +210,138 @@ test('scoreJobUpperBound is a true upper bound on the full score', () => {
 	for (const j of jobs) {
 		const full = scoreJob(j, OWNER).score;
 		const bound = scoreJobUpperBound(j, OWNER);
+		assert.ok(bound >= full, `bound ${bound} < full ${full} for "${j.title}" @ ${j.location}`);
+	}
+});
+
+// ── profile-relative geo and discipline ──────────────────────────────────────
+
+/** A Berlin-based project/program manager: the case the US-only sinks buried. */
+const BERLIN_PM: ScoringProfile = {
+	keywords: ['project manager', 'program manager', 'technical project manager'],
+	levels: ['senior', 'mid'],
+	remote_pref: 'hybrid',
+	stack: [],
+	interests_like: [],
+	interests_avoid: [],
+	salary_floor: null,
+	location: 'berlin-de',
+};
+
+function pmJob(over: Partial<Parameters<typeof scoreJob>[0]> = {}) {
+	return {
+		title: 'Technical Project Manager (Cloud Platform)',
+		description: 'Own delivery plans across teams as the project manager for the platform.',
+		location: 'Berlin, Germany; Amsterdam, Netherlands; Munich, Germany',
+		workplace_type: 'hybrid',
+		salary_max: null,
+		role_level: null,
+		...over,
+	};
+}
+
+test('homeRegion resolves place keys, place names and country text', () => {
+	assert.equal(homeRegion('berlin-de'), 'emea');
+	assert.equal(homeRegion('Munich'), 'emea');
+	assert.equal(homeRegion('Germany'), 'emea');
+	assert.equal(homeRegion('tokyo-jp'), 'apac');
+	assert.equal(homeRegion('seattle-wa'), 'americas');
+	assert.equal(homeRegion('toronto-ca-on'), 'americas');
+	// Illinois shares 'il' with Israel; a US place must stay in the Americas.
+	assert.equal(homeRegion('chicago-il'), 'americas');
+	assert.equal(homeRegion('tel-aviv-il'), 'emea');
+	assert.equal(homeRegion(null), 'americas');
+	assert.equal(homeRegion(undefined), 'americas');
+	assert.equal(homeRegion('   '), 'americas');
+	assert.equal(homeRegion('somewhere unknown'), 'americas');
+});
+
+test('a Berlin profile does not sink postings in Germany/Europe', () => {
+	const r = scoreJob(pmJob(), BERLIN_PM);
+	assert.equal(r.breakdown.geo_fit, 1.0, 'hybrid in a named home-region country fits cleanly');
+	const eu = scoreJob(pmJob({ location: 'Remote - Europe' }), BERLIN_PM);
+	assert.ok(eu.breakdown.geo_fit > 0.1, `Europe is home, got geo_fit ${eu.breakdown.geo_fit}`);
+});
+
+test('a Berlin profile sinks postings that name only another region', () => {
+	const home = scoreJob(pmJob({ location: 'Berlin, Germany' }), BERLIN_PM);
+	const us = scoreJob(pmJob({ location: 'Remote - US' }), BERLIN_PM);
+	const india = scoreJob(pmJob({ location: 'Bengaluru, India' }), BERLIN_PM);
+	assert.ok(us.score <= home.score * 0.15, `US-only must sink: ${us.score} vs ${home.score}`);
+	assert.ok(india.score <= home.score * 0.15, `APAC must sink: ${india.score} vs ${home.score}`);
+	// A posting open to both regions names home, so it is not out-of-region.
+	const both = scoreJob(pmJob({ location: 'Remote - US or Europe' }), BERLIN_PM);
+	assert.ok(both.score > us.score * 3);
+});
+
+test('the default home region scores exactly as before location was read', () => {
+	const locations = [
+		'Remote - US',
+		'U.S. Remote',
+		'Remote Spain',
+		'Remote Poland',
+		'Remote - Canada',
+		'Berlin, Germany',
+		'Berlin',
+		'London, UK',
+		'Bengaluru, India',
+		'EMEA',
+		'San Francisco, CA',
+		'Remote',
+		'',
+	];
+	for (const homeless of [undefined, null, '', 'seattle-wa', 'not a place']) {
+		for (const location of locations) {
+			const j = job({ location });
+			const before = scoreJob(j, OWNER);
+			const after = scoreJob(j, { ...OWNER, location: homeless });
+			assert.deepEqual(after, before, `${String(homeless)} @ "${location}"`);
+			assert.equal(
+				scoreJobUpperBound(j, { ...OWNER, location: homeless }),
+				scoreJobUpperBound(j, OWNER)
+			);
+		}
+	}
+});
+
+test('a profile that names an adjacent ladder is not sunk for that ladder', () => {
+	const tpm = scoreJob(pmJob(), BERLIN_PM);
+	assert.equal(tpm.breakdown.discipline_factor, 1.0);
+	const program = scoreJob(
+		pmJob({ title: 'Senior Technical Program Manager (IDE Department)', role_level: 'senior' }),
+		BERLIN_PM
+	);
+	assert.equal(program.breakdown.discipline_factor, 1.0);
+	// The motivating case: relevance 0.75 used to end at a final score of 0.006.
+	assert.ok(tpm.score > 0.4, `a matching Berlin TPM role must rank, got ${tpm.score}`);
+});
+
+test('the waiver covers only the ladder the keywords name', () => {
+	assert.equal(disciplineFactor('Senior Sales Manager, DACH', BERLIN_PM.keywords), 0.15);
+	assert.equal(disciplineFactor('Product Manager, Payments', BERLIN_PM.keywords), 0.15);
+	assert.equal(disciplineFactor('Product Designer', BERLIN_PM.keywords), 0.15);
+	assert.equal(disciplineFactor('Program Manager, Hardware', BERLIN_PM.keywords), 1.0);
+	// Non-adjacent titles were never penalized and still are not.
+	assert.equal(disciplineFactor('Operations Manager', BERLIN_PM.keywords), 1.0);
+});
+
+test('an engineering profile keeps the adjacent sink even when a keyword hits the title', () => {
+	// "ml" is in the title, but "ml" is not an adjacent-ladder keyword.
+	assert.equal(disciplineFactor('Staff Product Manager, ML Foundations', OWNER.keywords), 0.15);
+	assert.equal(disciplineFactor('Technical Program Manager, AI Platform', OWNER.keywords), 0.15);
+});
+
+test('scoreJobUpperBound is a true upper bound for a non-default home region', () => {
+	const jobs = [
+		pmJob(),
+		pmJob({ location: 'Remote - US' }),
+		pmJob({ title: 'Senior Sales Manager', location: 'Berlin' }),
+		pmJob({ title: 'Program Manager', description: 'nothing relevant here' }),
+		pmJob({ location: 'Tokyo, Japan', workplace_type: 'onsite' }),
+	];
+	for (const j of jobs) {
+		const full = scoreJob(j, BERLIN_PM).score;
+		const bound = scoreJobUpperBound(j, BERLIN_PM);
 		assert.ok(bound >= full, `bound ${bound} < full ${full} for "${j.title}" @ ${j.location}`);
 	}
 });

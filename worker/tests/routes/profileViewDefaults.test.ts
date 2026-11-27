@@ -2,7 +2,8 @@
  * Profile view defaults (migration 0034): location, radius_miles, min_salary,
  * include_undisclosed_salary, us_only. Round-tripped by /profiles, and —
  * the point — outside the scoring criteria: editing one neither changes the
- * criteria hash nor rebuilds the precomputed ranking.
+ * criteria hash nor rebuilds the precomputed ranking. The one exception is
+ * `location`, whose home region (not the string itself) is scored.
  */
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -141,6 +142,30 @@ describe('profile view defaults', () => {
 		await settle();
 		const after = await rankState(p.id);
 		assert.notEqual(after?.criteria_hash, built.criteria_hash);
+	});
+
+	it('moving location to another home region rebuilds the ranking; within one it does not', async () => {
+		const p = (await create({ name: 'Mover', keywords: ['engineer'] })).body.data.profile;
+		assert.equal(
+			(
+				await h.fetch(`${BASE}/ingest/rebuild-rank?profile_id=${p.id}`, {
+					method: 'POST',
+					tier: 'friend',
+				})
+			).status,
+			200
+		);
+		const americas = await rankState(p.id);
+		assert.ok(americas);
+
+		await update(p.id, { location: 'Berlin, Germany' });
+		await settle();
+		const emea = await rankState(p.id);
+		assert.notEqual(emea?.criteria_hash, americas.criteria_hash, 'americas -> emea rebuilds');
+
+		await update(p.id, { location: 'Munich, Germany' });
+		await settle();
+		assert.deepEqual(await rankState(p.id), emea, 'emea -> emea: same hash, no rebuild');
 	});
 
 	it('PUT keeps the scoring criteria it does not name', async () => {
