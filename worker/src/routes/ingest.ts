@@ -17,7 +17,7 @@ import { classifyRole } from '../roleClassify.js';
 import { geoKeys } from '../geo.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
-import { insertJobStatement, rankNewJobs } from '../ingestWrite.js';
+import { writeJobBatch } from '../ingestWrite.js';
 import { rankIsCurrent, rebuildRank } from '../rank.js';
 
 interface RouteContext {
@@ -127,8 +127,7 @@ const ingestRoute = createRoute({
 });
 
 // One db.batch round trip can carry only so many statements comfortably;
-// chunking keeps each D1 call bounded no matter how large a webhook batch the
-// scraper sends.
+// chunking keeps each D1 call bounded no matter how large a batch is.
 const INGEST_BATCH_CHUNK = 100;
 
 app.openapi(ingestRoute, async (c) => {
@@ -141,135 +140,16 @@ app.openapi(ingestRoute, async (c) => {
 	const db = c.env.JOB_PLATFORM_DB;
 	const now = new Date().toISOString();
 
-	// Same-source dedup rides the UNIQUE index on jobs.url: INSERT OR IGNORE
-	// makes the whole write one batched round trip per chunk instead of a
-	// SELECT + INSERT per job. The old per-job loop cost 2 D1 subrequests per
-	// posting — a large batch could blow the 1,000-subrequest invocation cap,
-	// and a full corpus refresh burned ~2 round trips per job for nothing.
-	const stmts = jobs.map((job) => insertJobStatement(db, job, { source, board_slug, now }));
-
-	// inserted[i] — did jobs[i] land as a new row (true) or hit an existing URL
-	// or id and get ignored (false)? Each statement reports its own changes.
-	const inserted: boolean[] = [];
-	startTime(c, 'insert');
-	for (let i = 0; i < stmts.length; i += INGEST_BATCH_CHUNK) {
-		const results = await db.batch(stmts.slice(i, i + INGEST_BATCH_CHUNK));
-		for (const r of results) inserted.push((r.meta?.changes ?? 0) > 0);
-	}
-	endTime(c, 'insert');
+	// The write itself (insert, liveness, description restore, rank) lives in
+	// writeJobBatch, so every path that stores a batch stores it the same way.
+	const inserted = await writeJobBatch(
+		db,
+		jobs,
+		{ source, board_slug, now },
+		{ start: (step) => startTime(c, step), end: (step) => endTime(c, step) }
+	);
 	const accepted = inserted.filter(Boolean).length;
 	const skipped = received.length - accepted;
-
-	// Liveness: every URL in this payload was just seen on its source — bump
-	// last_seen_at for the skipped (already-known) rows too. A board posting
-	// whose last_seen_at stops advancing has been taken down. Rows inserted
-	// just now already carry `now`, so only the ones the insert ignored need it.
-	//
-	// This is the database's largest write by volume (every listed posting,
-	// every scrape), so it touches nothing it does not have to: last_seen_at is
-	// in no index since 0025, which makes each bump one written row. Folding the
-	// slug correction into the same UPDATE, as this used to, also rewrote the
-	// (ats, slug) index entry of every row on every scrape — 3 rows per posting
-	// to change, on all but a handful, nothing.
-	const seen = jobs.filter((_, i) => !inserted[i]);
-
-	// What is stored for the postings the insert skipped. Matched on url OR id:
-	// a board can move a posting's URL while its id stays (Ashby recasing
-	// jobs.ashbyhq.com/adaptive/… to /Adaptive/…, a board moving to its own
-	// careers domain). The insert is then ignored on the id, and a bump keyed
-	// on url alone matched nothing, so a listed posting looked delisted for
-	// good: its description was stripped and the cull would have deleted it.
-	// 388 live postings were stuck that way on 2026-11-09.
-	//
-	// 45 per chunk keeps url + id binds at 90, under D1's 100.
-	const SEEN_CHUNK = 45;
-	const storedReads = [];
-	for (let i = 0; i < seen.length; i += SEEN_CHUNK) {
-		const chunk = seen.slice(i, i + SEEN_CHUNK);
-		const inList = chunk.map(() => '?').join(',');
-		storedReads.push(
-			db
-				.prepare(
-					`SELECT id, url, description = '' AS blank FROM jobs
-					 WHERE url IN (${inList}) OR id IN (${inList})`
-				)
-				.bind(...chunk.map((j) => j.url), ...chunk.map((j) => j.id))
-		);
-	}
-	startTime(c, 'seen');
-	const stored = storedReads.length
-		? (await db.batch<{ id: string; url: string; blank: number }>(storedReads)).flatMap(
-				(r) => r.results
-			)
-		: [];
-	const byUrl = new Map(stored.map((r) => [r.url, r]));
-	const byId = new Map(stored.map((r) => [r.id, r]));
-
-	const writes = [];
-	const sameUrl = seen.filter((j) => byUrl.has(j.url)).map((j) => j.url);
-	for (let i = 0; i < sameUrl.length; i += 90) {
-		const chunk = sameUrl.slice(i, i + 90);
-		const inList = chunk.map(() => '?').join(',');
-		writes.push(
-			db.prepare(`UPDATE jobs SET last_seen_at = ? WHERE url IN (${inList})`).bind(now, ...chunk)
-		);
-		if (board_slug) {
-			// Correct the slug on rows written before the scraper sent an
-			// authoritative one, so postings carrying a hostname guess heal on
-			// their next scrape instead of needing a backfill. Only ever narrows
-			// to the truth: this runs solely when the scraper told us which board
-			// it fetched — and only on the rows where that differs.
-			writes.push(
-				db
-					.prepare(
-						`UPDATE jobs SET slug = ?, slug_source = 'scraped'
-						 WHERE url IN (${inList})
-						   AND (slug IS NOT ? OR slug_source IS NOT 'scraped')`
-					)
-					.bind(board_slug, ...chunk, board_slug)
-			);
-		}
-	}
-	// The drifted: known by id under an older URL. Bump them by id, and adopt
-	// the board's current URL so the next scrape matches the cheap way. OR
-	// IGNORE because another row could already hold that URL; the bump stands
-	// either way.
-	for (const j of seen) {
-		const row = byId.get(j.id);
-		if (!row || row.url === j.url) continue;
-		writes.push(db.prepare('UPDATE jobs SET last_seen_at = ? WHERE id = ?').bind(now, row.id));
-		writes.push(db.prepare('UPDATE OR IGNORE jobs SET url = ? WHERE id = ?').bind(j.url, row.id));
-	}
-	// A posting back on its board after its description was stripped gets it
-	// back. Found by the read above, so the rows that never lost theirs —
-	// nearly all of them — cost no extra write.
-	for (const j of seen) {
-		const row = byUrl.get(j.url) ?? byId.get(j.id);
-		if (row?.blank && j.description !== '') {
-			writes.push(
-				db
-					.prepare(`UPDATE jobs SET description = ? WHERE id = ? AND description = ''`)
-					.bind(j.description, row.id)
-			);
-		}
-	}
-	for (let i = 0; i < writes.length; i += INGEST_BATCH_CHUNK) {
-		await db.batch(writes.slice(i, i + INGEST_BATCH_CHUNK));
-	}
-	endTime(c, 'seen');
-
-	// Keep every profile's precomputed ranking covering the newest postings.
-	//
-	// A job with no rank row is invisible to the feed's fast path, and new jobs
-	// are exactly the ones worth seeing — so this runs before the marker moves.
-	// markRankBuilt is what tells the feed the ranking is current; if this
-	// throws, the marker stays behind and the feed falls back to ranking live
-	// rather than quietly omitting the postings that just landed.
-	if (accepted > 0) {
-		startTime(c, 'rank');
-		await rankNewJobs(db);
-		endTime(c, 'rank');
-	}
 
 	// No cull or strip here. Both used to run on every board's final batch —
 	// ~900 a night, each reading 35-45k rows to find a few hundred expired ones.
