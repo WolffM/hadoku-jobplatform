@@ -75,7 +75,7 @@ admin too.
 | PUT    | /applicant-profile                 | friend | Replace them (work_authorization, desired_salary, notice_period, master_resume_text checked for type and length); the runner writes the owner's via ownerName                                                                                |
 | GET    | /jobs/:id/fill-packet              | friend | Profile + the approved fill's answers + résumé PDF link, for the Fill extension                                                                                                                                                              |
 | GET    | /verification-codes                | admin  | Recent ATS security codes from the hadoku.me mail feed; the mailbox OWNER only, never service/ownerName                                                                                                                                      |
-| GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies)                                                                                                                                                               |
+| GET    | /directives                        | friend | The scrape directive the scraper PULLS each run (union of profiles' companies + keywords, and `places`: each profile's resolved place, radius and keywords)                                                                                  |
 | POST   | /ingest/backfill-salary            | friend | Populate `salary_min/max` from description prose where NULL                                                                                                                                                                                  |
 | POST   | /ingest/cull                       | friend | One batch: delete expired listings, blank descriptions unseen 14d; mgmt-api's daily jobplatform:sweep loops it                                                                                                                               |
 | POST   | /ingest/rebuild-rank               | friend | Rebuild the precomputed feed ranking — needed when the SCORER changes                                                                                                                                                                        |
@@ -188,8 +188,8 @@ owner's feed listed 23 of their own applications as fresh postings.
   our own runner, not the employer, and must not suppress their board.
 - **Companies are a scrape DIRECTIVE the scraper pulls, not targets we push**
   (migration 0007). The flow is: add `(ats, slug)` to a profile → the scraper
-  reads `GET /directives` (the union of every profile's companies + keywords)
-  on its next run and registers them itself → webhook fires → jobs land. The old
+  reads `GET /directives` (the union of every profile's companies + keywords,
+  plus `places` for place-bound feeds such as Jobsuche) on its next run and registers them itself → webhook fires → jobs land. The old
   push model (`POST /companies` → scraper `/targets`) is retired; its client
   helpers were deleted 2026-08-13. Per-profile `profile_companies` replaced the
   user-global `user_companies`, dropped in 0026.

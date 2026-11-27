@@ -15,6 +15,7 @@ import { recordEvent } from '../opEvents.js';
 import { parseAtsSlug } from '../slugParse.js';
 import { classifyRole } from '../roleClassify.js';
 import { geoKeys } from '../geo.js';
+import { directivePlaces, parseKeywordList } from '../directivePlaces.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
 import { insertJobStatement, rankNewJobs } from '../ingestWrite.js';
@@ -701,7 +702,11 @@ const directivesRoute = createRoute({
 		'Pulled by hadoku-scrape each run. `companies` = distinct (ats, slug) across ' +
 		'every profile_companies row; `keywords` = the deduped (case-insensitive) union ' +
 		'of every profile’s keywords. The scraper scrapes each company board and runs ' +
-		'each keyword against its keyword-search providers.',
+		'each keyword against its keyword-search providers. `places` = each profile’s ' +
+		'home place (its `location`, resolved to a known place), radius and keywords, ' +
+		'merged per (place, radius), so place-bound feeds can search a profile’s keywords ' +
+		'around that profile’s place. Profiles whose location does not resolve, or that ' +
+		'have no keywords, are not listed.',
 	responses: {
 		200: {
 			description: 'Directive set',
@@ -713,6 +718,14 @@ const directivesRoute = createRoute({
 							data: z.object({
 								companies: z.array(z.object({ ats: z.string(), slug: z.string() })),
 								keywords: z.array(z.string()),
+								places: z.array(
+									z.object({
+										name: z.string(),
+										country: z.string(),
+										radius_miles: z.number(),
+										keywords: z.array(z.string()),
+									})
+								),
 							}),
 						})
 						.openapi('DirectivesResponse'),
@@ -729,22 +742,16 @@ app.openapi(directivesRoute, async (c) => {
 		.prepare('SELECT DISTINCT ats, slug FROM profile_companies ORDER BY ats, slug')
 		.all<{ ats: string; slug: string }>();
 
-	const profileRows = await db.prepare('SELECT keywords FROM profiles').all<{ keywords: string }>();
+	const profileRows = await db
+		.prepare('SELECT keywords, location, radius_miles FROM profiles ORDER BY rowid')
+		.all<{ keywords: string | null; location: string | null; radius_miles: number | null }>();
 
 	// Union keywords across all profiles, case-insensitively deduped but keeping
 	// the first-seen casing (what the scraper searches with).
 	const seen = new Set<string>();
 	const keywords: string[] = [];
 	for (const r of profileRows.results) {
-		let arr: string[] = [];
-		try {
-			arr = JSON.parse(r.keywords) as string[];
-		} catch {
-			arr = [];
-		}
-		for (const raw of arr) {
-			const kw = typeof raw === 'string' ? raw.trim() : '';
-			if (!kw) continue;
+		for (const kw of parseKeywordList(r.keywords)) {
 			const key = kw.toLowerCase();
 			if (seen.has(key)) continue;
 			seen.add(key);
@@ -752,10 +759,12 @@ app.openapi(directivesRoute, async (c) => {
 		}
 	}
 
+	const places = directivePlaces(profileRows.results);
+
 	return c.json(
 		{
 			success: true as const,
-			data: { companies: companyRows.results, keywords },
+			data: { companies: companyRows.results, keywords, places },
 		},
 		200
 	);
