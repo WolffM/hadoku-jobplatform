@@ -26,7 +26,7 @@ export function recordEvent(c: HasExecutionCtx, ev: ServiceEvent): void {
  * Matched against the path after the API base.
  */
 const OWN_EVENT = [
-	/^\/ingest(\/cull|\/rebuild-rank|\/reconcile-mail)?$/,
+	/^\/ingest(\/cull|\/rebuild-rank|\/reconcile-mail|\/sources)?$/,
 	/^\/telemetry$/,
 	/^\/companies\/(match|probe)$/,
 	/^\/jobs\/import$/,

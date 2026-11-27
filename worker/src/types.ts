@@ -31,6 +31,17 @@ export interface AppEnv {
 	SCRAPER_BASE_URL?: string;
 
 	// ============================================================================
+	// Job sources the worker pulls itself (src/sources/)
+	// ============================================================================
+
+	/**
+	 * Test-only. Routes every pulled source (Jobsuche, Personio,
+	 * SmartRecruiters) to `<base>/<source>/...` on one loopback server. Unset
+	 * in production, where each source is reached at its real host.
+	 */
+	JOB_SOURCES_BASE_URL?: string;
+
+	// ============================================================================
 	// Mail feed (outbound to contact-api) — ATS mail addressed to the owner
 	// ============================================================================
 

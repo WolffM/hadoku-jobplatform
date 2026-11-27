@@ -18,6 +18,7 @@ import { geoKeys } from '../geo.js';
 import { parseSalaryRange } from '../salaryParse.js';
 import { loadScorableProfile } from '../profileScore.js';
 import { writeJobBatch } from '../ingestWrite.js';
+import { WORKER_PULLED_ATS } from '../sources/boards.js';
 import { rankIsCurrent, rebuildRank } from '../rank.js';
 
 interface RouteContext {
@@ -579,7 +580,8 @@ const directivesRoute = createRoute({
 	summary: 'Scrape directives — union of all profiles’ companies + keywords',
 	description:
 		'Pulled by hadoku-scrape each run. `companies` = distinct (ats, slug) across ' +
-		'every profile_companies row; `keywords` = the deduped (case-insensitive) union ' +
+		'every profile_companies row, except the personio and smartrecruiters boards this ' +
+		'worker pulls itself (POST /ingest/sources); `keywords` = the deduped (case-insensitive) union ' +
 		'of every profile’s keywords. The scraper scrapes each company board and runs ' +
 		'each keyword against its keyword-search providers.',
 	responses: {
@@ -605,8 +607,15 @@ const directivesRoute = createRoute({
 app.openapi(directivesRoute, async (c) => {
 	const db = c.env.JOB_PLATFORM_DB;
 
+	// Boards on the ATSes this worker pulls itself (Personio, SmartRecruiters:
+	// routes/sources.ts) are withheld: the scraper has no adapter for them.
+	const pulledHere = WORKER_PULLED_ATS.map(() => '?').join(',');
 	const companyRows = await db
-		.prepare('SELECT DISTINCT ats, slug FROM profile_companies ORDER BY ats, slug')
+		.prepare(
+			`SELECT DISTINCT ats, slug FROM profile_companies
+			 WHERE ats NOT IN (${pulledHere}) ORDER BY ats, slug`
+		)
+		.bind(...WORKER_PULLED_ATS)
 		.all<{ ats: string; slug: string }>();
 
 	const profileRows = await db.prepare('SELECT keywords FROM profiles').all<{ keywords: string }>();

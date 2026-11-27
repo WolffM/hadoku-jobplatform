@@ -293,6 +293,8 @@ export interface HarnessOptions {
 	mailboxOwner?: null;
 	/** Point the scraper client at a loopback stand-in (tests/helpers/scraper.ts). */
 	scraperUrl?: string;
+	/** Point the pulled job sources at a loopback stand-in (tests/helpers/jobSources.ts). */
+	jobSourcesUrl?: string;
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -335,6 +337,10 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		// The one service caller the suite's act-as tests run as (the scraper in
 		// production). Any other service caller naming an owner is refused.
 		ON_BEHALF_CALLER_USER_IDS: 'the-service',
+		// A closed port by default, like SCRAPER_BASE_URL: a test that pulls
+		// sources without declaring a stand-in fails instead of reaching the
+		// real Jobsuche, Personio or SmartRecruiters.
+		JOB_SOURCES_BASE_URL: options.jobSourcesUrl ?? 'http://127.0.0.1:1',
 	};
 
 	const app = createJobPlatformHandler(BASE);

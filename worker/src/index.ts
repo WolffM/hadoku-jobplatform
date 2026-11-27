@@ -39,6 +39,7 @@ import { jobRoutes } from './routes/jobs/index.js';
 import { companyRoutes } from './routes/companies.js';
 import { accountRoutes } from './routes/account.js';
 import { telemetryRoutes } from './routes/telemetry.js';
+import { sourceRoutes } from './routes/sources.js';
 
 interface AppContext {
 	Bindings: AppEnv;
@@ -82,6 +83,7 @@ export function createJobPlatformHandler(basePath = '/jobplatform/api') {
 
 	app.route('/', healthRoutes);
 	app.route('/', ingestRoutes);
+	app.route('/', sourceRoutes);
 	app.route('/', profileRoutes);
 	app.route('/', jobRoutes);
 	app.route('/', companyRoutes);
