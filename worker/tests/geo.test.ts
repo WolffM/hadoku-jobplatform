@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { findPlaces, geoKeys, placesWithin, resolvePlace, searchPlaces } from '../src/geo.ts';
+import {
+	findPlaces,
+	geoKeys,
+	placeCountry,
+	placesWithin,
+	resolvePlace,
+	searchPlaces,
+} from '../src/geo.ts';
 
 const keys = (loc: string) => findPlaces(loc).map((p) => p.key);
 
@@ -69,6 +76,43 @@ describe('findPlaces', () => {
 	});
 });
 
+describe('German places the pulled sources name', () => {
+	// Constructed in the forms Jobsuche, Personio and SmartRecruiters write them.
+	it('reads German spellings and the country in German', () => {
+		assert.deepEqual(keys('Berlin, Deutschland'), ['berlin-de']);
+		assert.deepEqual(keys('Köln'), ['cologne-de']);
+		assert.deepEqual(keys('Nürnberg, Germany'), ['nuremberg-de']);
+		assert.deepEqual(keys('Düsseldorf | Remote'), ['dusseldorf-de']);
+		assert.deepEqual(keys('München'), ['munich-de']);
+	});
+
+	it('reads the ASCII transliterations German boards also write', () => {
+		assert.deepEqual(keys('Koeln'), ['cologne-de']);
+		assert.deepEqual(keys('Nuernberg, Deutschland'), ['nuremberg-de']);
+		assert.deepEqual(keys('Duesseldorf'), ['dusseldorf-de']);
+		assert.deepEqual(keys('Muenchen'), ['munich-de']);
+	});
+
+	it('reads a country whose code is also a US state code as evidence', () => {
+		// 'de' is Delaware and Germany, 'in' Indiana and India: the country's
+		// words count, so a city that is not in that country is not placed.
+		assert.deepEqual(keys('Hollywood, Germany'), []);
+		assert.deepEqual(keys('Dublin, Deutschland'), []);
+		assert.deepEqual(keys('Berlin, Indiana'), []);
+		assert.deepEqual(keys('Bengaluru, India'), ['bengaluru-in']);
+		assert.deepEqual(keys('Indianapolis, IN'), ['indianapolis-in']);
+	});
+
+	it('puts Potsdam inside a 25-mile Berlin radius', () => {
+		const berlin = resolvePlace('berlin-de');
+		assert.ok(berlin);
+		assert.deepEqual(
+			placesWithin(berlin, 25).map((p) => p.key),
+			['berlin-de', 'potsdam-de']
+		);
+	});
+});
+
 describe('geoKeys', () => {
 	it('is pipe-delimited for LIKE, and empty when nothing is placed', () => {
 		assert.equal(geoKeys('Seattle, WA'), '|seattle-wa|');
@@ -97,5 +141,26 @@ describe('placesWithin / resolvePlace / searchPlaces', () => {
 		assert.equal(found[0], 'san-marcos-tx');
 		assert.ok(found.every((k) => k.startsWith('san')));
 		assert.ok(searchPlaces('francisco').some((p) => p.key === 'san-francisco-ca'));
+	});
+});
+
+describe('placeCountry', () => {
+	const country = (q: string) => placeCountry(resolvePlace(q)!);
+
+	it('tells a country code from the US state code it shares', () => {
+		assert.equal(country('berlin-de'), 'de');
+		assert.equal(country('munich-de'), 'de');
+		assert.equal(country('bengaluru-in'), 'in');
+		assert.equal(country('tel-aviv-il'), 'il');
+	});
+
+	it('reads US places as us, including the US rows in the world table', () => {
+		assert.equal(country('seattle-wa'), 'us');
+		assert.equal(country('chicago-il'), 'us');
+		assert.equal(country('dublin-ca'), 'us');
+	});
+
+	it('reads a province-qualified region as its country', () => {
+		assert.equal(country('toronto-ca-on'), 'ca');
 	});
 });

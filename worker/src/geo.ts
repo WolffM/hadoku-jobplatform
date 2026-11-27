@@ -240,6 +240,12 @@ const WORLD: Row[] = [
 	['munich', 'de', 48.1351, 11.582],
 	['hamburg', 'de', 53.5511, 9.9937],
 	['frankfurt', 'de', 50.1109, 8.6821],
+	['potsdam', 'de', 52.3906, 13.0645],
+	['cologne', 'de', 50.9375, 6.9603],
+	['dusseldorf', 'de', 51.2277, 6.7735],
+	['stuttgart', 'de', 48.7758, 9.1829],
+	['leipzig', 'de', 51.3397, 12.3731],
+	['nuremberg', 'de', 49.4521, 11.0767],
 	['amsterdam', 'nl', 52.3676, 4.9041],
 	['paris', 'fr', 48.8566, 2.3522],
 	['brussels', 'be', 50.8503, 4.3517],
@@ -313,6 +319,12 @@ const ALIASES: Record<string, string> = {
 	gurgaon: 'gurugram|in',
 	delhi: 'new delhi|in',
 	munchen: 'munich|de',
+	muenchen: 'munich|de',
+	koln: 'cologne|de',
+	koeln: 'cologne|de',
+	nurnberg: 'nuremberg|de',
+	nuernberg: 'nuremberg|de',
+	duesseldorf: 'dusseldorf|de',
 	'tel aviv yafo': 'tel aviv|il',
 };
 
@@ -446,6 +458,23 @@ const PLACES: Place[] = [...US, ...WORLD].map(([name, region, lat, lng]) => ({
 
 const BY_KEY = new Map(PLACES.map((p) => [p.key, p]));
 
+// A place's region is a US state code for US places and an ISO country code
+// everywhere else, and the two overlap ('de' is Delaware and Germany, 'in' is
+// Indiana and India). So the country is read from which table a place came
+// from, not from its region: every US row is 'us', and a WORLD row is 'us' too
+// when its region is not a country this module knows ("Dublin, CA").
+const COUNTRY_BY_KEY = new Map<string, string>();
+for (const [name, region] of US) COUNTRY_BY_KEY.set(`${slug(name)}-${region}`, 'us');
+for (const [name, region] of WORLD) {
+	const country = region in COUNTRY_WORDS ? region.split('-')[0] : 'us';
+	COUNTRY_BY_KEY.set(`${slug(name)}-${region}`, country);
+}
+
+/** The ISO country code ('us', 'de', 'ca', ...) of a known place. */
+export function placeCountry(place: Place): string {
+	return COUNTRY_BY_KEY.get(place.key) ?? 'us';
+}
+
 /** Folded phrase → the places it may mean, in declaration order. */
 const BY_PHRASE = new Map<string, Place[]>();
 function addPhrase(phrase: string, place: Place) {
@@ -465,7 +494,10 @@ for (const [alias, target] of Object.entries(ALIASES)) {
 const PHRASES = [...BY_PHRASE.keys()].sort((a, b) => b.length - a.length);
 
 const STATE_NAMES = new Set(Object.values(US_STATES));
-const ALL_REGIONS = [...Object.keys(US_STATES), ...Object.keys(COUNTRY_WORDS)];
+// A region code can be both a US state and a country ('de' is Delaware and
+// Germany, 'in' Indiana and India; also 'il', 'co', 'ar', 'id'), so it is
+// listed once and named by either the state's evidence or the country's words.
+const ALL_REGIONS = [...new Set([...Object.keys(US_STATES), ...Object.keys(COUNTRY_WORDS)])];
 
 /** Does the string carry evidence that it means this place's region? */
 function regionNamed(raw: string, folded: string, region: string): boolean {
@@ -476,7 +508,7 @@ function regionNamed(raw: string, folded: string, region: string): boolean {
 		const code = region.toUpperCase();
 		if (new RegExp(`(?:^|[^A-Za-z])${code}(?:[^A-Za-z]|$)`).test(raw)) return true;
 		if (region === 'dc' && /\bD\.C\.?/.test(raw)) return true;
-		return folded.includes(` ${stateName} `);
+		if (folded.includes(` ${stateName} `)) return true;
 	}
 	return (COUNTRY_WORDS[region] ?? []).some((w) => folded.includes(fold(w)));
 }
