@@ -31,6 +31,9 @@ export default [
 				AbortController: 'readonly',
 				AbortSignal: 'readonly',
 				crypto: 'readonly',
+				// Workers implement btoa; sources/arbeitsagentur.ts addresses a posting by
+				// the base64 of its reference number.
+				btoa: 'readonly',
 			},
 		},
 		plugins: {

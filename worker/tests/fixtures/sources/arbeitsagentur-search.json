@@ -1,0 +1,126 @@
+{
+	"ergebnisliste": [
+		{
+			"stellenangebotsart": "ARBEIT",
+			"stellenangebotsTitel": "Senior Project Manager (m/w/d)",
+			"quereinstiegGeeignet": false,
+			"arbeitszeitVollzeit": true,
+			"eintrittszeitraum": {
+				"von": "2026-08-31"
+			},
+			"verguetungsangabe": "KEINE_ANGABEN",
+			"vertragsdauer": "KEINE_ANGABE",
+			"istGeringfuegigeBeschaeftigung": false,
+			"stellenlokationen": [
+				{
+					"adresse": {
+						"strasse": "Kommandantenstraße 18",
+						"plz": "10969",
+						"ort": "Berlin",
+						"region": "BERLIN",
+						"land": "DEUTSCHLAND"
+					},
+					"breite": 52.50834,
+					"laenge": 13.403016
+				}
+			],
+			"veroeffentlichungszeitraum": {
+				"von": "2026-08-31"
+			},
+			"datumErsteVeroeffentlichung": "2026-07-10",
+			"aenderungsdatum": "2026-08-31T07:49:35.268",
+			"hauptberuf": "Account-Manager/in",
+			"firma": "D-TRUST GmbH",
+			"arbeitgeberKundennummerHash": "0wF8uul_eaKKjkY1ShVCeQVSHEtVQ4NDvPv6EEO_wLA=",
+			"referenznummer": "15933-0065990738-S",
+			"entfernung": 2,
+			"alleBerufe": ["Account-Manager/in"]
+		},
+		{
+			"stellenangebotsart": "ARBEIT",
+			"stellenangebotsTitel": "Project Manager (m/w/d)",
+			"quereinstiegGeeignet": false,
+			"arbeitszeitVollzeit": true,
+			"eintrittszeitraum": {
+				"von": "2026-10-26"
+			},
+			"verguetungsangabe": "KEINE_ANGABEN",
+			"vertragsdauer": "UNBEFRISTET",
+			"istGeringfuegigeBeschaeftigung": false,
+			"stellenlokationen": [
+				{
+					"adresse": {
+						"strasse": "Am Studio",
+						"hausnummer": "26",
+						"plz": "12489",
+						"ort": "Berlin",
+						"region": "BERLIN",
+						"land": "DEUTSCHLAND"
+					},
+					"breite": 52.43256,
+					"laenge": 13.5373005
+				}
+			],
+			"chiffrenummer": "#20253562",
+			"veroeffentlichungszeitraum": {
+				"von": "2026-10-26"
+			},
+			"datumErsteVeroeffentlichung": "2026-10-26",
+			"aenderungsdatum": "2026-10-26T08:04:27.483",
+			"hauptberuf": "Projektleiter/in / Projektmanager/in",
+			"firma": "OMS Prüfservice GmbH",
+			"arbeitgeberKundennummerHash": "ubdOvmh-NGaf6SdQjB2HUAGxU5JRKpPvCHk9O6C9_98=",
+			"referenznummer": "16444-220253562-S",
+			"entfernung": 12,
+			"alleBerufe": ["Projektleiter/in / Projektmanager/in"]
+		},
+		{
+			"stellenangebotsart": "ARBEIT",
+			"stellenangebotsTitel": "Technical Project Manager (m/w/d)",
+			"quereinstiegGeeignet": false,
+			"arbeitszeitVollzeit": true,
+			"eintrittszeitraum": {
+				"von": "2026-09-04"
+			},
+			"verguetungsangabe": "KEINE_ANGABEN",
+			"vertragsdauer": "KEINE_ANGABE",
+			"istGeringfuegigeBeschaeftigung": false,
+			"stellenlokationen": [
+				{
+					"adresse": {
+						"plz": "10969",
+						"ort": "Berlin",
+						"region": "BERLIN",
+						"land": "DEUTSCHLAND"
+					},
+					"breite": 52.502048591,
+					"laenge": 13.401446278
+				}
+			],
+			"veroeffentlichungszeitraum": {
+				"von": "2026-09-04"
+			},
+			"datumErsteVeroeffentlichung": "2026-04-01",
+			"aenderungsdatum": "2026-09-04T08:56:28.472",
+			"hauptberuf": "Projektleiter/in / Projektmanager/in",
+			"firma": "Bundesdruckerei Gruppe GmbH",
+			"arbeitgeberKundennummerHash": "qSmuZituUIdFpiPaYVpKs-ORKKiLAVrV8jQn79IiJJk=",
+			"referenznummer": "15933-0063927555-S",
+			"entfernung": 2,
+			"alleBerufe": ["Projektleiter/in / Projektmanager/in"]
+		}
+	],
+	"maxErgebnisse": 58,
+	"page": 1,
+	"size": 3,
+	"woOutput": {
+		"bereinigterOrt": "Berlin",
+		"suchmodus": "UMKREISSUCHE",
+		"koordinaten": [
+			{
+				"lat": 52.5112613,
+				"lon": 13.4255145
+			}
+		]
+	}
+}

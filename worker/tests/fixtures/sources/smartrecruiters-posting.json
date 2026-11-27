@@ -1,0 +1,87 @@
+{
+	"id": "744000163988834",
+	"name": "Fachliche:r Leiter:in Integration & Automation (ohne disziplinarische Führungsverantwortung)",
+	"uuid": "0fdbfd21-0f78-4af8-9ff4-ec60fba7ce84",
+	"jobId": "4104c4ea-eb33-4cdd-9835-ac2512420865",
+	"jobAdId": "f24c29eb-2592-40de-948b-cef22a7db59c",
+	"defaultJobAd": true,
+	"refNumber": "REF13034Q",
+	"company": {
+		"name": "Vattenfall",
+		"identifier": "Vattenfall"
+	},
+	"location": {
+		"city": "Berlin",
+		"region": "BE",
+		"country": "de",
+		"remote": false,
+		"hybrid": false,
+		"latitude": "52.52000659999999",
+		"longitude": "13.404954",
+		"fullLocation": "Berlin, BE, Germany"
+	},
+	"customField": [
+		{
+			"fieldId": "61b73bcd30ac9859e1b050ad",
+			"fieldLabel": "Activities",
+			"valueId": "3346287",
+			"valueLabel": "Customers & Solutions"
+		}
+	],
+	"releasedDate": "2026-11-27T09:05:47.419Z",
+	"creator": {
+		"name": "",
+		"avatarUrl": ""
+	},
+	"postingUrl": "https://jobs.smartrecruiters.com/Vattenfall/744000163988834-fachliche-r-leiter-in-integration-automation-ohne-disziplinarische-fuhrungsverantwortung-",
+	"applyUrl": "https://jobs.smartrecruiters.com/Vattenfall/744000163988834-fachliche-r-leiter-in-integration-automation-ohne-disziplinarische-fuhrungsverantwortung-?oga=true",
+	"referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/Vattenfall/publication/0fdbfd21-0f78-4af8-9ff4-ec60fba7ce84?dcr_ci=Vattenfall",
+	"jobAd": {
+		"sections": {
+			"companyDescription": {
+				"title": "Unternehmensbeschreibung",
+				"text": "<p>Es gibt einen Weg in eine fossilfreie Zukunft – und wir bei Vattenfall Europe Sales gestalten ihn aktiv mit. Wir verantworten die Entwicklung, Vermarktung und den Vertrieb unserer Strom- und Gasprodukte sowie unserer neuen Energielösungen – von Solaranlagen über Wärmepumpen bis hin zu Wallboxen. Mit unserem Angebot richten wir uns an Kund:innen in Hamburg, Berlin und ganz Deutschland.</p><p>Dab"
+			},
+			"jobDescription": {
+				"title": "Stellenbeschreibung",
+				"text": "<p>Für die&#xa0;<strong>Vattenfall Europe Sales GmbH</strong>&#xa0;suchen wir eine:n</p><p><strong>Fachliche:r Leiter:in Integration &amp; Automation (ohne disziplinarische Führungsverantwortung)&#xa0;&#xa0;</strong>in&#xa0;<strong>Voll- oder Teilzeit&#xa0;</strong>am Standort&#xa0;<strong>Berlin </strong>oder <strong>Hamburg.</strong></p><p>&#xa0;</p><p>Die Region Deutschland &amp; Frankreich der"
+			},
+			"qualifications": {
+				"title": "Qualifikationen",
+				"text": "<ul><li>Du hast mindestens 5 Jahre Berufserfahrung im Bereich der Energiewirtschaft und der entsprechenden Prozesse</li><li>Abgeschlossenes fachspezifisches Fachhoch-/ Hochschulstudium oder vergleichbarer Abschluss</li><li>Mehrjährige Berufserfahrung oder Projektumfeld</li><li>Fundierte Kenntnisse der Prozesse des Fachbereichs und der Energiewirtschaft (Gesetze, Verträge, Vereinbarungen, Marktumfe"
+			},
+			"additionalInformation": {
+				"title": "Zusätzliche Informationen",
+				"text": "<p><strong>Was wir dir bieten</strong></p><p><strong>Sinnstiftende Aufgaben</strong> – Du leistest einen aktiven Beitrag zur Energiewende und arbeitest an zukunftsrelevanten Themen mit gesellschaftlicher Bedeutung.</p><p><strong>Flexible Arbeitszeitmodelle</strong> – Ob in Voll- oder Teilzeit: Wir bieten dir ein Arbeitsmodell, das zu deinem Leben passt – inklusive Homeoffice-Optionen und Gleitzeit"
+			}
+		}
+	},
+	"active": true,
+	"visibility": "PUBLIC",
+	"unpublishOn": "2026-12-07T23:00:00.000Z",
+	"industry": {
+		"id": "oil_and_energy",
+		"label": "Oil And Energy"
+	},
+	"function": {
+		"id": "management",
+		"label": "Management"
+	},
+	"department": {
+		"id": 3346287,
+		"label": "Customers & Solutions"
+	},
+	"experienceLevel": {
+		"id": "mid_senior_level",
+		"label": "Mid-Senior Level"
+	},
+	"typeOfEmployment": {
+		"id": "permanent",
+		"label": "Full-time"
+	},
+	"language": {
+		"code": "de",
+		"label": "German",
+		"labelNative": "Deutsch"
+	}
+}

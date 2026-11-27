@@ -1,0 +1,41 @@
+{
+	"stellenangebotsart": "ARBEIT",
+	"stellenangebotsTitel": "Senior Project Manager (m/w/d)",
+	"quereinstiegGeeignet": false,
+	"stellenangebotsBeschreibung": "Zum nächstmöglichen Zeitpunkt suchen wir Sie als Senior Project Manager(m/w/d) für den Standort Berlin.\n\n **Ihr Aufgabenbereich** \n* Gesamtverantwortung für die Planung, operative Durchführung und Steuerungkomplexer technischer Projekte mit Teilprojekten im Rahmen derzeit-, Kosten-, Ressourcen- und Qualitätsvorgaben\n* Angebotsmanagement: Beratung, Unterstützung des Vertriebs durch Aufwandsermittlung und Koordination; Mitwirkung an der Bewertung von Anforderungen, Ausschreibungen und Vertragsentwürfen\n* Sicherstellung der Erreichung der Auftrags- und Vertragsziele, Planung und Steuerung von Pro",
+	"arbeitszeitVollzeit": true,
+	"eintrittszeitraum": {
+		"von": "2026-08-31"
+	},
+	"verguetungsangabe": "KEINE_ANGABEN",
+	"vertragsdauer": "KEINE_ANGABE",
+	"istGeringfuegigeBeschaeftigung": false,
+	"istBehinderungGefordert": false,
+	"stellenlokationen": [
+		{
+			"adresse": {
+				"strasse": "Kommandantenstraße 18",
+				"plz": "10969",
+				"ort": "Berlin",
+				"region": "BERLIN",
+				"land": "DEUTSCHLAND"
+			},
+			"breite": 52.50834,
+			"laenge": 13.403016
+		}
+	],
+	"istPrivateArbeitsvermittlung": false,
+	"istArbeitnehmerUeberlassung": false,
+	"veroeffentlichungszeitraum": {
+		"von": "2026-08-31"
+	},
+	"datumErsteVeroeffentlichung": "2026-07-10",
+	"aenderungsdatum": "2026-08-31T07:49:35.268",
+	"istBetreut": false,
+	"hauptberuf": "Account-Manager/in",
+	"firma": "D-TRUST GmbH",
+	"arbeitgeberKundennummerHash": "0wF8uul_eaKKjkY1ShVCeQVSHEtVQ4NDvPv6EEO_wLA=",
+	"allianzpartnerUrl": "www.bundesdruckerei.de",
+	"allianzpartnerName": "Bundesdruckerei GmbH",
+	"referenznummer": "15933-0065990738-S"
+}

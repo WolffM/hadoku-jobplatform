@@ -1,0 +1,127 @@
+{
+	"offset": 0,
+	"limit": 2,
+	"totalFound": 65,
+	"content": [
+		{
+			"id": "744000163988834",
+			"name": "Fachliche:r Leiter:in Integration & Automation (ohne disziplinarische Führungsverantwortung)",
+			"uuid": "0fdbfd21-0f78-4af8-9ff4-ec60fba7ce84",
+			"jobAdId": "f24c29eb-2592-40de-948b-cef22a7db59c",
+			"defaultJobAd": true,
+			"refNumber": "REF13034Q",
+			"company": {
+				"identifier": "Vattenfall",
+				"name": "Vattenfall"
+			},
+			"releasedDate": "2026-11-27T09:05:47.419Z",
+			"location": {
+				"city": "Berlin",
+				"region": "BE",
+				"country": "de",
+				"remote": false,
+				"hybrid": false,
+				"latitude": "52.52000659999999",
+				"longitude": "13.404954",
+				"fullLocation": "Berlin, BE, Germany"
+			},
+			"industry": {
+				"id": "oil_and_energy",
+				"label": "Oil And Energy"
+			},
+			"department": {
+				"id": "3346287",
+				"label": "Customers & Solutions"
+			},
+			"function": {
+				"id": "management",
+				"label": "Management"
+			},
+			"typeOfEmployment": {
+				"id": "permanent",
+				"label": "Full-time"
+			},
+			"experienceLevel": {
+				"id": "mid_senior_level",
+				"label": "Mid-Senior Level"
+			},
+			"customField": [
+				{
+					"fieldId": "62b0827f79e5902fd497e73c",
+					"fieldLabel": "The role can be filled in multiple countries",
+					"valueId": "4da4fc89-2690-484f-a521-a06b3eeaed1b",
+					"valueLabel": "No"
+				}
+			],
+			"visibility": "PUBLIC",
+			"ref": "https://api.smartrecruiters.com/v1/companies/Vattenfall/postings/744000163988834",
+			"language": {
+				"code": "de",
+				"label": "German",
+				"labelNative": "Deutsch"
+			},
+			"unpublishOn": "2026-12-07T23:00:00.000Z"
+		},
+		{
+			"id": "744000163970049",
+			"name": "Senior Berater:in und Prüfer:in von Anwendungen mit künstlicher Intelligenz",
+			"uuid": "344d28b9-24c7-4897-9c1f-42d3ee733a16",
+			"jobAdId": "278dae33-10bb-43fa-88f7-3a84eb0e0a87",
+			"defaultJobAd": false,
+			"refNumber": "REF12503W",
+			"company": {
+				"identifier": "Vattenfall",
+				"name": "Vattenfall"
+			},
+			"releasedDate": "2026-11-27T06:56:26.721Z",
+			"location": {
+				"city": "Hamburg",
+				"region": "HH",
+				"country": "de",
+				"remote": false,
+				"hybrid": true,
+				"latitude": "53.5488282",
+				"longitude": "9.987170299999999",
+				"fullLocation": "Hamburg, HH, Germany"
+			},
+			"industry": {
+				"id": "utilities",
+				"label": "Utilities"
+			},
+			"department": {
+				"id": "3346287",
+				"label": "Customers & Solutions"
+			},
+			"function": {
+				"id": "sales",
+				"label": "Sales"
+			},
+			"typeOfEmployment": {
+				"id": "permanent",
+				"label": "Full-time"
+			},
+			"experienceLevel": {
+				"id": "associate",
+				"label": "Associate"
+			},
+			"customField": [
+				{
+					"fieldId": "62b09bc3a492225f58768fb0",
+					"fieldLabel": "Managerial Level",
+					"valueId": "7585a841-639d-45c9-97d5-a3a86251c428",
+					"valueLabel": "Not Applicable"
+				}
+			],
+			"visibility": "PUBLIC",
+			"ref": "https://api.smartrecruiters.com/v1/companies/Vattenfall/postings/744000163970049",
+			"creator": {
+				"name": "Maryana Halushko"
+			},
+			"language": {
+				"code": "de",
+				"label": "German",
+				"labelNative": "Deutsch"
+			}
+		}
+	]
+}
