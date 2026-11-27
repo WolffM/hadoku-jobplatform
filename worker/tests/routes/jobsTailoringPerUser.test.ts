@@ -85,6 +85,17 @@ describe('every tailoring call names the person it is for', () => {
 		assert.equal(h.resume.calls.at(-1)?.body.on_behalf_of_user_id, 'user-hadoku');
 	});
 
+	it("a JSON null body is no options, for the caller's own résumé", async () => {
+		const res = await h.json(`${BASE}/jobs/pu-1/resume`, {
+			method: 'POST',
+			tier: 'friend',
+			userId: 'user-a',
+			body: 'null',
+		});
+		assert.equal(res.status, 200);
+		assert.equal(h.resume.calls.at(-1)?.body.on_behalf_of_user_id, 'user-a');
+	});
+
 	it('a friend naming someone else is refused before resume-api is called', async () => {
 		const res = await post('/jobs/pu-1/resume', 'user-a', { ownerName: 'Hadoku' });
 		assert.equal(res.status, 403);

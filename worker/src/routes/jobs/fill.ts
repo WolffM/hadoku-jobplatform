@@ -20,7 +20,7 @@ import { publicUrl } from '../../ingestWrite.js';
 import type { D1Database } from '@cloudflare/workers-types';
 import { effectiveUserId, gateAuthed, isEffectiveUserError, type JobsApp } from './shared.js';
 import { parseEvidence } from './applications.js';
-import { reseedResume } from '../../clients/resume.js';
+import { reseedResume, resumeNeedsReseed } from '../../clients/resume.js';
 import { runAfterResponse } from '../../background.js';
 
 /** Where resume-api renders a minted packet as a PDF (`?v=<slug>`). */
@@ -114,12 +114,11 @@ export function registerFillRoutes(app: JobsApp) {
 		)
 			.bind(who.userId, JSON.stringify(b.profile), now)
 			.run();
-		// New or changed résumé text replaces the person's résumé at resume-api,
+		// A changed résumé (pasted text, or the work history it is composed from)
+		// or changed contact details replace the person's résumé at resume-api,
 		// so the next tailored résumé is built from what they just saved. Behind
 		// the response: the save itself never waits on resume-api.
-		const text = (p: Record<string, unknown> | undefined) =>
-			typeof p?.master_resume_text === 'string' ? p.master_resume_text.trim() : '';
-		if (text(b.profile) && text(b.profile) !== text(before?.profile)) {
+		if (resumeNeedsReseed(before?.profile, b.profile)) {
 			runAfterResponse(c, 'resume-api reseed', reseedResume(c.env, who.userId, b.profile));
 		}
 		return c.json({ success: true as const, data: { updated_at: now } }, 200);

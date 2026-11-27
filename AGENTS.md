@@ -123,9 +123,11 @@ A person resume-api has no content for answers 409 (`NO_RESUME_BLOCKS` /
 `NO_CONTACT_PROFILE`). The route then seeds them once from their applicant
 profile (`worker/src/resumeSeed.ts`: `master_resume_text`, else the structured
 fields) and retries; with nothing to seed from, the UI gets a 409 with
-`code` and a message pointing at the Profile page's Résumé box. Saving new
-résumé text on the applicant profile re-imports it behind the response
-(`worker/src/clients/resume.ts` `reseedResume`).
+`code` and a message pointing at the Profile page's Résumé box. A profile
+save that changes the résumé (the pasted text, or the work history it is
+composed from) or the contact details re-imports it behind the response
+(`worker/src/clients/resume.ts` `resumeNeedsReseed`, `reseedResume`). A 404
+from resume-api (per-user résumés not deployed yet) is logged, not reported.
 
 ## Key Decisions
 

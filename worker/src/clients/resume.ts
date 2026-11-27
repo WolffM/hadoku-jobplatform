@@ -6,6 +6,7 @@
 import { EDGE_BASE } from '@wolffm/worker-utils/edge-routes';
 import type { AppEnv } from '../types.js';
 import { profileContact, profileResumeText } from '../resumeSeed.js';
+import { logger } from '../logger.js';
 
 /**
  * resume-api, reached the way any service caller reaches it: through the
@@ -42,11 +43,48 @@ export async function callResumeBinding(
 }
 
 /**
+ * Whether a profile save has to replace the person's résumé at resume-api: it
+ * has something to build from, and either that résumé text (the saved
+ * `master_resume_text`, or the one composed from the structured fields) or
+ * the contact details changed. Contact goes through the same import, so the
+ * details parsed from the résumé header and the profile's merge the same way
+ * as on the first seed.
+ *
+ * A profile that no longer has anything to build from leaves resume-api
+ * alone: the person keeps the résumé they had there.
+ */
+export function resumeNeedsReseed(
+	before: Record<string, unknown> | undefined,
+	after: Record<string, unknown>
+): boolean {
+	const text = profileResumeText(after);
+	if (!text) return false;
+	if (!before) return true;
+	if (text !== profileResumeText(before)) return true;
+	return JSON.stringify(profileContact(after)) !== JSON.stringify(profileContact(before));
+}
+
+/** The JSON `code` of a resume-api error body, if it has one. */
+function errorCode(detail: string): string | null {
+	try {
+		const body: unknown = JSON.parse(detail);
+		const code =
+			typeof body === 'object' && body !== null ? (body as { code?: unknown }).code : null;
+		return typeof code === 'string' ? code : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Replace a person's résumé content at resume-api with what their applicant
- * profile now says. Called after a profile save that changed the résumé text,
- * so tailoring stops using the old one. A profile with nothing to build from
- * is left alone, and so is the site owner's (resume-api answers OWNER_SET).
- * Throws on any other upstream failure, for runAfterResponse to report.
+ * profile now says. Called after a profile save that changed the résumé text
+ * or contact details (resumeNeedsReseed), so tailoring stops using the old
+ * ones. A profile with nothing to build from is left alone, and so is the
+ * site owner's (resume-api answers OWNER_SET). A 404 means resume-api does not
+ * have per-user résumés yet (this worker deployed first): logged, not
+ * reported. Throws on any other upstream failure, for runAfterResponse to
+ * report.
  */
 export async function reseedResume(
 	env: AppEnv,
@@ -65,6 +103,12 @@ export async function reseedResume(
 	const detail = await res.text();
 	// The site owner's résumé is curated in resume-api's own builder, and
 	// resume-api refuses to overwrite it from here. That is not a failure.
-	if (res.status === 403 && detail.includes('"OWNER_SET"')) return;
+	if (res.status === 403 && errorCode(detail) === 'OWNER_SET') return;
+	if (res.status === 404) {
+		logger.warn('resume-api has no per-user résumé import yet; reseed skipped', {
+			user_id: userId,
+		});
+		return;
+	}
 	throw new Error(`resume-api reseed ${res.status}: ${detail.slice(0, 300)}`);
 }

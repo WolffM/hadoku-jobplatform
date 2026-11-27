@@ -4,9 +4,9 @@
  * POST /jobs/:id/{resume,cover-letter,application-extras,packet-link}
  *
  * The caller (dashboard user, admin/friend) hits these; we pull the job row and
- * proxy title/company/description to resume-api over a Cloudflare service
- * binding. The binding bypasses the public edge, so we stamp X-Edge-Auth +
- * X-Hadoku-Tier: service ourselves — resume-api's in-worker gate admits service
+ * proxy title/company/description to resume-api through the edge, over the
+ * EDGE binding, as this worker's own service identity (clients/resume.ts).
+ * The edge stamps the service tier; resume-api's in-worker gate admits service
  * on these routes.
  *
  * These are plain Hono routes, not app.openapi: their response shape is
@@ -158,10 +158,18 @@ async function fetchMintedResume(
 	return { markdown: body.content };
 }
 
-/** Body parsing for these routes is lenient — a missing/!JSON body is `{}`. */
-async function readOptions(c: { req: { json: () => Promise<unknown> } }) {
+/**
+ * Body parsing for these routes is lenient: a missing or non-JSON body, or
+ * JSON that is not an object (`null`, an array), is `{}`.
+ */
+async function readOptions(c: {
+	req: { json: () => Promise<unknown> };
+}): Promise<Record<string, unknown>> {
 	try {
-		return (await c.req.json()) as Record<string, unknown>;
+		const body: unknown = await c.req.json();
+		return typeof body === 'object' && body !== null && !Array.isArray(body)
+			? (body as Record<string, unknown>)
+			: {};
 	} catch {
 		return {};
 	}
