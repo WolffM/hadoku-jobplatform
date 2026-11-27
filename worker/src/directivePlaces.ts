@@ -4,7 +4,8 @@
  * profile's own place (the Jobsuche feed searches German places only).
  *
  * A profile is listed when its `location` resolves to a known place and it has
- * at least one keyword. Profiles that resolve to the same place and radius are
+ * at least one keyword. `location` is the profile's single near= centre, so
+ * free text naming several places ("Berlin | Munich") counts as its first. Profiles that resolve to the same place and radius are
  * merged into one entry, their keywords unioned case-insensitively (first-seen
  * casing kept, like the top-level `keywords`). The raw location string is never
  * sent, only the resolved place.
@@ -12,7 +13,7 @@
 import { placeCountry, resolvePlace } from './geo.js';
 
 export interface DirectivePlace {
-	/** The place's name, title-cased ("Berlin", "New York City"). */
+	/** The place's name, title-cased ("Berlin", "San Francisco"). */
 	name: string;
 	/** ISO 3166-1 alpha-2, lowercase ("de", "us"). */
 	country: string;
@@ -78,12 +79,13 @@ export function directivePlaces(rows: DirectivePlaceRow[]): DirectivePlace[] {
 			entry.place.keywords.push(kw);
 		}
 	}
-	// Deterministic order: by place key, then radius.
+	// Deterministic order, independent of the runtime's locale: by place key
+	// (code points), then radius.
 	return [...byKey.entries()]
 		.sort(([a], [b]) => {
 			const [ka, ra] = a.split('|');
 			const [kb, rb] = b.split('|');
-			return ka.localeCompare(kb) || Number(ra) - Number(rb);
+			return (ka < kb ? -1 : ka > kb ? 1 : 0) || Number(ra) - Number(rb);
 		})
 		.map(([, e]) => e.place);
 }

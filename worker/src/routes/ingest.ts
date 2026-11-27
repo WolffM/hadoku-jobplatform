@@ -697,7 +697,7 @@ const directivesRoute = createRoute({
 	method: 'get',
 	path: '/directives',
 	tags: ['Ingest'],
-	summary: 'Scrape directives — union of all profiles’ companies + keywords',
+	summary: 'Scrape directives: union of all profiles’ companies + keywords, and their places',
 	description:
 		'Pulled by hadoku-scrape each run. `companies` = distinct (ats, slug) across ' +
 		'every profile_companies row; `keywords` = the deduped (case-insensitive) union ' +
