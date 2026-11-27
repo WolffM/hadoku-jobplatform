@@ -107,7 +107,8 @@ const WORKPLACE_LABEL: Record<string, string> = {
 export function InsightsPage({ auth }: { auth: Auth }) {
   const { data, loading, error } = useResource('insights', () => getInsights(auth))
 
-  if (!auth.signedIn) return <p className="jp-muted">Insights are per-account — sign in.</p>
+  if (!auth.signedIn)
+    return <p className="jp-muted">Insights are per-account. Sign in to see yours.</p>
   if (loading) return <p className="jp-muted">Loading insights…</p>
   if (error || !data)
     return (
