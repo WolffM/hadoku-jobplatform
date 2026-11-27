@@ -446,6 +446,23 @@ const PLACES: Place[] = [...US, ...WORLD].map(([name, region, lat, lng]) => ({
 
 const BY_KEY = new Map(PLACES.map((p) => [p.key, p]));
 
+// A place's region is a US state code for US places and an ISO country code
+// everywhere else, and the two overlap ('de' is Delaware and Germany, 'in' is
+// Indiana and India). So the country is read from which table a place came
+// from, not from its region: every US row is 'us', and a WORLD row is 'us' too
+// when its region is not a country this module knows ("Dublin, CA").
+const COUNTRY_BY_KEY = new Map<string, string>();
+for (const [name, region] of US) COUNTRY_BY_KEY.set(`${slug(name)}-${region}`, 'us');
+for (const [name, region] of WORLD) {
+	const country = region in COUNTRY_WORDS ? region.split('-')[0] : 'us';
+	COUNTRY_BY_KEY.set(`${slug(name)}-${region}`, country);
+}
+
+/** The ISO country code ('us', 'de', 'ca', ...) of a known place. */
+export function placeCountry(place: Place): string {
+	return COUNTRY_BY_KEY.get(place.key) ?? 'us';
+}
+
 /** Folded phrase → the places it may mean, in declaration order. */
 const BY_PHRASE = new Map<string, Place[]>();
 function addPhrase(phrase: string, place: Place) {
