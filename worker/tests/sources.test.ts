@@ -170,9 +170,13 @@ describe('arbeitsagentur (Jobsuche API)', () => {
 
 describe('personio (XML feed)', () => {
 	const task = { source: 'personio' as const, slug: 'merantix', company: 'Merantix' };
+	// personio-feed.xml: two voiio positions (German board, German text) and
+	// two Merantix positions, which the default feed sends without text because
+	// they exist only in English; personio-feed-en.xml has those two in English.
+	const defaultFeed = () => personio.parseFeed(fixture('personio-feed.xml'));
 
 	it('reads every position, and the position name rather than a section name', () => {
-		const positions = personio.parseFeed(fixture('personio-feed.xml'));
+		const positions = defaultFeed();
 		assert.equal(positions.length, 4);
 		assert.deepEqual(
 			positions.map((p) => p.name),
@@ -185,41 +189,61 @@ describe('personio (XML feed)', () => {
 		);
 		assert.deepEqual(positions[2].offices, ['Zürich', 'Remote / Hybrid']);
 		assert.equal(positions[2].subcompany, 'Merantix Fund Management GmbH');
-		assert.match(positions[2].descriptionHtml, /^<h3>What we do<\/h3>Physical commodity trading/);
-		assert.match(positions[2].descriptionHtml, /<h3>Your role<\/h3>/);
-		assert.equal(positions[0].descriptionHtml, '', 'a position with no sections');
+		assert.match(positions[0].descriptionHtml, /^<h3>Dein Impact zur Mission:<\/h3>/);
+		assert.equal(positions[2].descriptionHtml, '', 'English-only posting, default feed');
+		const english = personio.parseFeed(fixture('personio-feed-en.xml'));
+		assert.match(english[0].descriptionHtml, /^<h3>What we do<\/h3>Physical commodity trading/);
+		assert.match(english[0].descriptionHtml, /<h3>Your role<\/h3>/);
 	});
 
 	it('normalizes a position into an ingest posting', () => {
-		const p = personio.parseFeed(fixture('personio-feed.xml'))[3];
-		const job = personio.normalizePosition(p, task);
+		const p = defaultFeed()[0];
+		const job = personio.normalizePosition(p, { ...task, slug: 'voiio', company: 'voiio' });
 		assert.equal(job.id, `personio_${p.id}`);
-		assert.equal(job.url, `https://merantix.jobs.personio.de/job/${p.id}`);
+		assert.equal(job.url, `https://voiio.jobs.personio.de/job/${p.id}`);
 		assert.equal(job.source_site, 'jobs.personio.de');
-		assert.equal(job.company, 'Merantix');
+		assert.equal(job.company, 'voiio');
 		assert.equal(job.location, 'Berlin');
 		assert.equal(geoKeys(job.location), '|berlin-de|');
 		assert.equal(job.workplace_type, 'unknown');
-		assert.ok(job.description.startsWith('<h3>What we do</h3>'));
+		assert.equal(job.job_type, 'full_time');
+		assert.ok(job.description.startsWith('<h3>Dein Impact zur Mission:</h3>'));
 	});
 
 	it('reads remote offices as remote or hybrid', () => {
-		const [, , mixed] = personio.parseFeed(fixture('personio-feed.xml'));
+		const [, , mixed] = defaultFeed();
 		assert.equal(personio.normalizePosition(mixed, task).workplace_type, 'hybrid');
 		const allRemote = { ...mixed, offices: ['Remote'] };
 		assert.equal(personio.normalizePosition(allRemote, task).workplace_type, 'remote');
 	});
 
-	it('drops standing "send us your CV" entries when listing', async () => {
-		const { http, calls } = fakeHttp(() => ({ body: fixture('personio-feed.xml') }));
+	it('fills text-less postings from the English feed, and drops "send us your CV" entries', async () => {
+		const { http, calls } = fakeHttp((url) => ({
+			body: fixture(url.endsWith('?language=en') ? 'personio-feed-en.xml' : 'personio-feed.xml'),
+		}));
 		const listings = await personio.list(task, { http });
-		assert.equal(calls[0].url, 'https://merantix.jobs.personio.de/xml?language=en');
+		assert.deepEqual(
+			calls.map((c) => c.url),
+			['https://merantix.jobs.personio.de/xml', 'https://merantix.jobs.personio.de/xml?language=en']
+		);
 		assert.equal(listings.length, 3);
 		assert.ok(listings.every((l) => !/Initiativbewerbung/.test(l.job.title)));
+		assert.ok(
+			listings.every((l) => l.job.description !== ''),
+			'every posting has its text'
+		);
+		assert.ok(listings[1].job.description.startsWith('<h3>What we do</h3>'));
 		assert.ok(
 			listings.every((l) => l.detailUrl === null),
 			'descriptions are inline'
 		);
+	});
+
+	it('reads the board once when every posting came with text', async () => {
+		const xml = fixture('personio-feed-en.xml');
+		const { http, calls } = fakeHttp(() => ({ body: xml }));
+		assert.equal((await personio.list(task, { http })).length, 2);
+		assert.equal(calls.length, 1);
 	});
 
 	it('refuses a body that is not a Personio feed (a board that moved answers HTML)', () => {

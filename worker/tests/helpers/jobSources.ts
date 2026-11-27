@@ -47,7 +47,7 @@ export async function startJobSources(): Promise<{
 	const calls: SourceCall[] = [];
 	const overrides = new Map<string, Reply | ((call: SourceCall) => Reply)>();
 
-	function defaultReply(path: string): Reply {
+	function defaultReply(path: string, query: URLSearchParams): Reply {
 		if (path === '/arbeitsagentur/pc/v6/jobs') {
 			return { status: 200, body: fixture('arbeitsagentur-search.json') };
 		}
@@ -60,7 +60,8 @@ export async function startJobSources(): Promise<{
 		}
 		const personio = /^\/personio\/([^/]+)\/xml$/.exec(path);
 		if (personio) {
-			return { status: 200, body: fixture('personio-feed.xml'), type: 'application/xml' };
+			const name = query.get('language') === 'en' ? 'personio-feed-en.xml' : 'personio-feed.xml';
+			return { status: 200, body: fixture(name), type: 'application/xml' };
 		}
 		if (/^\/smartrecruiters\/v1\/companies\/[^/]+\/postings$/.test(path)) {
 			return { status: 200, body: fixture('smartrecruiters-postings.json') };
@@ -83,7 +84,11 @@ export async function startJobSources(): Promise<{
 		};
 		calls.push(call);
 		const o = overrides.get(u.pathname);
-		const reply = o ? (typeof o === 'function' ? o(call) : o) : defaultReply(u.pathname);
+		const reply = o
+			? typeof o === 'function'
+				? o(call)
+				: o
+			: defaultReply(u.pathname, u.searchParams);
 		res.writeHead(reply.status, { 'Content-Type': reply.type ?? 'application/json' });
 		res.end(reply.body);
 	});

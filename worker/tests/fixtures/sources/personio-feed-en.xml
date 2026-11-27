@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<workzag-jobs>
+
+<position>
+    <id>2756691</id>
+    <subcompany>Merantix Fund Management GmbH</subcompany>
+    <office>Zürich</office>
+    <additionalOffices>
+        <office>Remote / Hybrid</office>
+    </additionalOffices>
+    <department>Entrepreneurs-In-Residence</department>
+    <recruitingCategory>Stealth AI Infrastructure for Physical Commodity Trading</recruitingCategory>
+    <name>Co-founder &amp; CTO (Stealth AI Infrastructure for Physical Commodity Trading Venture)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>What we do</name>
+            <value>
+                <![CDATA[Physical commodity trading is one of the world’s largest and least digitised industries. Critical commercial workflows still run through messages, calls, spreadsheets and tacit trader knowledge, while incumbent systems are generally better at recording transactions than preservin]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Your role</name>
+            <value>
+                <![CDATA[The trading operating system is the core technology of the company. It is built around live commercial workflows rather than as generic software for incumbent trading houses and may later support selected external flow owners through controlled operating and revenue-sharing model]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Your profile</name>
+            <value>
+                <![CDATA[<ul><li>A strong mathematical, machine learning, and data engineering foundation. </li><li>Applied AI/ML and data architecture depth: you have built and shipped real AI products into production, in messy, real-world environments. </li><li>Experience turning heterogeneous, unstruc]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>What we offer</name>
+            <value>
+                <![CDATA[<ul><li>True co-founder status: co-founder equity and full ownership of technology, with a seat in every strategic decision from day one. </li><li>A funded start with working-capital structures and initial commercial flows already under development.</li><li>Building with Merantix]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>permanent</employmentType>
+    <seniority>experienced</seniority>
+    <schedule>full-time</schedule>
+    <keywords>AI,Machine Learning,ML,Trading,Commodity Trading,Infrastructure,Engineering,Systems Engineering,Data,Data Science,Workflow,Agentic,Automation,Multi-modal,LLM,Time-Series,Logistics,Supply Chain</keywords>
+    <occupation>systems_and_process_engineering</occupation>
+    <occupationCategory>engineering</occupationCategory>
+    <createdAt>2026-08-17T09:11:14+00:00</createdAt>
+</position>
+
+<position>
+    <id>2689182</id>
+    <subcompany>Merantix Stealth Venture</subcompany>
+    <office>Berlin</office>
+    <department>Business Development</department>
+    <name>Founders Associate Intern (Stealth Start-up)</name>
+    <jobDescriptions>
+        <jobDescription>
+            <name>What we do</name>
+            <value>
+                <![CDATA[<p style="line-height:1.38;margin-top:12pt;margin-bottom:12pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">Modern logistics and manufacturing rely on the smooth flow]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Your role</name>
+            <value>
+                <![CDATA[<p style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">You'll sit directly next to the founders and will be fully i]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Your profile</name>
+            <value>
+                <![CDATA[<p style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">You are a good fit for this, if you: </span></p><ul style="m]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>What we offer</name>
+            <value>
+                <![CDATA[<p style="line-height:1.38;margin-top:12pt;margin-bottom:12pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">If you’ll join us as founders associate, you’ll get:</span]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
+    <employmentType>intern</employmentType>
+    <seniority>entry-level</seniority>
+    <schedule>full-time</schedule>
+    <yearsOfExperience>1-2</yearsOfExperience>
+    <keywords>AI,Logistics,Manufacturing,B2B</keywords>
+    <occupation>general_and_other_business_and_strategic_management</occupation>
+    <occupationCategory>business_and_strategic_development</occupationCategory>
+    <createdAt>2026-06-26T18:07:01+00:00</createdAt>
+</position>
+
+</workzag-jobs>

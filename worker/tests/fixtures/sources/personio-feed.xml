@@ -8,7 +8,38 @@
     <department>Sales</department>
     <recruitingCategory>Festangestellte</recruitingCategory>
     <name>Account Executive (gn)</name>
-    <jobDescriptions></jobDescriptions>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Dein Impact zur Mission:</name>
+            <value>
+                <![CDATA[Im Sales bei voiio geht es nicht nur um die Erreichung von Umsatzzielen - hier hast du die Chance, wirklich etwas zu bewegen, indem wir mit unserer Plattform Menschen spürbar im Berufs- und Privatleben unterstützen. Als Account Executive übernimmst du die Verantwortung für den ge]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Deine Aufgaben bei voiio: </name>
+            <value>
+                <![CDATA[<ul><li><p><strong>New Business:</strong> Du gewinnst proaktiv neue Kund:innen durch gezieltes Outbound-Prospecting (u.a. Cold Calling).</p></li><li><p><strong>Solution Selling: </strong>Du führst Web-Demos durch und übersetzt die Bedürfnisse der Unternehmen in passgenaue Lösunge]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Das zeichnet dich aus:</name>
+            <value>
+                <![CDATA[<ul><li><strong>Track Record:</strong> Mehrjährige Erfolgshistorie im B2B-SaaS Sales (idealerweise HR-Tech).</li><li><strong>Empathisches Kommunikationstalent:</strong> Du trittst überzeugend auf Augenhöhe mit Entscheider:innen auf, erkennst durch deine Empathie Kundenbedürfnisse]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Das bieten wir dir bei voiio:</name>
+            <value>
+                <![CDATA[<ul><li><p>Sehr wertschätzende und werteorientierte Unternehmenskultur</p></li><li><p>Flache Hierarchien und kurze Entscheidungswege</p></li><li><p>Mitarbeit in einem Social Impact Start-up, das die moderne Arbeitswelt von morgen gestaltet</p></li><li><p>Unbegrenzter Zugriff auf ]]>
+            </value>
+        </jobDescription>
+        <jobDescription>
+            <name>Kontakt</name>
+            <value>
+                <![CDATA[<span style="font-family:Arial, Helvetica, sans-serif;">Klingt spannend?<br><br>Dann freuen sich Laura und Barbara auf deine Bewerbung. Wir sind dauerhaft offen für motivierte und empathische Sales-Talente, daher schick uns gerne deinen CV und nenne uns in deiner Bewerbung auch d]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
     <employmentType>permanent</employmentType>
     <seniority>experienced</seniority>
     <schedule>full-time</schedule>
@@ -24,7 +55,14 @@
     <office>Berlin</office>
     <recruitingCategory>Festangestellte</recruitingCategory>
     <name>Initiativbewerbung / Bewerbung für Talent Pool – Social Impact &amp; Startup Growth (gn)</name>
-    <jobDescriptions></jobDescriptions>
+    <jobDescriptions>
+        <jobDescription>
+            <name>Kontakt</name>
+            <value>
+                <![CDATA[<p style="line-height:1.38;margin-top:0pt;margin-bottom:12pt;"><span style="font-size:11pt;font-family:Figtree, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">Keine passende Stelle dabei? Oder du suchst nach einem Pr]]>
+            </value>
+        </jobDescription>
+    </jobDescriptions>
     <employmentType>permanent</employmentType>
     <seniority>entry-level</seniority>
     <schedule>full-time</schedule>
@@ -44,32 +82,7 @@
     <department>Entrepreneurs-In-Residence</department>
     <recruitingCategory>Stealth AI Infrastructure for Physical Commodity Trading</recruitingCategory>
     <name>Co-founder &amp; CTO (Stealth AI Infrastructure for Physical Commodity Trading Venture)</name>
-    <jobDescriptions>
-        <jobDescription>
-            <name>What we do</name>
-            <value>
-                <![CDATA[Physical commodity trading is one of the world’s largest and least digitised industries. Critical commercial workflows still run through messages, calls, spreadsheets and tacit trader knowledge, while incumbent systems are generally better at recording transactions than preservin]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>Your role</name>
-            <value>
-                <![CDATA[The trading operating system is the core technology of the company. It is built around live commercial workflows rather than as generic software for incumbent trading houses and may later support selected external flow owners through controlled operating and revenue-sharing model]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>Your profile</name>
-            <value>
-                <![CDATA[<ul><li>A strong mathematical, machine learning, and data engineering foundation. </li><li>Applied AI/ML and data architecture depth: you have built and shipped real AI products into production, in messy, real-world environments. </li><li>Experience turning heterogeneous, unstruc]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>What we offer</name>
-            <value>
-                <![CDATA[<ul><li>True co-founder status: co-founder equity and full ownership of technology, with a seat in every strategic decision from day one. </li><li>A funded start with working-capital structures and initial commercial flows already under development.</li><li>Building with Merantix]]>
-            </value>
-        </jobDescription>
-    </jobDescriptions>
+    <jobDescriptions></jobDescriptions>
     <employmentType>permanent</employmentType>
     <seniority>experienced</seniority>
     <schedule>full-time</schedule>
@@ -85,32 +98,7 @@
     <office>Berlin</office>
     <department>Business Development</department>
     <name>Founders Associate Intern (Stealth Start-up)</name>
-    <jobDescriptions>
-        <jobDescription>
-            <name>What we do</name>
-            <value>
-                <![CDATA[<p style="line-height:1.38;margin-top:12pt;margin-bottom:12pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">Modern logistics and manufacturing rely on the smooth flow]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>Your role</name>
-            <value>
-                <![CDATA[<p style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">You'll sit directly next to the founders and will be fully i]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>Your profile</name>
-            <value>
-                <![CDATA[<p style="line-height:1.38;margin-top:0pt;margin-bottom:0pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">You are a good fit for this, if you: </span></p><ul style="m]]>
-            </value>
-        </jobDescription>
-        <jobDescription>
-            <name>What we offer</name>
-            <value>
-                <![CDATA[<p style="line-height:1.38;margin-top:12pt;margin-bottom:12pt;"><span style="font-size:11pt;font-family:Arial, sans-serif;color:#000000;background-color:transparent;font-weight:400;font-style:normal;text-decoration:none;">If you’ll join us as founders associate, you’ll get:</span]]>
-            </value>
-        </jobDescription>
-    </jobDescriptions>
+    <jobDescriptions></jobDescriptions>
     <employmentType>intern</employmentType>
     <seniority>entry-level</seniority>
     <schedule>full-time</schedule>

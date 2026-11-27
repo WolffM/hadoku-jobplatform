@@ -17,11 +17,21 @@ export const SOURCE_SITE = 'jobs.personio.de';
 
 type PersonioTask = Extract<SourceTask, { source: 'personio' }>;
 
-export function feedUrl(slug: string, ctx: SourceContext): string {
+/**
+ * Without `language` the feed answers in the board's default language, and a
+ * posting that exists only in another language comes back with no
+ * description at all. `?language=en` is the same in reverse. Measured
+ * 2026-11-27: voiio has 37 description sections in German and none in
+ * English, Merantix and Personio none in German and 32 / 37 in English.
+ * list() therefore reads the default feed and, only when some posting came
+ * back without text, the English one too.
+ */
+export function feedUrl(slug: string, ctx: SourceContext, language?: 'en'): string {
 	const s = encodeURIComponent(slug);
+	const q = language ? `?language=${language}` : '';
 	return ctx.baseOverride
-		? `${ctx.baseOverride}/personio/${s}/xml?language=en`
-		: `https://${s}.jobs.personio.de/xml?language=en`;
+		? `${ctx.baseOverride}/personio/${s}/xml${q}`
+		: `https://${s}.jobs.personio.de/xml${q}`;
 }
 
 export function postingUrl(slug: string, id: string): string {
@@ -157,10 +167,23 @@ export function normalizePosition(p: PersonioPosition, task: PersonioTask): Inge
 	};
 }
 
-/** One board, whole. Descriptions are inline, so no listing needs a detail call. */
+/**
+ * One board, whole, in at most two requests. Descriptions are inline, so no
+ * listing needs a detail call.
+ */
 export async function list(task: PersonioTask, ctx: SourceContext): Promise<Listing[]> {
-	const xml = await getText(ctx.http, feedUrl(task.slug, ctx), { Accept: 'application/xml' });
-	return parseFeed(xml)
-		.filter((p) => p.id && p.name && !NOT_A_POSTING.test(p.name))
-		.map((p) => ({ job: normalizePosition(p, task), detailUrl: null }));
+	const read = async (language?: 'en') =>
+		parseFeed(
+			await getText(ctx.http, feedUrl(task.slug, ctx, language), { Accept: 'application/xml' })
+		).filter((p) => p.id && p.name && !NOT_A_POSTING.test(p.name));
+
+	const positions = await read();
+	if (positions.some((p) => !p.descriptionHtml)) {
+		const english = new Map((await read('en')).map((p) => [p.id, p]));
+		for (const p of positions) {
+			const en = english.get(p.id);
+			if (!p.descriptionHtml && en?.descriptionHtml) p.descriptionHtml = en.descriptionHtml;
+		}
+	}
+	return positions.map((p) => ({ job: normalizePosition(p, task), detailUrl: null }));
 }

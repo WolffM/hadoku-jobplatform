@@ -273,6 +273,10 @@ describe('POST /ingest/sources (one task)', () => {
 		const rows = await jobsFrom('jobs.personio.de');
 		assert.equal(rows.length, 3);
 		assert.ok(rows.every((row) => row.ats === 'personio' && row.slug === 'merantix'));
+		assert.ok(
+			rows.every((row) => row.description !== ''),
+			'English-only postings got their text from the second read'
+		);
 		assert.ok(rows.some((row) => row.geo_keys === '|berlin-de|'));
 	});
 
