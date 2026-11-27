@@ -339,7 +339,7 @@ export function registerTailoringRoutes(app: JobsApp): void {
 		// The variant is minted in that person's own space at resume-api, so it
 		// is listed to them alone and its PDF carries their name.
 		const out = await callResumeFor(c, who.userId, '/resume/api/variants', {
-			label: `${job.company} — ${job.title}`,
+			label: `${job.company} - ${job.title}`,
 			markdown: resumeMarkdown,
 			...(coverLetterMarkdown ? { cover_letter_markdown: coverLetterMarkdown } : {}),
 			company: job.company,
