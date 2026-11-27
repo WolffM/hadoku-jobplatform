@@ -398,9 +398,10 @@ app.openapi(
 		// it behind the response rather than leaving the next viewer to pay for a
 		// live pass. Editing a profile is a deliberate act by someone plainly
 		// using it, so unlike the feed's lazy build there is nothing to wait for.
-		// Only when something scored changed: the view defaults (location,
-		// radius, min_salary, …) are outside the criteria hash, and a rebuild
-		// reads the whole corpus for nothing.
+		// Only when something scored changed: the view defaults (radius,
+		// min_salary, …) are outside the criteria hash, and a rebuild reads the
+		// whole corpus for nothing. `location` counts only when it moves the
+		// profile to another home region (see criteriaHash).
 		const scorable = await loadScorableProfile(db, id);
 		if (criteriaHash(scorable) !== criteriaBefore) scheduleRankBuild(c, db, id, scorable);
 

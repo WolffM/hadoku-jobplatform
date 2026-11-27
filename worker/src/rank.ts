@@ -13,7 +13,7 @@
  * trustworthy.
  */
 import type { D1Database } from '@cloudflare/workers-types';
-import { scoreJobLightAxes } from './scoring.js';
+import { disciplineTargets, homeRegion, scoreJobLightAxes } from './scoring.js';
 import type { ScorableProfile } from './profileScore.js';
 import { asRoleLevel } from './routes/jobs/shared.js';
 import { runAfterResponse, type HasExecutionCtx } from './background.js';
@@ -35,10 +35,17 @@ export interface RankableJob {
  * marker anyway — renaming a profile leaves the ranking valid, changing one
  * keyword does not. Arrays are sorted so a reordering that changes nothing
  * about the score does not force a 31k-row rebuild.
+ *
+ * Two inputs are derived rather than stored: the home region the profile's
+ * `location` resolves to (moving from Berlin to Munich changes nothing, moving
+ * to Seattle does), and whether the keywords name an adjacent ladder (which
+ * waives the discipline sink). Each is appended only when it differs from how
+ * every profile scored before it existed, so a profile neither touches keeps
+ * a byte-identical hash and its stored ranking stays current.
  */
 export function criteriaHash(p: ScorableProfile): string {
 	const norm = (xs: string[]) => [...xs].map((s) => s.trim().toLowerCase()).sort();
-	return JSON.stringify([
+	const parts: unknown[] = [
 		norm(p.keywords),
 		p.track,
 		norm(p.levels),
@@ -47,7 +54,13 @@ export function criteriaHash(p: ScorableProfile): string {
 		norm(p.interests_like),
 		norm(p.interests_avoid),
 		p.salary_floor,
-	]);
+	];
+	const derived: Record<string, string | boolean> = {};
+	const home = homeRegion(p.location);
+	if (home !== 'americas') derived.home_region = home;
+	if (disciplineTargets(p.keywords)) derived.discipline_waiver = true;
+	if (Object.keys(derived).length) parts.push(derived);
+	return JSON.stringify(parts);
 }
 
 export function boundFor(job: RankableJob, profile: ScorableProfile) {
