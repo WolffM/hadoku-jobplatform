@@ -234,18 +234,22 @@ app.openapi(ingestRoute, async (c) => {
 	// the board's current URL so the next scrape matches the cheap way. OR
 	// IGNORE because another row could already hold that URL; the bump stands
 	// either way.
+	let drifted = 0;
 	for (const j of seen) {
 		const row = byId.get(j.id);
 		if (!row || row.url === j.url) continue;
+		drifted++;
 		writes.push(db.prepare('UPDATE jobs SET last_seen_at = ? WHERE id = ?').bind(now, row.id));
 		writes.push(db.prepare('UPDATE OR IGNORE jobs SET url = ? WHERE id = ?').bind(j.url, row.id));
 	}
 	// A posting back on its board after its description was stripped gets it
 	// back. Found by the read above, so the rows that never lost theirs —
 	// nearly all of them — cost no extra write.
+	let restored = 0;
 	for (const j of seen) {
 		const row = byUrl.get(j.url) ?? byId.get(j.id);
 		if (row?.blank && j.description !== '') {
+			restored++;
 			writes.push(
 				db
 					.prepare(`UPDATE jobs SET description = ? WHERE id = ? AND description = ''`)
@@ -274,21 +278,33 @@ app.openapi(ingestRoute, async (c) => {
 	// No cull or strip here. Both used to run on every board's final batch —
 	// ~900 a night, each reading 35-45k rows to find a few hundred expired ones.
 	// mgmt-api's daily jobplatform:sweep drives POST /ingest/cull instead.
-	recordEvent(c, {
-		level: 'info',
-		event: 'ingest.batch',
-		message: `${source}${board_slug ? `/${board_slug}` : ''} #${batch_number}: ${accepted} new of ${received.length}`,
-		context: {
-			source,
-			board_slug: board_slug ?? null,
-			batch_number,
-			is_final,
-			received: received.length,
-			test_board_dropped: received.length - jobs.length,
-			accepted,
-			already_known: jobs.length - accepted,
-		},
-	});
+
+	// An event only for a batch that changed something (issue #43). A scrape is
+	// thousands of batches and nearly all of them are a liveness bump and
+	// nothing else: 22,664 events on 2026-11-27/28, 137 of which added a
+	// posting. Those rows were most of the shared events table. Every batch is
+	// still a request row in edge-router's log, and a failed one still posts
+	// unhandled_error, so dropping the no-op rows loses nothing the log lacks.
+	const dropped = received.length - jobs.length;
+	if (accepted > 0 || dropped > 0 || drifted > 0 || restored > 0) {
+		recordEvent(c, {
+			level: 'info',
+			event: 'ingest.batch',
+			message: `${source}${board_slug ? `/${board_slug}` : ''} #${batch_number}: ${accepted} new of ${received.length}`,
+			context: {
+				source,
+				board_slug: board_slug ?? null,
+				batch_number,
+				is_final,
+				received: received.length,
+				test_board_dropped: dropped,
+				accepted,
+				already_known: jobs.length - accepted,
+				url_adopted: drifted,
+				description_restored: restored,
+			},
+		});
+	}
 	return c.json(
 		{
 			success: true as const,

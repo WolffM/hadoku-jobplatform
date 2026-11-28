@@ -177,7 +177,7 @@ describe('operation events', () => {
 	const rows = () => h.telemetry as Posted[];
 	const named = (event: string) => rows().filter((r) => r.message.startsWith(`event=${event} `));
 
-	it('ingest posts one ingest.batch row with what the batch did', async () => {
+	it('ingest posts an ingest.batch row only for a batch that changed something', async () => {
 		h.telemetry.length = 0;
 		const job = (n: number) => ({
 			id: `op-${n}`,
@@ -205,9 +205,12 @@ describe('operation events', () => {
 			});
 		assert.equal((await send([job(1), job(2)])).status, 200);
 		assert.equal((await send([job(2), job(3)])).status, 200);
+		// A batch of postings already stored changes nothing but liveness: no
+		// row (issue #43 — a scrape is thousands of these).
+		assert.equal((await send([job(1), job(3)])).status, 200);
 		await h.settle();
 		const batches = named('ingest.batch');
-		assert.equal(batches.length, 2);
+		assert.equal(batches.length, 2, 'the all-known batch posts nothing');
 		assert.equal(batches[1].context.received, 2);
 		assert.equal(batches[1].context.accepted, 1);
 		assert.equal(batches[1].context.already_known, 1);

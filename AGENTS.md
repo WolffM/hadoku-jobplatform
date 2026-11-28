@@ -304,7 +304,9 @@ curl -s -A "Mozilla/5.0 hadoku-agent" -H "X-User-Key: $K" \
     `api.error` (a failed call, including one that never reached the edge),
     `ui.error` (a render crash, from `CrashBoundary`), `app.mounted` /
     `app.unmounted`. Typed text is never recorded.
-  - From the worker (`source=worker`): `ingest.batch`, `ingest.cull`,
+  - From the worker (`source=worker`): `ingest.batch` (only a batch that
+    added, dropped, re-URLed or restored a posting; an all-known batch is
+    just its request row), `ingest.cull`,
     `rank.rebuild`, `job.import`, `job.state`, `job.state_cleared`,
     `application.queued` / `queue_refused` / `status` / `status_unknown` /
     `approved` / `approve_refused` / `handed_off`, `tailoring.generated` /
